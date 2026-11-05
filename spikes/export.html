@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rekindra - native encoding feasibility probe</title>
+<style>body{margin:40px;background:#10272a;color:#e8eddd;font:16px system-ui}canvas{display:block;max-width:100%;margin:24px 0;border:1px solid #50665a}pre{white-space:pre-wrap}</style>
+<h1>Rekindra / browser encoding probe</h1>
+<p>Original Canvas frames into native WebCodecs. This is not yet a playable video exporter.</p>
+<canvas width="640" height="360"></canvas>
+<button onclick="runProbe().catch(e=>document.querySelector('pre').textContent=e.stack)">Run probe</button>
+<pre>Ready. No network calls or external engines.</pre>
+<script>
+async function runProbe() {
+  const canvas = document.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const report = {secureContext: isSecureContext, userAgent: navigator.userAgent, width:640, height:360, fps:30, frames:120, codecs:[]};
+  if (!globalThis.VideoEncoder) throw new Error('WebCodecs VideoEncoder unavailable');
+  for (const codec of ['vp8','vp09.00.10.08','avc1.42001e']) {
+    const config = {codec,width:640,height:360,bitrate:1_000_000,framerate:30};
+    const supported = await VideoEncoder.isConfigSupported(config);
+    const result = {codec,supported:supported.supported,chunks:0,bytes:0};
+    report.codecs.push(result);
+    if (!supported.supported) continue;
+    let failure;
+    const timestamps = [];
+    const encoder = new VideoEncoder({output(chunk){result.chunks++;result.bytes+=chunk.byteLength;timestamps.push(chunk.timestamp)},error(e){failure=e}});
+    try {
+      encoder.configure(config);
+      const start = performance.now();
+      for(let frame=0;frame<120;frame++) {
+        if(failure) throw failure;
+        ctx.fillStyle='#10272a';ctx.fillRect(0,0,640,360);
+        ctx.fillStyle='#abc779';ctx.beginPath();ctx.arc(120+frame*3,180+Math.sin(frame/15)*45,36,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#e8eddd';ctx.font='28px sans-serif';ctx.fillText('REKINDRA',30,50);
+        const image=new VideoFrame(canvas,{timestamp:Math.round(frame*1_000_000/30),duration:Math.round(1_000_000/30)});
+        try {encoder.encode(image,{keyFrame:frame%30===0})} finally {image.close()}
+        if(encoder.encodeQueueSize>8) await encoder.flush();
+      }
+      await encoder.flush();
+      if(failure) throw failure;
+      result.elapsedMs=Math.round(performance.now()-start);
+      result.firstTimestamp=Math.min(...timestamps);result.lastTimestamp=Math.max(...timestamps);
+    } catch(e) {result.error=String(e)} finally {if(encoder.state!=='closed') encoder.close()}
+  }
+  document.querySelector('pre').textContent=JSON.stringify(report,null,2);
+  return report;
+}
+</script>
