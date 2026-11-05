@@ -129,11 +129,16 @@ class CompositionStore:
         sources = self.sources(project_id, plan['source_ids'])
         embedded = [{**{k: v for k, v in s.items() if k != 'data'},
                      'url': f"data:{s['mime_type']};base64," + base64.b64encode(s['data']).decode('ascii')} for s in sources]
-        payload = json.dumps({'scene': plan['scene'], 'sources': embedded, 'model': plan.get('model', {})}, ensure_ascii=True, allow_nan=False)
+        content={'scene': plan['scene'], 'sources': embedded, 'model': plan.get('model', {})}
+        if plan['scene']['schema_version']==2:
+            from .worlds import compile_world
+            content['programs']=compile_world(plan['scene'])
+        payload = json.dumps(content, ensure_ascii=True, allow_nan=False)
         payload = payload.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
         template = (RUNTIME / 'player.html').read_text(encoding='utf-8')
         replacements = {'<!--TITLE-->': html.escape(plan['scene']['title']), '/*PAYLOAD*/': payload,
                         '/*SCENE_RUNTIME*/': (RUNTIME / 'scene.js').read_text(encoding='utf-8'),
+                        '/*WORLD_RUNTIME*/': (RUNTIME / 'world.js').read_text(encoding='utf-8'),
                         '/*WEBM_RUNTIME*/': (RUNTIME / 'webm.js').read_text(encoding='utf-8'),
                         '/*PLAYER_RUNTIME*/': (RUNTIME / 'player.js').read_text(encoding='utf-8')}
         # One substitution pass: input can never become another template directive.

@@ -9,3 +9,4 @@ provides_tools:
   - rekindra_plan
   - rekindra_build
   - rekindra_compose
+  - rekindra_create_world

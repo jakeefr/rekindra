@@ -2,17 +2,18 @@
   'use strict';
   const data=JSON.parse(document.querySelector('#payload').textContent),scene=data.scene;
   const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d'),images={};
-  let time=0,playing=false,start=0,exporting=false,cancelled=false;
+  let time=0,playing=false,start=0,exporting=false,cancelled=false,world=null;
   const scratch=document.createElement('canvas');scratch.width=1280;scratch.height=720;const sc=scratch.getContext('2d');
   $('title').textContent=scene.title;$('mood').textContent=scene.mood.toUpperCase();$('reason').textContent=scene.reason;
   $('seek').max=scene.duration;$('model').textContent=data.model.model?`Creative plan: ${data.model.provider} / ${data.model.model}`:'Creative plan: local authored fixture';
   function draw(t,ascii=$('ascii').checked,target=ctx){
+    if(world){const frame=world.render(t);if(ascii)RekindraScene.renderAscii(target,frame);else target.drawImage(frame,0,0);return}
     if(ascii){RekindraScene.renderScene(sc,scene,images,t);RekindraScene.renderAscii(target,scratch)}
     else RekindraScene.renderScene(target,scene,images,t);
   }
   function display(t){time=Math.max(0,Math.min(scene.duration-.0001,t));draw(time);$('seek').value=time;$('time').textContent=`${time.toFixed(1)} / ${scene.duration}s`}
   function stop(){playing=false;$('play').textContent='Play'}
-  function tick(now){if(playing&&!exporting){display(((now-start)/1000)%scene.duration)}requestAnimationFrame(tick)}
+  function tick(now){try{if(playing&&!exporting)display(((now-start)/1000)%scene.duration)}catch(e){stop();$('status').textContent=e.message;$('export').disabled=true}requestAnimationFrame(tick)}
   async function exportVideo({download=true}={}){
     if(exporting)throw Error('An export is already running');
     if(!globalThis.VideoEncoder)throw Error('This browser does not provide WebCodecs. Use a supported Chromium browser.');
@@ -47,6 +48,10 @@
       if(hash!==source.image_sha256)throw Error('Source image integrity check failed');
       const img=new Image();img.src=source.url;await img.decode();if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
       const card=document.createElement('div');card.className='source';const thumb=img.cloneNode(),caption=document.createElement('span');thumb.alt=source.name;caption.textContent=`${source.name} · ${source.kind} · SHA-256 ${source.source_sha256}`;card.append(thumb,caption);$('sources').append(card)}
+    if(scene.schema_version===2){
+      world=RekindraWorld.createRenderer(scene,data.programs);
+      for(const ref of scene.references){const p=document.createElement('p');p.textContent=`Agent interpretation — observed: ${ref.observed} Created: ${ref.created}`;$('sources').append(p)}
+    }
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};
     $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=()=>display(time);

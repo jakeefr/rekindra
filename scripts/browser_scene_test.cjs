@@ -14,6 +14,18 @@ const {pathToFileURL}=require('node:url');
     assert.notEqual(frames[0],frames[1],'Animation did not change frames');
     const repeat=await page.evaluate(()=>{rekindra.renderAt(.1);rekindra.renderAt(1);return document.querySelector('canvas').toDataURL()});
     assert.equal(repeat,frames[0],'Seeking changed the same frame');
+    if(process.env.REKINDRA_WORLD_STUDY){
+      const result=await page.evaluate(()=>{
+        if(rekindra.scene.schema_version!==2)throw Error('Not a generated world');
+        let imageDraws=0;const original=CanvasRenderingContext2D.prototype.drawImage;
+        CanvasRenderingContext2D.prototype.drawImage=function(...args){if(args[0] instanceof HTMLImageElement)imageDraws++;return original.apply(this,args)};
+        const saved=rekindra.scene.camera;const fixed=saved.map(k=>({...k,eye:saved[0].eye,target:saved[0].target,fov:saved[0].fov}));
+        try{rekindra.scene.camera=fixed;rekindra.renderAt(1);const a=document.querySelector('#stage').toDataURL();rekindra.renderAt(4);const b=document.querySelector('#stage').toDataURL();return {independentMotion:a!==b,imageDraws}}
+        finally{rekindra.scene.camera=saved;CanvasRenderingContext2D.prototype.drawImage=original;rekindra.renderAt(2.5)}
+      });
+      assert.equal(result.imageDraws,0,'Source pixels were drawn in world mode');
+      assert.equal(result.independentMotion,true,'Only the camera moved; geometry must animate');
+    }
     if(process.env.REKINDRA_MOTION_STUDY){
       assert.equal(await page.evaluate(()=>rekindra.scene.layers.some(l=>l.kind==='text')),false);
       const sheet=await page.evaluate(()=>{
@@ -36,7 +48,7 @@ const {pathToFileURL}=require('node:url');
     assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),frames[1]);
     await page.locator('#ascii').uncheck();
     const downloadPromise=page.waitForEvent('download');
-    const exportResult=await page.evaluate(async()=>{
+    const exportResult=await page.evaluate(async(worldStudy)=>{
       const blob=await rekindra.exportVideo({download:false});
       const url=URL.createObjectURL(blob),video=document.createElement('video');video.muted=true;video.src=url;
       const wait=event=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error('Video timeout: '+event)),20000);video.addEventListener(event,()=>{clearTimeout(t);resolve()},{once:true});video.addEventListener('error',()=>{clearTimeout(t);reject(Error('Video decode error '+video.error?.message))},{once:true})});
@@ -46,9 +58,15 @@ const {pathToFileURL}=require('node:url');
       const sample=Array.from(x.getImageData(640,360,1,1).data);
       await video.play();await new Promise(r=>setTimeout(r,150));video.pause();
       const result={size:blob.size,duration,width:video.videoWidth,height:video.videoHeight,seek:video.currentTime,sample};
+      if(worldStudy){
+        const sheet=document.createElement('canvas');sheet.width=1280;sheet.height=1080;const sx=sheet.getContext('2d');
+        for(let i=0;i<6;i++){const ready=wait('seeked');video.currentTime=(i+.5)*duration/6;await ready;sx.drawImage(video,i%2*640,Math.floor(i/2)*360,640,360)}
+        result.decodedContactSheet=sheet.toDataURL().split(',')[1];
+      }
       const a=document.createElement('a');a.href=url;a.download='verified-scene.webm';a.click();return result;
-    });
+    },Boolean(process.env.REKINDRA_WORLD_STUDY));
     const download=await downloadPromise;await download.saveAs(path.join(out,'verified-scene.webm'));
+    if(exportResult.decodedContactSheet){fs.writeFileSync(path.join(out,'decoded-contact-sheet.png'),Buffer.from(exportResult.decodedContactSheet,'base64'));delete exportResult.decodedContactSheet}
     assert.ok(Number.isFinite(exportResult.duration)&&Math.abs(exportResult.duration-await page.evaluate(()=>rekindra.scene.duration))<.05);
     assert.equal(exportResult.width,1280);assert.equal(exportResult.height,720);assert.ok(exportResult.seek>0);assert.ok(exportResult.sample.slice(0,3).some(x=>x>0));
     assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);

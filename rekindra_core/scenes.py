@@ -11,7 +11,7 @@ class SceneError(ValueError):
 def enforce_text_preference(scene, allow_text=False):
     if type(allow_text) is not bool:
         raise SceneError('allow_text must be a boolean')
-    if not allow_text and any(layer.get('kind') == 'text' for layer in scene['layers']):
+    if not allow_text and any(layer.get('kind') == 'text' for layer in scene.get('layers',[])):
         raise SceneError('On-screen text is off by default. Use allow_text=true only when the user explicitly requests text.')
 
 
@@ -35,6 +35,9 @@ def _text(value, limit, label):
 def validate_scene(value: dict, asset_ids: set[str]) -> dict:
     if not isinstance(value, dict):
         raise SceneError('Scene must be an object')
+    if value.get('schema_version')==2:
+        from .worlds import validate_world
+        return validate_world(value,asset_ids)
     required = {'schema_version', 'title', 'mood', 'reason', 'duration', 'width', 'height', 'background', 'palette', 'seed', 'layers'}
     if set(value) != required or type(value['schema_version']) is not int or value['schema_version'] != 1:
         raise SceneError('Unsupported scene version or fields')
