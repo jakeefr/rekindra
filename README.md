@@ -40,7 +40,7 @@ Local Windows: 25 unit/integration tests passed; real Hermes Plugin Doctor and c
 
 The native browser probe encoded 120 frames at 640x360/30 fps in Windows Chrome using VP8, VP9 and H.264. It emits raw encoded chunks, not a playable container. Playwright is used only by the developer's probe runner; it is not a production creative engine.
 
-Cross-platform CI tests the core on Windows, Linux and macOS with Python 3.11/3.14. A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host integration and live model conversation remain unverified.
+Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, with 25 tests per job and no symlink-test skips: [foundation CI run](https://github.com/jakeefr/rekindra/actions/runs/41980181028). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host integration and live model conversation remain unverified.
 
 Next: scene schema and renderer, semantic mood planning, safe reconstruction, correct downloadable video container, job progress/cancellation, and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
 
