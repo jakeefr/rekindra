@@ -2,7 +2,7 @@
 
 An original Hermes Agent plugin for recovering, reconstructing, and reimagining forgotten files.
 
-Status: working recovery foundation. This is not yet the complete creative product or a released plugin.
+Status: working recovery and original animated-scene milestone. This is not yet the complete creative product or a released plugin.
 
 ## Product boundary
 
@@ -29,6 +29,15 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 - `rekindra_inspect`: bounded folder inventory, source snapshots, hashes and explicit skips.
 - `rekindra_recover`: original TGA type 2/10 true-color decoding to PNG, with provenance.
 - `rekindra_status`: saved inventory and recovered artifacts.
+- `rekindra_compose`: validate an agent-authored scene and build a portable, offline HTML player with ASCII mode and silent WebM export.
+- `rekindra_plan`: optional separate host-owned structured model call to infer mood and save a scene plan.
+- `rekindra_build`: rebuild a saved plan after verifying source integrity.
+
+Recommended flow: inspect the selected folder, recover TGA images, let the active Hermes agent view selected images with consent, then have it call `rekindra_compose`. Creative output is labelled generated. `rekindra_plan` is an optional route; on the tested native Hermes build, its Python auxiliary model client could not access the working Codex chat sign-in. Do not copy credentials or add a second provider to work around this. Use the active agent route.
+
+Scenes currently support 1-6 PNG/JPEG/recovered TGA sources, 4-30 seconds at 1280x720, images, text, and deterministic particles. PNG/JPEG headers are bounded before upload; baseline/progressive 8-bit JPEG only. Image bytes are capped at 2 MB each / 8 MB total. Saved HTML embeds its assets and checks their hashes before playback. Hashes detect corruption; they are not signatures proving authenticity.
+
+Open the saved HTML in a current Chromium browser, play or scrub it, optionally select ASCII, and choose **Save video**. Export uses native WebCodecs VP8 packets and our original WebM writer. No audio or MP4 yet. A browser without VP8 WebCodecs encoding can still play the scene but cannot export video.
 
 Supported TGA subset: 24/32-bit, no color map or interleaving; all four image origins; 8-bit declared alpha or opaque output. Known footer/metadata boundaries are excluded from pixel recovery. Unknown trailing metadata stays in the original snapshot and is reported as uninterpreted. This is not universal damaged-image repair.
 
@@ -36,11 +45,11 @@ Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited direct
 
 ## Verification
 
-Local Windows: 25 unit/integration tests passed; real Hermes Plugin Doctor and catalog validation passed; actual Hermes registry dispatch completed inspect/recover/status with unchanged originals. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed-registry flow with the Hermes interpreter and `HERMES_HOME` set.
+Local Windows: 38 Python and 3 Node tests pass; real Hermes Plugin Doctor registers six tools and catalog validation passes. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.
 
-The native browser probe encoded 120 frames at 640x360/30 fps in Windows Chrome using VP8, VP9 and H.264. It emits raw encoded chunks, not a playable container. Playwright is used only by the developer's probe runner; it is not a production creative engine.
+Real Windows Chrome acceptance now verifies original 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Playwright is development-only. Reproduce with `scripts/make_scene_fixture.py`, then `scripts/browser_scene_test.cjs` (requires a development Playwright installation and Chrome).
 
-Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, with 25 tests per job and no symlink-test skips: [foundation CI run](https://github.com/jakeefr/rekindra/actions/runs/41980181028). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host integration and live model conversation remain unverified.
+Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 38 Python and 3 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41983736098). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
 
-Next: scene schema and renderer, semantic mood planning, safe reconstruction, correct downloadable video container, job progress/cancellation, and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
+Next: stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
 
