@@ -63,7 +63,11 @@
       const digest=await crypto.subtle.digest('SHA-256',bytes);
       const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
       if(hash!==source.image_sha256)throw Error('Source image integrity check failed');
-      const img=new Image();img.src=source.url;await img.decode();if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
+      const img=new Image();
+      // Image.decode() can remain pending after headless virtual time expires.
+      // A load event participates in document loading and completes before DOM capture.
+      await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Source image could not be loaded'));img.src=source.url});
+      if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
       const card=document.createElement('div');card.className='source';const thumb=img.cloneNode(),caption=document.createElement('span');thumb.alt=source.name;caption.textContent=`${source.name} · ${source.kind} · SHA-256 ${source.source_sha256}`;card.append(thumb,caption);$('sources').append(card)}
     if(scene.schema_version===2){
       world=RekindraWorld.createRenderer(scene,data.programs);
