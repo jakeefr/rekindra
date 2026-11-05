@@ -29,6 +29,7 @@ class WorldTests(unittest.TestCase):
         for expr in ('__import__("os")','u.x','u[0]','[u for u in x]','sin(u,v)','nan','1e999','2**999','u; discard;', 'True'):
             with self.subTest(expr=expr),self.assertRaises(SceneError):compile_expression(expr)
         with self.assertRaises(SceneError):compile_expression('sin('*30+'u'+')'*30)
+        with self.assertRaises(SceneError):compile_expression('9'*400)
 
     def test_generated_world_does_not_require_image_layers(self):
         s=world();result=validate_world(s,{'a'*32})

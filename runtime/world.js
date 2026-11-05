@@ -12,6 +12,23 @@
     return keys[keys.length-1];
   }
   function basis(c){const forward=unit(sub(c.target,c.eye)),right=unit(cross(forward,Math.abs(forward[1])>.99?[0,0,1]:[0,1,0]));return {forward,right,up:unit(cross(right,forward))}}
+  // Parallel-transport orientation from a fixed sample table, never from the last displayed frame.
+  const cameraTables=new WeakMap(),DEPTH_A=(400+.1)/(400-.1),DEPTH_B=2*400*.1/(400-.1);
+  function transport(previous,forward){
+    const axis=cross(previous.forward,forward),s=Math.hypot(...axis),c=Math.max(-1,Math.min(1,dot(previous.forward,forward)));
+    let right=previous.right;
+    if(s>1e-9){const n=axis.map(x=>x/s),nr=cross(n,right),d=dot(n,right);right=right.map((x,i)=>x*c+nr[i]*s+n[i]*d*(1-c))}
+    else if(c<0)right=right.map(x=>-x);
+    right=unit(sub(right,forward.map(x=>x*dot(right,forward))));
+    return {forward,right,up:unit(cross(right,forward))};
+  }
+  function cameraFrame(keys,t){
+    let table=cameraTables.get(keys);
+    if(!table){table=[basis(keys[0])];const frames=Math.ceil(keys[keys.length-1].at*30);
+      for(let i=1;i<=frames;i++){const c=cameraAt(keys,i/30);table.push(transport(table[i-1],unit(sub(c.target,c.eye))))}cameraTables.set(keys,table)}
+    const camera=cameraAt(keys,t),index=Math.max(0,Math.min(table.length-1,Math.floor(t*30)));
+    return {camera,basis:transport(table[index],unit(sub(camera.target,camera.eye)))};
+  }
   function projectPoint(p,c,w,h){const b=basis(c),d=sub(p,c.eye),z=dot(d,b.forward),tan=Math.tan(c.fov*Math.PI/360);return [w/2+dot(d,b.right)/z/tan*h/2,h/2-dot(d,b.up)/z/tan*h/2,z]}
   const rgb=hex=>[1,3,5].map(i=>Math.pow(parseInt(hex.slice(i,i+2),16)/255,2.2));
   const math=`
@@ -71,7 +88,7 @@ void main(){float u=uv.x,v=uv.y;vec3 pos=surface(u,v);
 vec3 du=surface(u+.0005,v)-surface(u-.0005,v),dv=surface(u,v+.0005)-surface(u,v-.0005);
 vec3 n=cross(dv,du);worldNormal=length(n)>.0000001?normalize(n):vec3(0.,1.,0.);
 worldPos=pos;blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
-gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,1.002002*z-.2002002,z);}`,
+gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;
 ${uniforms}uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${sky}
@@ -95,7 +112,7 @@ pixel=vec4(displayColor(lit),1.);}`);
     });
     function render(time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
-      const c=cameraAt(scene.camera,time),b=basis(c);gl.viewport(0,0,canvas.width,canvas.height);
+      const frame=cameraFrame(scene.camera,time),c=frame.camera,b=frame.basis;gl.viewport(0,0,canvas.width,canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(null);setup(skyProgram,c,b,time);gl.drawArrays(gl.TRIANGLES,0,3);
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       for(const s of surfaces){setup(s.p,c,b,time);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
@@ -104,5 +121,5 @@ pixel=vec4(displayColor(lit),1.);}`);
     }
     return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p)}};
   }
-  const api={cameraAt,basis,projectPoint,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
+  const api={cameraAt,basis,projectPoint,cameraFrame,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

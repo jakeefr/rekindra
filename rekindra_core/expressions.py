@@ -19,7 +19,7 @@ def compile_expression(source):
         cost+=1
         if cost>128 or depth>24:raise SceneError('Surface expression is too complex')
         if isinstance(node,ast.Constant) and type(node.value) in (int,float):
-            if not math.isfinite(node.value) or abs(node.value)>1000:raise SceneError('Expression constants must be finite and within +/-1000')
+            if abs(node.value)>1000 or not math.isfinite(node.value):raise SceneError('Expression constants must be finite and within +/-1000')
             return format(float(node.value),'.9f')
         if isinstance(node,ast.Name) and node.id in ('u','v','t','pi'):return node.id
         if isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.USub,ast.UAdd)):
