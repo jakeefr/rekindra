@@ -39,7 +39,13 @@
     }finally{if(encoder.state!=='closed')encoder.close();exporting=false;$('export').disabled=false;$('play').disabled=false;$('seek').disabled=false;$('ascii').disabled=false;$('cancel').hidden=true;display(wasTime)}
   }
   try{
-    for(const source of data.sources){const img=new Image();img.src=source.url;await img.decode();if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
+    for(const source of data.sources){
+      if(!/^data:image\/(png|jpeg);base64,/.test(source.url)||source.url.length>2_700_000)throw Error('Invalid embedded source');
+      const bytes=Uint8Array.from(atob(source.url.split(',')[1]),c=>c.charCodeAt(0));
+      const digest=await crypto.subtle.digest('SHA-256',bytes);
+      const hash=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+      if(hash!==source.image_sha256)throw Error('Source image integrity check failed');
+      const img=new Image();img.src=source.url;await img.decode();if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
       const card=document.createElement('div');card.className='source';const thumb=img.cloneNode(),caption=document.createElement('span');thumb.alt=source.name;caption.textContent=`${source.name} · ${source.kind} · SHA-256 ${source.source_sha256}`;card.append(thumb,caption);$('sources').append(card)}
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};

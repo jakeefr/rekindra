@@ -14,6 +14,34 @@ from .scenes import validate_scene, SceneError
 RUNTIME = Path(__file__).resolve().parents[1] / 'runtime'
 
 
+def jpeg_dimensions(data: bytes) -> tuple[int, int]:
+    """Bounded baseline/progressive JPEG header walk; never decompress pixels."""
+    if data[:2] != b'\xff\xd8': raise SceneError('Invalid JPEG header')
+    pos = 2
+    while pos < len(data):
+        if data[pos] != 255: raise SceneError('Malformed JPEG marker')
+        while pos < len(data) and data[pos] == 255: pos += 1
+        if pos >= len(data): break
+        marker = data[pos]; pos += 1
+        if marker in (0, 0xd8, 0xd9, 0xda) or 0xd0 <= marker <= 0xd7: break
+        if marker == 1: continue
+        if pos+2 > len(data): break
+        size = int.from_bytes(data[pos:pos+2], 'big')
+        if size < 2 or pos+size > len(data): break
+        if marker in (0xc0, 0xc2):
+            if size < 8: break
+            precision, height, width, count = struct.unpack_from('>BHHB', data, pos+2)
+            if precision != 8 or count not in (1, 3, 4) or size != 8+3*count:
+                raise SceneError('Unsupported JPEG frame header')
+            if not width or not height or width*height > 20_000_000:
+                raise SceneError('Image exceeds decoded pixel budget')
+            return width, height
+        if marker in (0xc1,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf):
+            raise SceneError('Only baseline and progressive JPEG frames are supported')
+        pos += size
+    raise SceneError('Missing or truncated JPEG frame header')
+
+
 class CompositionStore:
     def __init__(self, projects: ProjectStore):
         self.projects = projects
@@ -55,6 +83,8 @@ class CompositionStore:
                 width, height = struct.unpack_from('>II', data, 16)
                 if not width or not height or width*height > 20_000_000:
                     raise SceneError('Image exceeds decoded pixel budget')
+            else:
+                jpeg_dimensions(data)
             result.append({'asset_id': aid, 'name': asset['source_path'], 'mime_type': mime,
                            'data': data, 'source_sha256': asset['sha256'], 'image_sha256': hashlib.sha256(data).hexdigest(),
                            'kind': 'recovered' if asset['format'].startswith('tga') else 'original'})

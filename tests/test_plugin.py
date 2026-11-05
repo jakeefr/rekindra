@@ -25,7 +25,7 @@ class PluginTests(unittest.TestCase):
                 self.tools[kwargs['name']] = kwargs
         ctx = Context()
         plugin.register(ctx)
-        self.assertEqual(set(ctx.tools), {'rekindra_inspect', 'rekindra_recover', 'rekindra_status', 'rekindra_plan', 'rekindra_build'})
+        self.assertEqual(set(ctx.tools), {'rekindra_inspect', 'rekindra_recover', 'rekindra_status', 'rekindra_plan', 'rekindra_build', 'rekindra_compose'})
         # Registration must work without Hermes installed in this interpreter.
         result = json.loads(ctx.tools['rekindra_inspect']['handler']({'folder': 17}))
         self.assertFalse(result['ok'])

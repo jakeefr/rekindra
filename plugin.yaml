@@ -8,3 +8,4 @@ provides_tools:
   - rekindra_status
   - rekindra_plan
   - rekindra_build
+  - rekindra_compose

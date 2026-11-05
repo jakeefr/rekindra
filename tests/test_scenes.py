@@ -1,10 +1,11 @@
 import copy
 import json
+import struct
 from pathlib import Path
 import unittest
 
 from rekindra_core.scenes import validate_scene, SceneError
-from rekindra_core.compositions import CompositionStore
+from rekindra_core.compositions import CompositionStore, jpeg_dimensions
 import test_projects
 from test_tga import fixture
 
@@ -21,6 +22,14 @@ def scene(asset_id='a'*32):
 
 
 class SceneTests(unittest.TestCase):
+    def test_jpeg_header_bounds(self):
+        for marker in (0xc0, 0xc2):
+            data = b'\xff\xd8\xff'+bytes([marker])+struct.pack('>HBHHB',11,8,360,640,1)+b'\x01\x11\x00'
+            self.assertEqual(jpeg_dimensions(data), (640,360))
+            for cut in (2, 5, 10, len(data)-1):
+                with self.assertRaises(SceneError): jpeg_dimensions(data[:cut])
+        with self.assertRaises(SceneError): jpeg_dimensions(b'\xff\xd8\xff\xe0\x00\x01')
+
     def test_normalizes_valid_scene_without_mutating_input(self):
         raw = scene()
         result = validate_scene(raw, {'a'*32})
@@ -45,6 +54,22 @@ class SceneTests(unittest.TestCase):
 
 class CompositionTests(unittest.TestCase):
     setUp = test_projects.ProjectTests.setUp
+    def test_jpeg_dimensions_rejected_before_model_submission(self):
+        data = b'\xff\xd8\xff\xc0' + struct.pack('>HBHHB', 11, 8, 65535, 65535, 1) + b'\x01\x11\x00' + b'\xff\xd9'
+        (self.source / 'huge.jpg').write_bytes(data)
+        p = self.store.inspect(self.source)
+        with self.assertRaisesRegex(SceneError, 'pixel budget'):
+            CompositionStore(self.store).sources(p['project_id'], [p['assets'][0]['asset_id']])
+
+    def test_agent_authored_scene_builds_without_auxiliary_model(self):
+        from test_plugin import plugin
+        (self.source / 'old.tga').write_bytes(fixture())
+        p = self.store.inspect(self.source); aid = p['assets'][0]['asset_id']
+        result = json.loads(plugin.handlers.make_handlers(lambda: self.store)['rekindra_compose'](
+            {'project_id': p['project_id'], 'asset_ids': [aid], 'scene': scene(aid)}))
+        self.assertTrue(result['ok'], result)
+        self.assertTrue(Path(result['result']['path']).is_file())
+
     def test_plan_build_and_safe_embedding(self):
         (self.source / 'old.tga').write_bytes(fixture())
         p = self.store.inspect(self.source)

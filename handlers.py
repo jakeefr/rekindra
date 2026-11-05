@@ -23,7 +23,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
             if not isinstance(args, dict):
                 raise ToolInputError('Tool arguments must be an object')
             required = {'inspect': ('folder',), 'recover': ('project_id','asset_id'),
-                        'plan': ('project_id','intent'), 'build': ('project_id','plan_id'),
+                        'plan': ('project_id','intent'), 'build': ('project_id','plan_id'), 'compose': ('project_id',),
                         'status': ('project_id',)}[operation]
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in required):
                 raise ToolInputError('Provide nonempty string values for: ' + ', '.join(required))
@@ -46,6 +46,11 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result = {k:saved[k] for k in ('plan_id','project_id','kind','source_ids','model')}
                 result.update({k:saved['scene'][k] for k in ('title','mood','reason','duration')})
                 result['layer_count'] = len(saved['scene']['layers'])
+            elif operation == 'compose':
+                compositions = CompositionStore(store)
+                saved = compositions.save_plan(args['project_id'], args.get('scene'), args.get('asset_ids'),
+                                               {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
+                result = compositions.build(args['project_id'], saved['plan_id'])
             elif operation == 'build':
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'])
             else:
@@ -73,5 +78,8 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
     def build(args, **kwargs):
         return invoke('build', args)
 
+    def compose(args, **kwargs):
+        return invoke('compose', args)
+
     return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status,
-            'rekindra_plan': plan, 'rekindra_build': build}
+            'rekindra_plan': plan, 'rekindra_build': build, 'rekindra_compose': compose}
