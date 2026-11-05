@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+.local/
+.superpowers/
+node_modules/
+test-results/
+playwright-report/
+*.log
+
