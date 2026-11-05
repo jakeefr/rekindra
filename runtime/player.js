@@ -13,6 +13,23 @@
   }
   function display(t){time=Math.max(0,Math.min(scene.duration-.0001,t));draw(time);$('seek').value=time;$('time').textContent=`${time.toFixed(1)} / ${scene.duration}s`}
   function stop(){playing=false;$('play').textContent='Play'}
+  function reviewFrames(){
+    if(exporting)throw Error('Wait for video export before capturing review frames');
+    stop();const saved=time,c=document.createElement('canvas');c.width=1280;c.height=1128;
+    const x=c.getContext('2d'),times=[];x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
+    try{
+      for(let i=0;i<6;i++){
+        const t=(i+.5)*scene.duration/6;times.push(t);draw(t,false,sc);
+        const px=i%2*640,py=Math.floor(i/2)*376;
+        x.drawImage(scratch,px,py,640,360);x.fillStyle='#eee';x.font='12px monospace';x.fillText(t.toFixed(2)+' s',px+8,py+372);
+      }
+      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,png:c.toDataURL('image/png').split(',')[1]};
+    }finally{display(saved)}
+  }
+  function reportReview(result){
+    const el=document.createElement('script');el.id='rekindra-review-result';el.type='application/json';
+    el.textContent=JSON.stringify(result);document.body.append(el);
+  }
   function tick(now){try{if(playing&&!exporting)display(((now-start)/1000)%scene.duration)}catch(e){stop();$('status').textContent=e.message;$('export').disabled=true}requestAnimationFrame(tick)}
   async function exportVideo({download=true}={}){
     if(exporting)throw Error('An export is already running');
@@ -57,6 +74,10 @@
     $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=()=>display(time);
     $('export').onclick=()=>exportVideo().catch(e=>$('status').textContent=e.message);
     $('cancel').onclick=()=>cancelled=true;
-    globalThis.rekindra={ready:true,scene,data,renderAt:display,exportVideo,cancelExport:()=>cancelled=true};requestAnimationFrame(tick);
-  }catch(e){$('status').textContent=`Cannot open scene: ${e.message}`;$('play').disabled=true;$('export').disabled=true;globalThis.rekindra={ready:false,error:e.message}}
+    globalThis.rekindra={ready:true,scene,data,renderAt:display,exportVideo,reviewFrames,cancelExport:()=>cancelled=true};
+    if(new URLSearchParams(location.search).get('rekindra_review')==='1')reportReview({ok:true,result:reviewFrames()});
+    else requestAnimationFrame(tick);
+  }catch(e){$('status').textContent=`Cannot open scene: ${e.message}`;$('play').disabled=true;$('export').disabled=true;globalThis.rekindra={ready:false,error:e.message};
+    if(new URLSearchParams(location.search).get('rekindra_review')==='1')reportReview({ok:false,error:'Scene rendering failed. Check source integrity, graphics support and scene geometry.'});
+  }
 })();

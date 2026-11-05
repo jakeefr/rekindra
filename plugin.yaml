@@ -10,3 +10,4 @@ provides_tools:
   - rekindra_build
   - rekindra_compose
   - rekindra_create_world
+  - rekindra_preview

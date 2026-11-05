@@ -8,7 +8,7 @@ This is the current primary-side scene system. The second developer's isolated s
 2. Obtain consent for the chosen agent's image input and view selected references using Hermes's native vision route.
 3. Describe concrete observed features: palette, silhouette, repeated forms, depth relationships, texture, mood cues. Separate invented scene elements from observations.
 4. Author `rekindra_create_world` scene v2. Choose geometry and motion that express those features; do not default every source to ocean/torus imagery.
-5. Open the HTML, export and inspect the actual rendered sequence. A valid schema and successful export are not creative acceptance. Check silhouette, framing, foreground obstruction, lighting, independent movement, and temporal progression.
+5. Call `rekindra_preview(project_id, plan_id)` and inspect its returned PNG with native vision under the user image-sharing consent. Use the HTML video exporter and decoded-video review when export-specific inspection is needed. A valid schema and successful export are not creative acceptance. Check silhouette, framing, foreground obstruction, lighting, independent movement, and temporal progression.
 6. Critique actual rendered frames and submit a revised world if needed. Revisions are new immutable plans. Keep the returned plan ID and artifact path: the current project status inventory still lists original/recovered artifacts, not generated plans.
 
 The active-agent route does not require a second model login or plugin-owned credentials. The separate `ctx.llm` route remains optional and has an unresolved native-chat/Python-client auth mismatch on this development installation.
@@ -21,7 +21,7 @@ Before authoring, choose three concrete visual cues from the source, an invented
 
 Frame the important forms at useful scale, preserve their silhouettes, and check depth from the actual camera. Review color identity after shading; source hex values alone do not guarantee a matching rendered palette. Do not solve every empty frame with extra objects or every weak composition with camera movement.
 
-Inspect decoded frames from the exported video at the beginning, middle and end. Ask separately: are source cues recognizable, is the invention substantial, is the transformation legible with a fixed camera, is framing readable, and does the final state feel intentional? Automated motion and integrity checks cannot answer these aesthetic questions. Feed observed defects and the actual contact sheet back to the authoring agent, then render the revision. This development review loop is currently external tooling, not an autonomous plugin feature.
+Inspect decoded frames from the exported video at the beginning, middle and end. Ask separately: are source cues recognizable, is the invention substantial, is the transformation legible with a fixed camera, is framing readable, and does the final state feel intentional? Automated motion and integrity checks cannot answer these aesthetic questions. Feed observed defects and the actual contact sheet back to the authoring agent, then render the revision. The plugin now supplies rendered contact sheets through `rekindra_preview`; the active agent must still view and critique them. A contact sheet does not establish encoded-video correctness or make aesthetic acceptance automatic.
 
 `scripts/make_variety_sources.py` reproduces the original synthetic visual references on D: in `.local/variety-study`. These test rendering and creative interpretation only; they are unrelated to the second developer's intake fixtures and do not establish performance on real damaged archives.
 
@@ -62,3 +62,14 @@ WebGL2 is required for worlds; native VP8 WebCodecs encoding is required for exp
 The filmstrip is sampled decoded video, not proof of human-like continuous viewing. Review multiple times and full playback behavior; do not equate a frame-difference statistic with beauty or usefulness.
 
 `scripts/review_video.cjs VIDEO OUTPUT_DIRECTORY` creates four sheets containing 24 decoded video samples with timestamps outside the image frames. It is development tooling with Playwright, not a production dependency or text added to the video. Use it to inspect transitions and spatial conflicts missed by a six-frame overview.
+
+
+## Native preview workflow
+
+`rekindra_preview` regenerates a validated plan, copies the exact hash-checked HTML into an isolated work directory, and launches installed Chrome/Chromium/Edge headlessly. The original player draws six samples at `(i + .5) * duration / 6` into a 1280x1128 PNG with timestamps outside the frames. A completed JSON marker is required; waiting alone is never accepted as success. The returned result includes plan/project IDs, times, PNG hash and reviewed HTML hash.
+
+This local tool does not call a model or send the image externally. The active agent can then use native vision under the user's image-sharing consent, name concrete defects, create an immutable revision and preview again. It must not claim to have watched or decoded video from this sheet. Do not iterate indefinitely: report remaining defects candidly if revisions do not improve them.
+
+The browser uses an isolated profile/cache/temp under the project and is limited to45 seconds with a40MB DOM-output read cap and8MB PNG cap. No caller URL/browser flags, credential reuse, browser download, disabled sandbox or production Playwright dependency. A user may configure `REKINDRA_BROWSER` as an absolute executable path. Common Windows/macOS/Linux browser locations are supported; only Windows live behavior has been verified so far. Interrupted browser processes are terminated/reaped, temporary paths are containment-checked before cleanup, and the preview lock is always released. A locked temporary directory may remain if OS cleanup fails; no broad filesystem cleanup is attempted.
+
+CLI background operation is based on [Chrome's official headless interface](https://developer.chrome.com/docs/automation-and-testing/headless-cli). Scene rendering and PNG assembly are Rekindra's own implementation. Headless native-browser requirements and graphics failures are surfaced to the agent rather than replaced with a fake preview.
