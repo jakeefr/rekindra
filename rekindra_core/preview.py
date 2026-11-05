@@ -180,6 +180,7 @@ def preview_scene(store, project_id, plan_id):
         _no_links(target)
         _atomic(target, png)
         return {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
+                'plan_path': str(project / 'plans' / f'{plan_id}.json'),
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(),
                 'html_sha256': artifact['sha256'],

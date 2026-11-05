@@ -146,5 +146,6 @@ class CompositionStore:
         target = self.projects._project(project_id) / 'artifacts' / (plan_id + '.html')
         _no_links(target); _atomic(target, document.encode('utf-8'))
         return {'kind': 'generated', 'plan_id': plan_id, 'project_id': project_id,
+                'plan_path': str(self.projects._project(project_id) / 'plans' / (plan_id + '.json')),
                 'path': str(target), 'format': 'html', 'source_ids': plan['source_ids'],
                 'sha256': hashlib.sha256(document.encode('utf-8')).hexdigest()}
