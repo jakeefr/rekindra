@@ -1,0 +1,473 @@
+{
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        0.7,
+        5.8,
+        24.5
+      ],
+      "fov": 29,
+      "target": [
+        0,
+        2.6,
+        0
+      ]
+    },
+    {
+      "at": 2,
+      "eye": [
+        0.7,
+        5.8,
+        24.5
+      ],
+      "fov": 29,
+      "target": [
+        0,
+        2.6,
+        0
+      ]
+    },
+    {
+      "at": 5,
+      "eye": [
+        0.7,
+        5.8,
+        24.5
+      ],
+      "fov": 29,
+      "target": [
+        0,
+        3.5,
+        0
+      ]
+    },
+    {
+      "at": 9,
+      "eye": [
+        0.7,
+        5.8,
+        24.5
+      ],
+      "fov": 29,
+      "target": [
+        0,
+        4.35,
+        0
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        0.7,
+        5.8,
+        24.5
+      ],
+      "fov": 29,
+      "target": [
+        0,
+        4.35,
+        0
+      ]
+    }
+  ],
+  "duration": 12,
+  "environment": {
+    "exposure": 1.05,
+    "fill_color": "#C6DDFF",
+    "fill_direction": [
+      5,
+      3,
+      5
+    ],
+    "fill_strength": 0.62,
+    "fog_color": "#0A1223",
+    "fog_density": 0,
+    "light_color": "#FFE4BD",
+    "light_direction": [
+      -4,
+      6,
+      5
+    ],
+    "sky_bottom": "#121D30",
+    "sky_top": "#060B19",
+    "sun_size": 0.095,
+    "sun_strength": 1.8
+  },
+  "height": 720,
+  "mood": "One bowed cream support, four flowing satin countercurves",
+  "objects": [
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-.6)/8.4,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "e"
+        },
+        {
+          "expression": "e*2*pi*cos(2*pi*u)",
+          "name": "dx"
+        },
+        {
+          "expression": "mix(2.5*3.8*cos(3.8*u-.8),7.8,e)",
+          "name": "dy"
+        },
+        {
+          "expression": "mix(2.5*3.8*sin(3.8*u-.8),-1.2*2*pi*sin(2*pi*u)+.3,e)",
+          "name": "dz"
+        },
+        {
+          "expression": "sqrt(dy*dy+dz*dz)",
+          "name": "q"
+        },
+        {
+          "expression": "sqrt(dx*dx+dy*dy+dz*dz)",
+          "name": "n"
+        },
+        {
+          "expression": "mix(.15,-.05+1.2*sin(2*pi*u),e)",
+          "name": "phi"
+        },
+        {
+          "expression": "cos(v*2*pi)",
+          "name": "c"
+        },
+        {
+          "expression": "sin(v*2*pi)",
+          "name": "s"
+        },
+        {
+          "expression": "pow(pow(abs(c),8)+pow(abs(s),8),.125)",
+          "name": "den"
+        },
+        {
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "name": "cap"
+        },
+        {
+          "expression": ".94*cap*(1-.2*u)*c/den",
+          "name": "w"
+        },
+        {
+          "expression": ".045*cap*(1+.025*cos(4*pi*c/den))*s/den",
+          "name": "d"
+        },
+        {
+          "expression": "w*cos(phi)-d*sin(phi)",
+          "name": "aa"
+        },
+        {
+          "expression": "w*sin(phi)+d*cos(phi)",
+          "name": "bb"
+        }
+      ],
+      "color": "#DF3883",
+      "color_high": "#F875B0",
+      "color_mix": ".12+.16*u",
+      "emission": 0.13,
+      "id": "rose-sweeping-s-blade",
+      "metalness": 0.16,
+      "position": {
+        "x": "-6.6+e*sin(2*pi*u)+aa*q/n",
+        "y": ".25+.18*(1-(-6.6/8.4)*(-6.6/8.4))+mix(2.5*(sin(3.8*u-.8)+sin(.8)),7.8*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
+        "z": ".6*(-6.6/8.4)*(-6.6/8.4)-.3+mix(2.5*(cos(.8)-cos(3.8*u-.8)),1.2*(cos(2*pi*u)-1)+.3*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+      },
+      "roughness": 0.38,
+      "segments": [
+        88,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1.4)/7.6,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "e"
+        },
+        {
+          "expression": "-e*.95*1.65*pi*cos(1.65*pi*u)",
+          "name": "dx"
+        },
+        {
+          "expression": "mix(1.9*3.8*cos(3.8*u-.8),5.7,e)",
+          "name": "dy"
+        },
+        {
+          "expression": "mix(1.9*3.8*sin(3.8*u-.8),-.9*2*pi*sin(2*pi*u)+.25,e)",
+          "name": "dz"
+        },
+        {
+          "expression": "sqrt(dy*dy+dz*dz)",
+          "name": "q"
+        },
+        {
+          "expression": "sqrt(dx*dx+dy*dy+dz*dz)",
+          "name": "n"
+        },
+        {
+          "expression": "mix(-.25,.35-1.55*sin(pi*u),e)",
+          "name": "phi"
+        },
+        {
+          "expression": "cos(v*2*pi)",
+          "name": "c"
+        },
+        {
+          "expression": "sin(v*2*pi)",
+          "name": "s"
+        },
+        {
+          "expression": "pow(pow(abs(c),8)+pow(abs(s),8),.125)",
+          "name": "den"
+        },
+        {
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "name": "cap"
+        },
+        {
+          "expression": ".86*cap*(1-.26*u)*c/den",
+          "name": "w"
+        },
+        {
+          "expression": ".043*cap*(1+.025*cos(4*pi*c/den))*s/den",
+          "name": "d"
+        },
+        {
+          "expression": "w*cos(phi)-d*sin(phi)",
+          "name": "aa"
+        },
+        {
+          "expression": "w*sin(phi)+d*cos(phi)",
+          "name": "bb"
+        }
+      ],
+      "color": "#16BBC6",
+      "color_high": "#62E6E5",
+      "color_mix": ".12+.15*u",
+      "emission": 0.12,
+      "id": "cyan-low-counterwave",
+      "metalness": 0.12,
+      "position": {
+        "x": "-2.2-e*.95*sin(1.65*pi*u)+aa*q/n",
+        "y": ".25+.18*(1-(-2.2/8.4)*(-2.2/8.4))+mix(1.9*(sin(3.8*u-.8)+sin(.8)),5.7*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
+        "z": ".6*(-2.2/8.4)*(-2.2/8.4)-.3+mix(1.9*(cos(.8)-cos(3.8*u-.8)),.9*(cos(2*pi*u)-1)+.25*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+      },
+      "roughness": 0.34,
+      "segments": [
+        88,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-.2)/8.8,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "e"
+        },
+        {
+          "expression": "-e*.75*2.2*pi*cos(2.2*pi*u)",
+          "name": "dx"
+        },
+        {
+          "expression": "mix(2.9*3.8*cos(3.8*u-.8),9.3,e)",
+          "name": "dy"
+        },
+        {
+          "expression": "mix(2.9*3.8*sin(3.8*u-.8),-1.5*2*pi*sin(2*pi*u)+.35,e)",
+          "name": "dz"
+        },
+        {
+          "expression": "sqrt(dy*dy+dz*dz)",
+          "name": "q"
+        },
+        {
+          "expression": "sqrt(dx*dx+dy*dy+dz*dz)",
+          "name": "n"
+        },
+        {
+          "expression": "mix(.1,-.25+1.45*sin(pi*u),e)",
+          "name": "phi"
+        },
+        {
+          "expression": "cos(v*2*pi)",
+          "name": "c"
+        },
+        {
+          "expression": "sin(v*2*pi)",
+          "name": "s"
+        },
+        {
+          "expression": "pow(pow(abs(c),8)+pow(abs(s),8),.125)",
+          "name": "den"
+        },
+        {
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "name": "cap"
+        },
+        {
+          "expression": ".98*cap*(1-.24*u)*c/den",
+          "name": "w"
+        },
+        {
+          "expression": ".048*cap*(1+.025*cos(4*pi*c/den))*s/den",
+          "name": "d"
+        },
+        {
+          "expression": "w*cos(phi)-d*sin(phi)",
+          "name": "aa"
+        },
+        {
+          "expression": "w*sin(phi)+d*cos(phi)",
+          "name": "bb"
+        }
+      ],
+      "color": "#F6B934",
+      "color_high": "#FFE18A",
+      "color_mix": ".08+.14*u",
+      "emission": 0.1,
+      "id": "gold-high-cantilever",
+      "metalness": 0.62,
+      "position": {
+        "x": "2.2-e*.75*sin(2.2*pi*u)+aa*q/n",
+        "y": ".25+.18*(1-(2.2/8.4)*(2.2/8.4))+mix(2.9*(sin(3.8*u-.8)+sin(.8)),9.3*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
+        "z": ".6*(2.2/8.4)*(2.2/8.4)-.3+mix(2.9*(cos(.8)-cos(3.8*u-.8)),1.5*(cos(2*pi*u)-1)+.35*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+      },
+      "roughness": 0.27,
+      "segments": [
+        88,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-2)/7,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "e"
+        },
+        {
+          "expression": "e*1.05*1.85*pi*cos(1.85*pi*u)",
+          "name": "dx"
+        },
+        {
+          "expression": "mix(2.35*3.8*cos(3.8*u-.8),7.1,e)",
+          "name": "dy"
+        },
+        {
+          "expression": "mix(-2.35*3.8*sin(3.8*u-.8),1.4*2*pi*sin(2*pi*u)-.3,e)",
+          "name": "dz"
+        },
+        {
+          "expression": "sqrt(dy*dy+dz*dz)",
+          "name": "q"
+        },
+        {
+          "expression": "sqrt(dx*dx+dy*dy+dz*dz)",
+          "name": "n"
+        },
+        {
+          "expression": "mix(-.15,.15-1.25*sin(2*pi*u+.2),e)",
+          "name": "phi"
+        },
+        {
+          "expression": "cos(v*2*pi)",
+          "name": "c"
+        },
+        {
+          "expression": "sin(v*2*pi)",
+          "name": "s"
+        },
+        {
+          "expression": "pow(pow(abs(c),8)+pow(abs(s),8),.125)",
+          "name": "den"
+        },
+        {
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "name": "cap"
+        },
+        {
+          "expression": ".94*cap*(1-.18*u)*c/den",
+          "name": "w"
+        },
+        {
+          "expression": ".045*cap*(1+.025*cos(4*pi*c/den))*s/den",
+          "name": "d"
+        },
+        {
+          "expression": "w*cos(phi)-d*sin(phi)",
+          "name": "aa"
+        },
+        {
+          "expression": "w*sin(phi)+d*cos(phi)",
+          "name": "bb"
+        }
+      ],
+      "color": "#8352D6",
+      "color_high": "#BD98F1",
+      "color_mix": ".1+.18*u",
+      "emission": 0.17,
+      "id": "violet-reverse-serpentine",
+      "metalness": 0.2,
+      "position": {
+        "x": "6.6+e*1.05*sin(1.85*pi*u)+aa*q/n",
+        "y": ".25+.18*(1-(6.6/8.4)*(6.6/8.4))+mix(2.35*(sin(3.8*u-.8)+sin(.8)),7.1*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
+        "z": ".6*(6.6/8.4)*(6.6/8.4)-.3+mix(-2.35*(cos(.8)-cos(3.8*u-.8)),-1.4*(cos(2*pi*u)-1)-.3*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+      },
+      "roughness": 0.42,
+      "segments": [
+        88,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "sqrt(min(1,70*u)*min(1,70*(1-u)))",
+          "name": "cap"
+        }
+      ],
+      "color": "#DAC897",
+      "color_high": "#F7E7BC",
+      "color_mix": ".3",
+      "emission": 0.08,
+      "id": "cream-bowed-support",
+      "metalness": 0.02,
+      "position": {
+        "x": "(u-.5)*16.8",
+        "y": ".15+.18*(1-(2*u-1)*(2*u-1))+.1*cos(2*pi*v)*cap",
+        "z": ".6*(2*u-1)*(2*u-1)-.3+.19*sin(2*pi*v)*cap"
+      },
+      "roughness": 0.65,
+      "segments": [
+        80,
+        16
+      ]
+    }
+  ],
+  "reason": "Developer art-direction pass over Hermes-authored geometry. Center the smaller opening vertically, follow growth gently, and compare front fill and differentiated satin materials. No claim of new geometry or autonomous Hermes revision.",
+  "references": [
+    {
+      "asset_id": "00000000000000000000000000000000",
+      "created": "Invent one bowed cream support carrying four S-blades. Curl-to-blade deformation, alternating width/thickness orientation, elliptical tips, shallow longitudinal ribs and staggered common resolution are authored interpretations. Gold tallest, cyan shortest, pink and violet intermediate retain source scale relationships. The source does not show these sculptures or materials. Developer adjusts framing and lighting for the same authored sculpture.",
+      "observed": "Viewed synthetic image: bottom-aligned separated rectangular ribs in four bars on a navy grid above a cream baseline. Colors left to right pink, cyan, yellow, violet; yellow tallest, then pink, violet, cyan shortest."
+    }
+  ],
+  "schema_version": 2,
+  "seed": 8427,
+  "title": "Counterpoint V - Framing and light study",
+  "width": 1280
+}
