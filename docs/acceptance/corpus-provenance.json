@@ -1,0 +1,315 @@
+{
+  "kind": "curated sourced images (photographs and artwork) plus constructed acceptance fixtures",
+  "cases": [
+    {
+      "case": "A01",
+      "category": "sunny",
+      "query": "beach summer incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Laganas beach on summer 2023.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Laganas_beach_on_summer_2023.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Laganas_beach_on_summer_2023.jpg/960px-Laganas_beach_on_summer_2023.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Blackberrijack",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "b04b5fe1e1f3576a72a0abcd1ed21ef115c490d1d4f52809269c1671907a586a",
+          "bytes": 346400,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:1 laganas beach on summer 2023.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:1_laganas_beach_on_summer_2023.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cc/1_laganas_beach_on_summer_2023.jpg/960px-1_laganas_beach_on_summer_2023.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Blackberrijack",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "66ba1706e569b8ac295fd2bad39a541be87f67e42fe9efe5ba835846fb7cdcd5",
+          "bytes": 403052,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "A02",
+      "category": "sunny",
+      "query": "sunflower garden incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Sunflower Garden 3.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Sunflower_Garden_3.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/46/Sunflower_Garden_3.jpg/960px-Sunflower_Garden_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Slleong",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "350ace9ff6b70b3c348110d164afcf219b4f416974b608a2be333dbcab4aa889",
+          "bytes": 261922,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Sunflower Garden 7.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Sunflower_Garden_7.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Sunflower_Garden_7.jpg/960px-Sunflower_Garden_7.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Slleong",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "8321307d6d11958d520f5cf13a7bc5f126fcd25d872da5f050b71782e7d3a696",
+          "bytes": 288759,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "B01",
+      "category": "dark",
+      "query": "city night incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Price Building illuminated at night in Quebec City.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Price_Building_illuminated_at_night_in_Quebec_City.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/Price_Building_illuminated_at_night_in_Quebec_City.jpg/960px-Price_Building_illuminated_at_night_in_Quebec_City.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Wilfredor",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "2d51f4249a4f3880d4dbc3a6437663fd956313ca54c0f30cf1fbff7f9edf0e43",
+          "bytes": 157072,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Chateau Frontenac illuminated at night in Quebec City.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Chateau_Frontenac_illuminated_at_night_in_Quebec_City.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d9/Chateau_Frontenac_illuminated_at_night_in_Quebec_City.jpg/960px-Chateau_Frontenac_illuminated_at_night_in_Quebec_City.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Wilfredor",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "5b451a5027f86744da99a08e44747a7ef1c3a4ad9ed32449d60bbf36a5c5b3ed",
+          "bytes": 215120,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "B02",
+      "category": "dark",
+      "query": "cave dark incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Cavern in Arraial do Cabo.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Cavern_in_Arraial_do_Cabo.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d3/Cavern_in_Arraial_do_Cabo.jpg/960px-Cavern_in_Arraial_do_Cabo.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Wilfredor",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "e286dbb26ddd6d0863527b4b95578569397185902ce5126150b848db4d56aec6",
+          "bytes": 263857,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Dark Cave.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Dark_Cave.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/Dark_Cave.jpg/960px-Dark_Cave.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Adesolive",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "23216834b7628dec5ea3e49d3aaff8afc7c55eb8972015988b96dc59ebbb2de1",
+          "bytes": 314222,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "C01",
+      "category": "mysterious",
+      "query": "fog forest incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Cloud forest undergrowth.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Cloud_forest_undergrowth.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/63/Cloud_forest_undergrowth.jpg/960px-Cloud_forest_undergrowth.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Javith Dulnita",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "f96fab2c3d083f56bc8dbbbff24c786c77950bc4d55b495fb5ab4ac313ae3f4e",
+          "bytes": 189270,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Mossy cloud forest plants.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Mossy_cloud_forest_plants.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/51/Mossy_cloud_forest_plants.jpg/960px-Mossy_cloud_forest_plants.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Javith Dulnita",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "f97477c0d2752ea3f8afa1651bd210e4f0e5724b45637a6bb67853da93639074",
+          "bytes": 204076,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "C02",
+      "category": "mysterious",
+      "query": "ruins arch incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Arch Ruins at Ninesprings Country Park.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Arch_Ruins_at_Ninesprings_Country_Park.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/51/Arch_Ruins_at_Ninesprings_Country_Park.jpg/960px-Arch_Ruins_at_Ninesprings_Country_Park.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Marley Sexton ",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "5a5144c167cc9ed6fa570a1c9bbfaeb2826e76ce428d3bcc6f3dd09404d784c1",
+          "bytes": 389688,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Arches in Ruins MET DP312866.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Arches_in_Ruins_MET_DP312866.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f2/Arches_in_Ruins_MET_DP312866.jpg/960px-Arches_in_Ruins_MET_DP312866.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Hubert Robert",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "9a8ccd7ea9edaabbc267ee074e389361725835ea8d2ceb8045cb2ad3539c0c17",
+          "bytes": 93014,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "D01",
+      "category": "rainy",
+      "query": "rain window incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Rain on window (Unsplash).jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Rain_on_window_(Unsplash).jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9c/Rain_on_window_%28Unsplash%29.jpg/960px-Rain_on_window_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Francesco Gallarotti gallarotti",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "17e3b45f0bf9009c9b235026e0f7adaa087462f34ac40364d979c94e71eaaabe",
+          "bytes": 268062,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Summer rain on window pane. - Flickr - Charos Pix.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Summer_rain_on_window_pane._-_Flickr_-_Charos_Pix.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/38/Summer_rain_on_window_pane._-_Flickr_-_Charos_Pix.jpg/960px-Summer_rain_on_window_pane._-_Flickr_-_Charos_Pix.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Charos Pix",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "e974e6c121fe16749f9cbf04b203f6cc2b11483f9b108986386f1bb6d0c9d53d",
+          "bytes": 361464,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "D02",
+      "category": "rainy",
+      "query": "rain street incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Purple rain on roof.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Purple_rain_on_roof.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/79/Purple_rain_on_roof.jpg/960px-Purple_rain_on_roof.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "W.carter",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "6b110f39153a441b88800dda3141e82a1e2a356d2d6212810c0e0d19386ceeeb",
+          "bytes": 257597,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Rain over Holma marina.jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Rain_over_Holma_marina.jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c1/Rain_over_Holma_marina.jpg/960px-Rain_over_Holma_marina.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "W.carter",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "aa2a8214c98cab0c17fb9153e24b77b2b971ca1da061959937f94cf32be0b5b3",
+          "bytes": 83481,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "E01",
+      "category": "gloomy",
+      "query": "overcast sea incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Wavy sea and overcast sky (Unsplash).jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Wavy_sea_and_overcast_sky_(Unsplash).jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/df/Wavy_sea_and_overcast_sky_%28Unsplash%29.jpg/960px-Wavy_sea_and_overcast_sky_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Jeremy Bishop tidesinourveins",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "19562278991059fef9ef2c2bb81d7e7b08061dbfc21da71ecd30d3e5a5d13680",
+          "bytes": 70987,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Two rocks in blue sea (Unsplash).jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Two_rocks_in_blue_sea_(Unsplash).jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Two_rocks_in_blue_sea_%28Unsplash%29.jpg/960px-Two_rocks_in_blue_sea_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Pacific Austin _pacifist",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "fd8ffde57fc7db8802774cdcd1a0b0862aeacb1ed040c343d926fbcad2b6fb50",
+          "bytes": 64729,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    },
+    {
+      "case": "E02",
+      "category": "gloomy",
+      "query": "winter trees fog incategory:CC-Zero",
+      "images": [
+        {
+          "file": "image_01.jpg",
+          "title": "File:Heavy fog along the river with winter trees, Oregon (32690385175).jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Heavy_fog_along_the_river_with_winter_trees,_Oregon_(32690385175).jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6c/Heavy_fog_along_the_river_with_winter_trees%2C_Oregon_%2832690385175%29.jpg/960px-Heavy_fog_along_the_river_with_winter_trees%2C_Oregon_%2832690385175%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Bonnie Moreland from Oregon, United States",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "6e51edf9d936f51f0f51b130830ed90aab96cd72f2aa859b753b2332952b933c",
+          "bytes": 94370,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        },
+        {
+          "file": "image_02.jpg",
+          "title": "File:Tree in fog (51884236879).jpg",
+          "page": "https://commons.wikimedia.org/wiki/File:Tree_in_fog_(51884236879).jpg",
+          "download": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/9e/Tree_in_fog_%2851884236879%29.jpg/960px-Tree_in_fog_%2851884236879%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+          "creator": "Ted Moravec",
+          "license": "CC0",
+          "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+          "sha256": "c696909c2c9fda9fc7ebc11b36e349195bd61c0dc30b2a7e9c5f65b1ffba575d",
+          "bytes": 101167,
+          "derivative": "Commons server thumbnail at requested width960; no local recoloring"
+        }
+      ]
+    }
+  ]
+}

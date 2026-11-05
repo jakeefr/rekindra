@@ -1,6 +1,7 @@
 const {chromium}=require(process.env.REKINDRA_PLAYWRIGHT_PATH||'playwright');
 const path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
 const {pathToFileURL}=require('node:url');
+const digest=value=>require('node:crypto').createHash('sha256').update(value).digest('hex');
 (async()=>{
   const root=path.resolve(__dirname,'..'),out=process.env.REKINDRA_BROWSER_OUTPUT||path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
   const input=process.argv[2]||JSON.parse(fs.readFileSync(path.join(root,'.local/scene-fixture/result.json'),'utf8')).path;
@@ -13,7 +14,7 @@ const {pathToFileURL}=require('node:url');
     const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
     assert.notEqual(frames[0],frames[1],'Animation did not change frames');
     const repeat=await page.evaluate(()=>{rekindra.renderAt(.1);rekindra.renderAt(1);return document.querySelector('canvas').toDataURL()});
-    assert.equal(repeat,frames[0],'Seeking changed the same frame');
+    assert.equal(digest(repeat),digest(frames[0]),'Seeking changed the same frame');
     if(process.env.REKINDRA_WORLD_STUDY){
       const result=await page.evaluate(()=>{
         if(rekindra.scene.schema_version!==2)throw Error('Not a generated world');
