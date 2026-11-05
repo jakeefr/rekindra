@@ -1,0 +1,230 @@
+"""Immutable input snapshots and evidence-bearing recovery projects.
+
+This is bounded local processing, not a hostile multi-user filesystem sandbox.
+Only one Hermes process may write a particular store in this first milestone.
+"""
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import stat
+import threading
+import uuid
+
+from .identify import identify
+from .tga import decode_tga, RecoveryError
+from .png import encode_png
+
+_STORE_LOCK = threading.RLock()
+_ID = re.compile(r'^[0-9a-f]{32}$')
+_EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
+
+
+class ProjectError(ValueError):
+    """Actionable input or project-integrity failure."""
+
+
+@dataclass(frozen=True)
+class Limits:
+    max_files: int = 500
+    max_file_bytes: int = 100_000_000
+    max_total_bytes: int = 500_000_000
+    max_entries: int = 2000
+    max_depth: int = 32
+
+
+def _linked(path: Path) -> bool:
+    info = path.lstat()
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_file_attributes', 0) & 0x400)
+
+
+def _no_links(path: Path) -> None:
+    for part in (path, *path.parents):
+        if part.exists() or part.is_symlink():
+            if _linked(part):
+                raise ProjectError('Linked paths and Windows reparse points are not supported')
+
+
+def _atomic(path: Path, data: bytes) -> None:
+    temp = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
+    try:
+        with temp.open('xb') as out:
+            out.write(data)
+            out.flush()
+            os.fsync(out.fileno())
+        os.replace(temp, path)
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+class ProjectStore:
+    def __init__(self, root: Path, limits: Limits | None = None):
+        self.root = Path(os.path.abspath(root))
+        self.limits = limits or Limits()
+
+    def _project(self, project_id: str) -> Path:
+        if not isinstance(project_id, str) or not _ID.fullmatch(project_id):
+            raise ProjectError('Invalid project identifier')
+        path = self.root / project_id
+        _no_links(path)
+        if not path.is_dir():
+            raise ProjectError('Project not found')
+        return path
+
+    def _save(self, path: Path, project: dict) -> None:
+        _atomic(path / 'project.json', json.dumps(project, ensure_ascii=False, indent=2).encode('utf-8'))
+
+    def status(self, project_id: str) -> dict:
+        with _STORE_LOCK:
+            try:
+                path = self._project(project_id) / 'project.json'
+                _no_links(path)
+                if path.stat().st_size > 2_000_000:
+                    raise ProjectError('Project manifest exceeds limit')
+                project = json.loads(path.read_text(encoding='utf-8'))
+                if not isinstance(project, dict) or project.get('project_id') != project_id or project.get('schema_version') != 1:
+                    raise ProjectError('Unsupported or malformed project manifest')
+                if not isinstance(project.get('assets'), list) or not isinstance(project.get('artifacts'), list):
+                    raise ProjectError('Malformed project collections')
+                return project
+            except (OSError, json.JSONDecodeError, UnicodeError) as exc:
+                raise ProjectError('Cannot read project manifest; preserve the project for diagnosis') from exc
+
+    def inspect(self, folder: Path) -> dict:
+        with _STORE_LOCK:
+            source = Path(os.path.abspath(folder))
+            _no_links(source)
+            _no_links(self.root)
+            if not source.is_dir():
+                raise ProjectError('Select an existing local folder')
+            source, root = source.resolve(), self.root.resolve()
+            if source.is_relative_to(root) or root.is_relative_to(source):
+                raise ProjectError('Source folder and project storage must not overlap')
+            project_id = uuid.uuid4().hex
+            directory = self.root / project_id
+            (directory / 'originals').mkdir(parents=True)
+            (directory / 'artifacts').mkdir()
+            project = {'schema_version': 1, 'project_id': project_id,
+                       'created_at': datetime.now(timezone.utc).isoformat(),
+                       'source_name': source.name, 'assets': [], 'artifacts': [],
+                       'skipped': [], 'truncated': False, 'stage': 'inspected'}
+            stack, visited, total = [(source, 0)], 0, 0
+            while stack:
+                current, depth = stack.pop()
+                _no_links(current)
+                try:
+                    with os.scandir(current) as listing:
+                        entries = []
+                        for entry in listing:
+                            visited += 1
+                            if visited > self.limits.max_entries:
+                                project['truncated'] = True
+                                break
+                            entries.append(entry)
+                except OSError:
+                    project['skipped'].append({'source_path': str(current.relative_to(source)), 'reason': 'unreadable directory'})
+                    continue
+                for entry in sorted(entries, key=lambda e: e.name):
+                    path = Path(entry.path)
+                    relative = path.relative_to(source).as_posix()
+                    reason = None
+                    try:
+                        _no_links(path)
+                        if entry.name.lower() in _EXCLUDED or entry.name.lower() == '.env' or entry.name.lower().startswith('.env.'):
+                            reason = 'excluded private or development directory/file'
+                        elif entry.is_dir(follow_symlinks=False):
+                            if depth < self.limits.max_depth:
+                                stack.append((path, depth+1))
+                            else:
+                                reason = 'directory depth limit'
+                            if reason is None:
+                                continue
+                        elif not entry.is_file(follow_symlinks=False):
+                            reason = 'not a regular file'
+                        elif len(project['assets']) >= self.limits.max_files:
+                            project['truncated'] = True
+                            reason = 'file count limit'
+                        else:
+                            size = path.stat().st_size
+                            if size > self.limits.max_file_bytes or size + total > self.limits.max_total_bytes:
+                                reason = 'input byte limit'
+                            else:
+                                asset = self._snapshot(path, directory, relative, self.limits.max_total_bytes-total)
+                                total += asset['size']
+                                project['assets'].append(asset)
+                    except (OSError, ProjectError) as exc:
+                        reason = str(exc) if isinstance(exc, ProjectError) else 'unreadable or changed file'
+                    if reason:
+                        project['skipped'].append({'source_path': relative, 'reason': reason})
+                if project['truncated']:
+                    break
+            self._save(directory, project)
+            return project
+
+    def _snapshot(self, source: Path, directory: Path, relative: str, remaining: int) -> dict:
+        asset_id = uuid.uuid4().hex
+        destination = directory / 'originals' / asset_id
+        digest, size, header = hashlib.sha256(), 0, b''
+        before = source.lstat()
+        try:
+            flags = os.O_RDONLY | getattr(os, 'O_BINARY', 0) | getattr(os, 'O_NOFOLLOW', 0)
+            with os.fdopen(os.open(source, flags), 'rb') as inp, destination.open('xb') as out:
+                opened = os.fstat(inp.fileno())
+                if not stat.S_ISREG(opened.st_mode) or (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino):
+                    raise ProjectError('Source changed during inspection')
+                _no_links(source)
+                while chunk := inp.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > min(self.limits.max_file_bytes, remaining):
+                        raise ProjectError('Input byte limit exceeded during copy')
+                    if len(header) < 65536:
+                        header += chunk[:65536-len(header)]
+                    digest.update(chunk)
+                    out.write(chunk)
+                after = os.fstat(inp.fileno())
+                if (opened.st_size, opened.st_mtime_ns) != (after.st_size, after.st_mtime_ns) or size != opened.st_size:
+                    raise ProjectError('Source changed during inspection')
+            return {'asset_id': asset_id, 'source_path': relative, 'size': size,
+                    'sha256': digest.hexdigest(), 'format': identify(header, relative), 'kind': 'original'}
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+
+    def recover(self, project_id: str, asset_id: str) -> dict:
+        with _STORE_LOCK:
+            if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
+                raise ProjectError('Invalid asset identifier')
+            project = self.status(project_id)
+            directory = self._project(project_id)
+            asset = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
+            if not asset:
+                raise ProjectError('Asset not found in this project')
+            source = directory / 'originals' / asset_id
+            _no_links(source)
+            if source.stat().st_size > self.limits.max_file_bytes:
+                raise ProjectError('Snapshot byte limit exceeded')
+            with source.open('rb') as inp:
+                data = inp.read(self.limits.max_file_bytes+1)
+            if len(data) > self.limits.max_file_bytes or hashlib.sha256(data).hexdigest() != asset.get('sha256'):
+                raise ProjectError('Snapshot integrity check failed; original copy changed')
+            if asset.get('format') not in ('tga', 'tga_candidate'):
+                raise ProjectError('Recovery currently supports the documented TGA subset only')
+            try:
+                raster = decode_tga(data)
+                png = encode_png(raster)
+            except RecoveryError as exc:
+                raise ProjectError(str(exc)) from exc
+            target = directory / 'artifacts' / (asset_id + '.png')
+            _no_links(target)
+            _atomic(target, png)
+            artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
+                        'path': str(target), 'source_sha256': asset['sha256'],
+                        'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
+                        'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
+            project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
+            project['stage'] = 'recovered'
+            self._save(directory, project)
+            return artifact
