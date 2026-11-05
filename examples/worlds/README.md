@@ -30,3 +30,7 @@ Remaining artistic issues: the source-driven four-column arrangement still resem
 `counterpoint-polished.scene.json` now contains VII (1a486e575a5e46cf8003b0438564c199), superseding V above. VI replaced the square-root terminal width with a finite-slope taper; VII also extends the last 16% of each centerline along its tangent and stops accumulating twist there. This removes the hooked terminal curl in reviewed samples without changing the main authored body. These are developer adjustments, not another fully native Hermes creation.
 
 The runtime separately corrects receiver-plane depth at individual shadow taps. A real GPU regression reproduced a lone sloped plane shadowing itself (minimum visibility151/255); after correction it is255, while an elevated blocker still produces48. This is not achieved by turning shadows off. Some self-cast shadowing on folded ribbons remains physically plausible and is intentionally retained. Exported VII: `.local/tip-fixed-export/verified-scene.webm`,3138111bytes,12seconds,1280x720; existing browser export/seek/geometry/integrity checks pass.
+
+## Contrasting folder
+
+See [Botanical folder quality review](botanical-review.md) and `seed-ferry.scene.json` for a fresh native-agent run with a different source, visual vocabulary and motion. Its iteration history and limitations are recorded separately from the Counterpoint developer adjustments.

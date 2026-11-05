@@ -1,0 +1,493 @@
+{
+  "schema_version": 2,
+  "title": "The Seed Ferry \u2014 Clear Crown",
+  "mood": "A readable elevated seed crown over a warm olive unfurling cradle",
+  "reason": "Focused composition and trajectory finish from 9df0e677cf7c4fb98246223965440508. Preserve both leaf equations, vein language, materials, environment, seed shapes and unfurl/release timing exactly. Use a tighter near-frontal fixed camera. Start seeds in a narrow central corridor with staggered heights and root-adjacent depth, then spread along distinct smooth arcs into a higher separated crown. No new geometry or concept.",
+  "duration": 12,
+  "width": 1280,
+  "height": 720,
+  "seed": 731,
+  "references": [
+    {
+      "asset_id": "00000000000000000000000000000000",
+      "observed": "Flat cream illustration: curving green stems, paired pointed almond leaves, pale longitudinal midribs, olive and dark green fills, and small flattened rust-red ovals. Biological depth and secondary veins are not visible.",
+      "created": "Unequal whole almond leaves unfurl along bending centerlines into a cupped splayed V. Banked cross-sections carry invented veins and thickness. Five tapered seeds release from a vertical central corridor into an elevated crown. Biological depth, anatomy, material and motion are inventions."
+    }
+  ],
+  "environment": {
+    "exposure": 1.1,
+    "fill_color": "#F3E7CA",
+    "fill_direction": [
+      -0.65,
+      0.5,
+      0.65
+    ],
+    "fill_strength": 0.5,
+    "fog_color": "#FFE9BE",
+    "fog_density": 0,
+    "light_color": "#FFF4DF",
+    "light_direction": [
+      0.2,
+      1,
+      -0.8
+    ],
+    "sky_bottom": "#FFEBC1",
+    "sky_top": "#FFF0D0",
+    "sun_size": 0.075,
+    "sun_strength": 1.8
+  },
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        0.6,
+        6.7,
+        17
+      ],
+      "fov": 27.5,
+      "target": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "at": 6,
+      "eye": [
+        0.6,
+        6.7,
+        17
+      ],
+      "fov": 27.5,
+      "target": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        0.6,
+        6.7,
+        17
+      ],
+      "fov": 27.5,
+      "target": [
+        0,
+        3,
+        0
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-.6)/5.4,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": ".3-.38*s",
+          "name": "a"
+        },
+        {
+          "expression": "2.5-1.55*s",
+          "name": "k"
+        },
+        {
+          "expression": "a+k*u",
+          "name": "theta"
+        },
+        {
+          "expression": "sin(pi*u)",
+          "name": "b"
+        },
+        {
+          "expression": "cos(2*pi*v)",
+          "name": "c"
+        },
+        {
+          "expression": ".88*b*c",
+          "name": "q"
+        },
+        {
+          "expression": "exp(-c*c/.003)",
+          "name": "m"
+        },
+        {
+          "expression": "sin(pi*(6*u-.82*abs(c)))",
+          "name": "wave"
+        },
+        {
+          "expression": "exp(-wave*wave/.028)*(1-abs(c))",
+          "name": "n"
+        },
+        {
+          "expression": "b*(.08+.18*c*c+.065*sin(2*pi*v)+.025*m+.008*n)",
+          "name": "h"
+        },
+        {
+          "expression": "6.3*(sin(theta)-sin(a))/k",
+          "name": "d"
+        },
+        {
+          "expression": "6.3*(cos(a)-cos(theta))/k",
+          "name": "rise"
+        },
+        {
+          "expression": "q*cos(.48)-h*sin(.48)",
+          "name": "cross"
+        },
+        {
+          "expression": "q*sin(.48)+h*cos(.48)",
+          "name": "normal"
+        }
+      ],
+      "color": "#234315",
+      "color_high": "#A4AD55",
+      "color_mix": ".08+.55*m+.25*n+.07*u",
+      "emission": 0,
+      "id": "port_bending_lamina",
+      "metalness": 0,
+      "position": {
+        "x": "-.55-.94*d+.34*cross+.94*normal*sin(theta)",
+        "y": ".25+rise+normal*cos(theta)",
+        "z": ".8-.34*d-.94*cross+.34*normal*sin(theta)"
+      },
+      "roughness": 0.79,
+      "segments": [
+        64,
+        28
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/5.6,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": ".4-.44*s",
+          "name": "a"
+        },
+        {
+          "expression": "2.35-1.1*s",
+          "name": "k"
+        },
+        {
+          "expression": "a+k*u",
+          "name": "theta"
+        },
+        {
+          "expression": "sin(pi*u)",
+          "name": "b"
+        },
+        {
+          "expression": "cos(2*pi*v)",
+          "name": "c"
+        },
+        {
+          "expression": ".8*b*c",
+          "name": "q"
+        },
+        {
+          "expression": "exp(-c*c/.003)",
+          "name": "m"
+        },
+        {
+          "expression": "sin(pi*(6*u-.82*abs(c)))",
+          "name": "wave"
+        },
+        {
+          "expression": "exp(-wave*wave/.028)*(1-abs(c))",
+          "name": "n"
+        },
+        {
+          "expression": "b*(.08+.19*c*c+.06*sin(2*pi*v)+.025*m+.008*n)",
+          "name": "h"
+        },
+        {
+          "expression": "5.5*(sin(theta)-sin(a))/k",
+          "name": "d"
+        },
+        {
+          "expression": "5.5*(cos(a)-cos(theta))/k",
+          "name": "rise"
+        },
+        {
+          "expression": "q*cos(-.38)-h*sin(-.38)",
+          "name": "cross"
+        },
+        {
+          "expression": "q*sin(-.38)+h*cos(-.38)",
+          "name": "normal"
+        }
+      ],
+      "color": "#2D4917",
+      "color_high": "#ACB55B",
+      "color_mix": ".1+.53*m+.24*n+.06*u",
+      "emission": 0,
+      "id": "starboard_bending_lamina",
+      "metalness": 0,
+      "position": {
+        "x": ".55+.9*d+.435*cross-.9*normal*sin(theta)",
+        "y": ".38+rise+normal*cos(theta)",
+        "z": ".65-.435*d+.9*cross+.435*normal*sin(theta)"
+      },
+      "roughness": 0.81,
+      "segments": [
+        64,
+        28
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-6.1)/3.4,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": "-.2-.5*s",
+          "name": "a"
+        },
+        {
+          "expression": "cos(pi*v)",
+          "name": "b"
+        },
+        {
+          "expression": ".3*sin(pi*v)*(1-.24*b)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(2*pi*u)",
+          "name": "lx"
+        },
+        {
+          "expression": ".48*b",
+          "name": "ly"
+        }
+      ],
+      "color": "#8D2919",
+      "color_high": "#D4532B",
+      "color_mix": ".2+.43*sin(pi*v)+.08*cos(2*pi*u)",
+      "emission": 0,
+      "id": "seed_one",
+      "metalness": 0,
+      "position": {
+        "x": "-.15-2.85*s-.22*sin(pi*s)+lx*cos(a)+ly*sin(a)",
+        "y": "5.2-.7*s+.3*sin(pi*s)-lx*sin(a)+ly*cos(a)",
+        "z": ".9+.76*r*sin(2*pi*u)"
+      },
+      "roughness": 0.58,
+      "segments": [
+        32,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-6.4)/3.4,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": ".12-.4*s",
+          "name": "a"
+        },
+        {
+          "expression": "cos(pi*v)",
+          "name": "b"
+        },
+        {
+          "expression": ".28*sin(pi*v)*(1-.2*b)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(2*pi*u)",
+          "name": "lx"
+        },
+        {
+          "expression": ".45*b",
+          "name": "ly"
+        }
+      ],
+      "color": "#9D311E",
+      "color_high": "#D76336",
+      "color_mix": ".22+.4*sin(pi*v)+.07*cos(2*pi*u)",
+      "emission": 0,
+      "id": "seed_two",
+      "metalness": 0,
+      "position": {
+        "x": ".15-1.65*s-.2*sin(pi*s)+lx*cos(a)+ly*sin(a)",
+        "y": "4.15+1.35*s+.35*sin(pi*s)-lx*sin(a)+ly*cos(a)",
+        "z": ".95+.05*s+.8*r*sin(2*pi*u)"
+      },
+      "roughness": 0.63,
+      "segments": [
+        32,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-6.7)/3.3,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": "-.35+.2*s",
+          "name": "a"
+        },
+        {
+          "expression": "cos(pi*v)",
+          "name": "b"
+        },
+        {
+          "expression": ".3*sin(pi*v)*(1-.25*b)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(2*pi*u)",
+          "name": "lx"
+        },
+        {
+          "expression": ".5*b",
+          "name": "ly"
+        }
+      ],
+      "color": "#87291C",
+      "color_high": "#CC4D29",
+      "color_mix": ".24+.43*sin(pi*v)+.06*cos(2*pi*u)",
+      "emission": 0,
+      "id": "seed_three",
+      "metalness": 0,
+      "position": {
+        "x": "-.15+.15*s+.12*sin(pi*s)+lx*cos(a)+ly*sin(a)",
+        "y": "3.1+2.9*s+.25*sin(pi*s)-lx*sin(a)+ly*cos(a)",
+        "z": "1+.05*s+.78*r*sin(2*pi*u)"
+      },
+      "roughness": 0.59,
+      "segments": [
+        32,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-7)/3.3,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": ".2+.4*s",
+          "name": "a"
+        },
+        {
+          "expression": "cos(pi*v)",
+          "name": "b"
+        },
+        {
+          "expression": ".27*sin(pi*v)*(1-.22*b)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(2*pi*u)",
+          "name": "lx"
+        },
+        {
+          "expression": ".44*b",
+          "name": "ly"
+        }
+      ],
+      "color": "#9A2D1B",
+      "color_high": "#DD6335",
+      "color_mix": ".22+.42*sin(pi*v)+.08*cos(2*pi*u)",
+      "emission": 0,
+      "id": "seed_four",
+      "metalness": 0,
+      "position": {
+        "x": ".15+1.35*s+.22*sin(pi*s)+lx*cos(a)+ly*sin(a)",
+        "y": "2.05+3.45*s+.32*sin(pi*s)-lx*sin(a)+ly*cos(a)",
+        "z": ".95+.05*s+.8*r*sin(2*pi*u)"
+      },
+      "roughness": 0.64,
+      "segments": [
+        32,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-7.3)/3.3,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "p*p*(3-2*p)",
+          "name": "s"
+        },
+        {
+          "expression": "-.1+.55*s",
+          "name": "a"
+        },
+        {
+          "expression": "cos(pi*v)",
+          "name": "b"
+        },
+        {
+          "expression": ".29*sin(pi*v)*(1-.23*b)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(2*pi*u)",
+          "name": "lx"
+        },
+        {
+          "expression": ".46*b",
+          "name": "ly"
+        }
+      ],
+      "color": "#922B18",
+      "color_high": "#D55A2D",
+      "color_mix": ".21+.43*sin(pi*v)+.07*cos(2*pi*u)",
+      "emission": 0,
+      "id": "seed_five",
+      "metalness": 0,
+      "position": {
+        "x": "3*s+.3*sin(pi*s)+lx*cos(a)+ly*sin(a)",
+        "y": "1+3.5*s+.4*sin(pi*s)-lx*sin(a)+ly*cos(a)",
+        "z": ".9+.8*r*sin(2*pi*u)"
+      },
+      "roughness": 0.61,
+      "segments": [
+        32,
+        24
+      ]
+    }
+  ]
+}
