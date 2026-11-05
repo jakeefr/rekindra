@@ -12,6 +12,7 @@ from .projects import ProjectStore, ProjectError, _no_links, _atomic, _ID
 from .scenes import validate_scene, SceneError
 
 RUNTIME = Path(__file__).resolve().parents[1] / 'runtime'
+MAX_PLAN_BYTES = 512_000
 
 
 def jpeg_dimensions(data: bytes) -> tuple[int, int]:
@@ -100,7 +101,9 @@ class CompositionStore:
                   'scene': normalized, 'source_ids': selected_ids,
                   'sources': [{k: v for k, v in s.items() if k != 'data'} for s in sources],
                   'model': attribution}
-        _atomic(directory / (plan_id + '.json'), json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode())
+        encoded=json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode()
+        if len(encoded)>MAX_PLAN_BYTES:raise SceneError('Plan exceeds size limit')
+        _atomic(directory / (plan_id + '.json'), encoded)
         return record
 
     def load_plan(self, project_id: str, plan_id: str) -> dict:
@@ -108,7 +111,7 @@ class CompositionStore:
         path = self.projects._project(project_id) / 'plans' / (plan_id + '.json')
         _no_links(path)
         try:
-            if path.stat().st_size > 100_000: raise SceneError('Plan exceeds size limit')
+            if path.stat().st_size > MAX_PLAN_BYTES: raise SceneError('Plan exceeds size limit')
             record = json.loads(path.read_text(encoding='utf-8'))
             if not isinstance(record, dict) or record.get('project_id') != project_id or record.get('plan_id') != plan_id:
                 raise SceneError('Malformed plan identity')

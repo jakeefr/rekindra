@@ -66,6 +66,17 @@ class SceneTests(unittest.TestCase):
 
 class CompositionTests(unittest.TestCase):
     setUp = test_projects.ProjectTests.setUp
+    def test_maximum_track_plan_can_be_built(self):
+        (self.source / 'old.tga').write_bytes(fixture())
+        p=self.store.inspect(self.source);aid=p['assets'][0]['asset_id'];s=scene(aid)
+        layer=s['layers'][0]
+        layer['track']=[{'at':i*4/15,'x':.1234567891234567,'y':.2345678912345678,
+                         'scale':1.345678912345678,'rotation':23.45678912345678,'opacity':.9876543219876543,
+                         'spread':.4567891234567891,'turn':12.34567891234567} for i in range(16)]
+        s['layers']=[{**copy.deepcopy(layer),'id':f'layer{i}'} for i in range(24)]
+        c=CompositionStore(self.store);plan=c.save_plan(p['project_id'],s,[aid],{})
+        self.assertTrue(Path(c.build(p['project_id'],plan['plan_id'])['path']).is_file())
+
     def test_jpeg_dimensions_rejected_before_model_submission(self):
         data = b'\xff\xd8\xff\xc0' + struct.pack('>HBHHB', 11, 8, 65535, 65535, 1) + b'\x01\x11\x00' + b'\xff\xd9'
         (self.source / 'huge.jpg').write_bytes(data)
