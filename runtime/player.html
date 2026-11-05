@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; media-src blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title><!--TITLE--> - Rekindra</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101819;color:#e8ede7}*{box-sizing:border-box}body{margin:0}header,main,footer{max-width:1320px;margin:auto;padding:24px 32px}header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #33403b}.brand{letter-spacing:.18em;font-size:13px}.tag{font-size:12px;color:#bbc9ba}h1{font:clamp(28px,4vw,52px) Georgia,serif;margin:14px 0}p{line-height:1.6;color:#bdc9c3;max-width:850px}.stage{background:#080e10;border:1px solid #37433d;border-radius:12px;overflow:hidden}canvas{width:100%;height:auto;display:block}.controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:18px 0}button{font:inherit;color:inherit;background:#26382f;border:1px solid #61705d;border-radius:6px;padding:10px 16px;cursor:pointer}button:hover{background:#3a4c3f}button:disabled{opacity:.5;cursor:default}input[type=range]{flex:1;min-width:130px;accent-color:#bbd38b}#status{min-height:24px;font-size:13px}details{border-top:1px solid #34423a;padding-top:20px;margin-top:20px}summary{cursor:pointer}.sources{display:flex;gap:16px;flex-wrap:wrap;padding-top:18px}.source{width:180px;overflow-wrap:anywhere;font-size:12px}.source img{width:180px;height:110px;object-fit:cover;border-radius:5px}.source span{display:block;margin-top:7px;color:#acbab0}footer{font-size:12px;color:#9baa9e}a{color:#c2d69f}
+</style></head><body>
+<header><div class="brand">REKINDRA</div><div class="tag">RECOVERED MATERIAL / A NEW INTERPRETATION</div></header>
+<main><div id="mood" class="tag"></div><h1 id="title"></h1><p id="reason"></p>
+<div class="stage"><canvas id="stage" width="1280" height="720" aria-label="Generated scene from your source images"></canvas></div>
+<div class="controls"><button id="play">Play</button><input id="seek" type="range" min="0" max="30" step="0.01" value="0" aria-label="Scene time"><output id="time">0:00</output><label><input id="ascii" type="checkbox"> ASCII</label><button id="export">Save video</button><button id="cancel" hidden>Cancel export</button></div>
+<div id="status" role="status" aria-live="polite">Loading local images...</div>
+<details><summary>Where this came from</summary><p>The composition, motion and writing are generated. The images below are original or recovered sources. No missing historical content is claimed to have been restored by this scene.</p><div id="sources" class="sources"></div><p id="model"></p></details></main>
+<footer>Portable, offline Rekindra scene. No remote assets, trackers, or required creative engines. Video export uses your browser's native VP8 encoder and Rekindra's own WebM writer.</footer>
+<script id="payload" type="application/json">/*PAYLOAD*/</script>
+<script>/*SCENE_RUNTIME*/</script><script>/*WEBM_RUNTIME*/</script><script>/*PLAYER_RUNTIME*/</script>
+</body></html>

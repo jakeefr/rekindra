@@ -2,6 +2,13 @@
 import json
 from pathlib import Path
 from .rekindra_core.projects import ProjectStore, ProjectError
+from .rekindra_core.scenes import SceneError
+from .rekindra_core.compositions import CompositionStore
+from .rekindra_core.planner import plan_scene
+
+
+class ToolInputError(ValueError):
+    pass
 
 
 def host_store():
@@ -10,25 +17,41 @@ def host_store():
     return ProjectStore(plugin_data_dir('rekindra') / 'projects')
 
 
-def make_handlers(store_factory=host_store):
+def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
     def invoke(operation, args):
         try:
             if not isinstance(args, dict):
-                raise ValueError('Tool arguments must be an object')
-            required = ('folder',) if operation == 'inspect' else ('project_id', 'asset_id') if operation == 'recover' else ('project_id',)
+                raise ToolInputError('Tool arguments must be an object')
+            required = {'inspect': ('folder',), 'recover': ('project_id','asset_id'),
+                        'plan': ('project_id','intent'), 'build': ('project_id','plan_id'),
+                        'status': ('project_id',)}[operation]
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in required):
-                raise ValueError('Provide nonempty string values for: ' + ', '.join(required))
+                raise ToolInputError('Provide nonempty string values for: ' + ', '.join(required))
             if operation == 'inspect' and not Path(args['folder']).is_absolute():
-                raise ValueError('Folder must be an absolute local path')
+                raise ToolInputError('Folder must be an absolute local path')
+            if operation == 'plan' and args.get('send_images') is not True:
+                raise ToolInputError('Planning sends selected images through your active Hermes model. Set send_images=true only after user consent.')
             store = store_factory()
             if operation == 'inspect':
                 result = store.inspect(Path(args['folder']))
             elif operation == 'recover':
                 result = store.recover(args['project_id'], args['asset_id'])
+            elif operation == 'plan':
+                compositions = CompositionStore(store)
+                sources = compositions.sources(args['project_id'], args.get('asset_ids'))
+                active_llm = llm_factory() if llm_factory else llm
+                if active_llm is None: raise SceneError('Hermes model access is unavailable')
+                planned = plan_scene(active_llm, sources, args['intent'])
+                saved = compositions.save_plan(args['project_id'], planned['scene'], args['asset_ids'], planned['attribution'])
+                result = {k:saved[k] for k in ('plan_id','project_id','kind','source_ids','model')}
+                result.update({k:saved['scene'][k] for k in ('title','mood','reason','duration')})
+                result['layer_count'] = len(saved['scene']['layers'])
+            elif operation == 'build':
+                result = CompositionStore(store).build(args['project_id'], args['plan_id'])
             else:
                 result = store.status(args['project_id'])
             return json.dumps({'ok': True, 'result': result}, ensure_ascii=False)
-        except (ProjectError, ValueError) as exc:
+        except (ProjectError, SceneError, ToolInputError) as exc:
             return json.dumps({'ok': False, 'error': {'code': 'invalid_input', 'message': str(exc)}})
         except OSError:
             return json.dumps({'ok': False, 'error': {'code': 'filesystem_error', 'message': 'Cannot read or write the local project. Check paths and permissions.'}})
@@ -44,4 +67,11 @@ def make_handlers(store_factory=host_store):
     def status(args, **kwargs):
         return invoke('status', args)
 
-    return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status}
+    def plan(args, **kwargs):
+        return invoke('plan', args)
+
+    def build(args, **kwargs):
+        return invoke('build', args)
+
+    return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status,
+            'rekindra_plan': plan, 'rekindra_build': build}

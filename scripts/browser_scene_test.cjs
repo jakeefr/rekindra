@@ -1,0 +1,41 @@
+const {chromium}=require(process.env.REKINDRA_PLAYWRIGHT_PATH||'playwright');
+const path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
+const {pathToFileURL}=require('node:url');
+(async()=>{
+  const root=path.resolve(__dirname,'..'),out=path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
+  const input=process.argv[2]||JSON.parse(fs.readFileSync(path.join(root,'.local/scene-fixture/result.json'),'utf8')).path;
+  const context=await chromium.launchPersistentContext(path.join(out,'profile'),{channel:'chrome',headless:true,viewport:{width:1400,height:1200},acceptDownloads:true});
+  try{
+    const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',e=>errors.push(String(e)));
+    page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url())});
+    await page.goto(pathToFileURL(input).href);await page.waitForFunction(()=>globalThis.rekindra?.ready,{},{timeout:20000});
+    assert.equal(await page.evaluate(()=>globalThis.injected),undefined,'Source text executed');
+    const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
+    assert.notEqual(frames[0],frames[1],'Animation did not change frames');
+    await page.screenshot({path:path.join(out,'scene.png'),fullPage:true});
+    await page.locator('#ascii').check();
+    assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),frames[1]);
+    await page.locator('#ascii').uncheck();
+    const downloadPromise=page.waitForEvent('download');
+    const exportResult=await page.evaluate(async()=>{
+      const blob=await rekindra.exportVideo({download:false});
+      const url=URL.createObjectURL(blob),video=document.createElement('video');video.muted=true;video.src=url;
+      const wait=event=>new Promise((resolve,reject)=>{const t=setTimeout(()=>reject(Error('Video timeout: '+event)),20000);video.addEventListener(event,()=>{clearTimeout(t);resolve()},{once:true});video.addEventListener('error',()=>{clearTimeout(t);reject(Error('Video decode error '+video.error?.message))},{once:true})});
+      await wait('loadeddata');const duration=video.duration;
+      let done=wait('seeked');video.currentTime=duration*.75;await done;
+      const c=document.createElement('canvas');c.width=1280;c.height=720;const x=c.getContext('2d');x.drawImage(video,0,0);
+      const sample=Array.from(x.getImageData(640,360,1,1).data);
+      await video.play();await new Promise(r=>setTimeout(r,150));video.pause();
+      const result={size:blob.size,duration,width:video.videoWidth,height:video.videoHeight,seek:video.currentTime,sample};
+      const a=document.createElement('a');a.href=url;a.download='verified-scene.webm';a.click();return result;
+    });
+    const download=await downloadPromise;await download.saveAs(path.join(out,'verified-scene.webm'));
+    assert.ok(Number.isFinite(exportResult.duration)&&Math.abs(exportResult.duration-await page.evaluate(()=>rekindra.scene.duration))<.05);
+    assert.equal(exportResult.width,1280);assert.equal(exportResult.height,720);assert.ok(exportResult.seek>0);assert.ok(exportResult.sample.slice(0,3).some(x=>x>0));
+    assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);
+    fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(exportResult,null,2));console.log(JSON.stringify(exportResult,null,2));
+    // Cancellation must reject and leave playback controls usable.
+    const cancelled=await page.evaluate(async()=>{const p=rekindra.exportVideo({download:false});setTimeout(()=>rekindra.cancelExport(),10);try{await p;return false}catch(e){return e.message==='Export cancelled'&&!document.querySelector('#export').disabled}});
+    assert.equal(cancelled,true,'Cancellation failed');
+  }finally{await context.close()}
+})().catch(e=>{console.error(e);process.exitCode=1});

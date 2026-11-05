@@ -1,8 +1,10 @@
 name: rekindra
-version: 0.1.0
-description: Original local recovery of forgotten files with preserved sources and evidence.
+version: 0.2.0
+description: Recover forgotten images and create source-backed original animated scenes with portable browser and WebM output.
 author: Jake Werner
 provides_tools:
   - rekindra_inspect
   - rekindra_recover
   - rekindra_status
+  - rekindra_plan
+  - rekindra_build
