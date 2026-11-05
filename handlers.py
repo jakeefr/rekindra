@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from .rekindra_core.projects import ProjectStore, ProjectError
-from .rekindra_core.scenes import SceneError
+from .rekindra_core.scenes import SceneError, validate_scene, enforce_text_preference
 from .rekindra_core.compositions import CompositionStore
 from .rekindra_core.planner import plan_scene
 
@@ -41,14 +41,17 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 sources = compositions.sources(args['project_id'], args.get('asset_ids'))
                 active_llm = llm_factory() if llm_factory else llm
                 if active_llm is None: raise SceneError('Hermes model access is unavailable')
-                planned = plan_scene(active_llm, sources, args['intent'])
+                planned = plan_scene(active_llm, sources, args['intent'], allow_text=args.get('allow_text', False))
                 saved = compositions.save_plan(args['project_id'], planned['scene'], args['asset_ids'], planned['attribution'])
                 result = {k:saved[k] for k in ('plan_id','project_id','kind','source_ids','model')}
                 result.update({k:saved['scene'][k] for k in ('title','mood','reason','duration')})
                 result['layer_count'] = len(saved['scene']['layers'])
             elif operation == 'compose':
                 compositions = CompositionStore(store)
-                saved = compositions.save_plan(args['project_id'], args.get('scene'), args.get('asset_ids'),
+                sources = compositions.sources(args['project_id'], args.get('asset_ids'))
+                scene = validate_scene(args.get('scene'), {s['asset_id'] for s in sources})
+                enforce_text_preference(scene, args.get('allow_text', False))
+                saved = compositions.save_plan(args['project_id'], scene, args.get('asset_ids'),
                                                {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
                 result = compositions.build(args['project_id'], saved['plan_id'])
             elif operation == 'build':

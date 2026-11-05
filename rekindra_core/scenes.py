@@ -8,6 +8,13 @@ class SceneError(ValueError):
     pass
 
 
+def enforce_text_preference(scene, allow_text=False):
+    if type(allow_text) is not bool:
+        raise SceneError('allow_text must be a boolean')
+    if not allow_text and any(layer.get('kind') == 'text' for layer in scene['layers']):
+        raise SceneError('On-screen text is off by default. Use allow_text=true only when the user explicitly requests text.')
+
+
 _COLOR = re.compile(r'^#[0-9a-fA-F]{6}$')
 _LAYER_ID = re.compile(r'^[a-zA-Z0-9_-]{1,40}$')
 MOTIONS = ('still', 'drift', 'rise', 'pulse', 'pan')
@@ -45,16 +52,17 @@ def validate_scene(value: dict, asset_ids: set[str]) -> dict:
     if not isinstance(scene['layers'], list) or not 1 <= len(scene['layers']) <= 24:
         raise SceneError('Scene requires 1-24 layers')
     defaults = {'opacity': 1, 'rotation': 0, 'motion': 'still', 'color': scene['palette'][0],
-                'width': .8, 'height': .6, 'font_size': 48, 'font': 'serif', 'count': 50, 'text': '', 'asset_id': ''}
+                'width': .8, 'height': .6, 'font_size': 48, 'font': 'serif', 'count': 50, 'text': '', 'asset_id': '',
+                'columns': 24, 'rows': 14, 'track': []}
     allowed = {'id', 'kind', 'start', 'end', 'x', 'y', *defaults}
-    ids, image_count = set(), 0
+    ids, image_count, fragment_count = set(), 0, 0
     for layer in scene['layers']:
         if not isinstance(layer, dict) or set(layer) - allowed or not {'id', 'kind', 'start', 'end', 'x', 'y'} <= set(layer):
             raise SceneError('Invalid or unknown layer fields')
         if not isinstance(layer['id'], str) or not _LAYER_ID.fullmatch(layer['id']) or layer['id'] in ids:
             raise SceneError('Layer IDs must be unique simple identifiers')
         ids.add(layer['id'])
-        if layer['kind'] not in ('image', 'text', 'particles'):
+        if layer['kind'] not in ('image', 'text', 'particles', 'fragments'):
             raise SceneError('Unsupported layer operation')
         for key, default in defaults.items(): layer.setdefault(key, default)
         for key, low, high in (('start', 0, scene['duration']), ('end', 0, scene['duration']),
@@ -62,6 +70,20 @@ def validate_scene(value: dict, asset_ids: set[str]) -> dict:
                                ('opacity', 0, 1), ('rotation', -45, 45), ('font_size', 16, 120)):
             _number(layer[key], low, high, key)
         _number(layer['count'], 1, 160, 'count', True)
+        _number(layer['columns'], 2, 32, 'columns', True)
+        _number(layer['rows'], 2, 18, 'rows', True)
+        track=layer['track']
+        if not isinstance(track,list) or len(track)>16 or len(track)==1:
+            raise SceneError('track must have zero or 2-16 transform states')
+        last=-1
+        for key in track:
+            if not isinstance(key,dict) or set(key)!={'at','x','y','scale','rotation','opacity','spread','turn'}:
+                raise SceneError('Invalid transform state fields')
+            for name,lo,hi in (('at',0,layer['end']-layer['start']),('x',-1,2),('y',-1,2),
+                               ('scale',.1,3),('rotation',-180,180),('opacity',0,1),('spread',0,1),('turn',-150,150)):
+                _number(key[name],lo,hi,name)
+            if key['at']<=last:raise SceneError('Track times must increase strictly')
+            last=key['at']
         if layer['end'] <= layer['start']:
             raise SceneError('Layer end must follow start')
         if layer['motion'] not in MOTIONS or layer['font'] not in ('serif', 'sans-serif', 'monospace'):
@@ -70,10 +92,13 @@ def validate_scene(value: dict, asset_ids: set[str]) -> dict:
             raise SceneError('Layer color must be a six-digit hex color')
         _text(layer['text'], 180, 'layer text')
         _text(layer['asset_id'], 32, 'asset ID')
-        if layer['kind'] == 'image':
+        if layer['kind'] in ('image','fragments'):
             if layer['asset_id'] not in asset_ids:
                 raise SceneError('Image layer refers to an unselected source')
             image_count += 1
+        if layer['kind']=='fragments':
+            fragment_count+=layer['columns']*layer['rows']
+    if fragment_count>1800:raise SceneError('Scene exceeds fragment rendering budget')
     if not image_count:
         raise SceneError('A composition must visibly use at least one selected image')
     return scene
@@ -91,9 +116,13 @@ SCENE_SCHEMA = {
         'seed': {'type': 'integer', 'minimum': 0, 'maximum': 2147483647},
         'layers': {'type': 'array', 'minItems': 1, 'maxItems': 24, 'items': {
             'type': 'object', 'additionalProperties': False,
-            'properties': {'id': {'type': 'string'}, 'kind': {'type': 'string', 'enum': ['image', 'text', 'particles']},
+            'properties': {'id': {'type': 'string'}, 'kind': {'type': 'string', 'enum': ['image', 'text', 'particles','fragments']},
                            'start': _NUM, 'end': _NUM, 'x': _NUM, 'y': _NUM, 'width': _NUM, 'height': _NUM,
                            'opacity': _NUM, 'rotation': _NUM, 'font_size': _NUM, 'count': {'type': 'integer'},
+                           'columns':{'type':'integer','minimum':2,'maximum':32},'rows':{'type':'integer','minimum':2,'maximum':18},
+                           'track':{'type':'array','maxItems':16,'items':{'type':'object','additionalProperties':False,
+                               'properties':{k:_NUM for k in ('at','x','y','scale','rotation','opacity','spread','turn')},
+                               'required':['at','x','y','scale','rotation','opacity','spread','turn']}},
                            'text': {'type': 'string'}, 'asset_id': {'type': 'string'}, 'color': {'type': 'string'},
                            'font': {'type': 'string', 'enum': ['serif', 'sans-serif', 'monospace']},
                            'motion': {'type': 'string', 'enum': list(MOTIONS)}},

@@ -2,7 +2,7 @@ const {chromium}=require(process.env.REKINDRA_PLAYWRIGHT_PATH||'playwright');
 const path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
 const {pathToFileURL}=require('node:url');
 (async()=>{
-  const root=path.resolve(__dirname,'..'),out=path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
+  const root=path.resolve(__dirname,'..'),out=process.env.REKINDRA_BROWSER_OUTPUT||path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
   const input=process.argv[2]||JSON.parse(fs.readFileSync(path.join(root,'.local/scene-fixture/result.json'),'utf8')).path;
   const context=await chromium.launchPersistentContext(path.join(out,'profile'),{channel:'chrome',headless:true,viewport:{width:1400,height:1200},acceptDownloads:true});
   try{
@@ -12,6 +12,25 @@ const {pathToFileURL}=require('node:url');
     assert.equal(await page.evaluate(()=>globalThis.injected),undefined,'Source text executed');
     const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
     assert.notEqual(frames[0],frames[1],'Animation did not change frames');
+    const repeat=await page.evaluate(()=>{rekindra.renderAt(.1);rekindra.renderAt(1);return document.querySelector('canvas').toDataURL()});
+    assert.equal(repeat,frames[0],'Seeking changed the same frame');
+    if(process.env.REKINDRA_MOTION_STUDY){
+      assert.equal(await page.evaluate(()=>rekindra.scene.layers.some(l=>l.kind==='text')),false);
+      const sheet=await page.evaluate(()=>{
+        const c=document.createElement('canvas');c.width=1280;c.height=1080;const x=c.getContext('2d');
+        [1,3,5,7,9,11].forEach((t,i)=>{rekindra.renderAt(t);x.drawImage(document.querySelector('#stage'),i%2*640,Math.floor(i/2)*360,640,360)});
+        return c.toDataURL().split(',')[1];
+      });
+      fs.writeFileSync(path.join(out,'contact-sheet.png'),Buffer.from(sheet,'base64'));
+      const change=await page.evaluate(()=>{
+        const c=document.querySelector('#stage'),x=c.getContext('2d');rekindra.renderAt(1);const a=x.getImageData(0,0,1280,720).data;
+        rekindra.renderAt(5);const b=x.getImageData(0,0,1280,720).data;let changed=0;
+        for(let i=0;i<a.length;i+=4)if(Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2])>35)changed++;
+        return changed/(1280*720);
+      });
+      assert.ok(change>.15,'Motion study must change a substantial part of the frame');
+      console.log(JSON.stringify({motionChangedFraction:change}));
+    }
     await page.screenshot({path:path.join(out,'scene.png'),fullPage:true});
     await page.locator('#ascii').check();
     assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),frames[1]);

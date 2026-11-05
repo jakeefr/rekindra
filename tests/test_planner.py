@@ -10,6 +10,19 @@ from test_plugin import plugin
 
 
 class PlannerTests(unittest.TestCase):
+    def test_unsolicited_model_text_is_rejected_and_repaired(self):
+        calls=[]
+        class Host:
+            def complete_structured(self, **kwargs):
+                calls.append(kwargs)
+                result=scene()
+                if len(calls)==2:result['layers']=result['layers'][:1]
+                return SimpleNamespace(parsed=result,provider='test',model='test')
+        sources=[{'asset_id':'a'*32,'name':'source.png','data':b'bytes','mime_type':'image/png','kind':'original'}]
+        result=plan_scene(Host(),sources,'dreamy')
+        self.assertEqual(len(calls),2)
+        self.assertFalse(any(l['kind']=='text' for l in result['scene']['layers']))
+
     def test_host_call_is_provider_neutral_and_uses_typed_images(self):
         calls=[]
         class Host:
@@ -17,7 +30,7 @@ class PlannerTests(unittest.TestCase):
                 calls.append(kwargs)
                 return SimpleNamespace(parsed=scene(), provider='user-provider', model='user-model', usage={})
         sources=[{'asset_id':'a'*32,'name':'source.png','data':b'bytes','mime_type':'image/png','source_sha256':'b'*64,'kind':'original'}]
-        result=plan_scene(Host(),sources,'quiet and dreamy')
+        result=plan_scene(Host(),sources,'quiet and dreamy with text',allow_text=True)
         self.assertEqual(result['scene']['title'],'Green afterglow')
         self.assertEqual(result['attribution']['provider'],'user-provider')
         self.assertNotIn('provider',calls[0]);self.assertNotIn('model',calls[0])

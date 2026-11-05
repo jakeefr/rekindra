@@ -22,6 +22,18 @@ def scene(asset_id='a'*32):
 
 
 class SceneTests(unittest.TestCase):
+    def test_fragment_tracks_are_bounded_and_ordered(self):
+        s=scene();layer=s['layers'][0];layer['kind']='fragments'
+        key={'at':0,'x':.5,'y':.5,'scale':1,'rotation':0,'opacity':1,'spread':0,'turn':0}
+        layer['track']=[key,{**key,'at':4,'spread':1,'turn':90}]
+        validated=validate_scene(s,{'a'*32})
+        self.assertEqual(validated['layers'][0]['columns'],24)
+        for keys in ([key,key], [key,{**key,'at':5}], [key,{**key,'at':4,'scale':99}]):
+            bad=copy.deepcopy(s);bad['layers'][0]['track']=keys
+            with self.assertRaises(SceneError):validate_scene(bad,{'a'*32})
+        bad=copy.deepcopy(s);bad['layers'][0]['columns']=10000
+        with self.assertRaises(SceneError):validate_scene(bad,{'a'*32})
+
     def test_jpeg_header_bounds(self):
         for marker in (0xc0, 0xc2):
             data = b'\xff\xd8\xff'+bytes([marker])+struct.pack('>HBHHB',11,8,360,640,1)+b'\x01\x11\x00'
@@ -66,9 +78,18 @@ class CompositionTests(unittest.TestCase):
         (self.source / 'old.tga').write_bytes(fixture())
         p = self.store.inspect(self.source); aid = p['assets'][0]['asset_id']
         result = json.loads(plugin.handlers.make_handlers(lambda: self.store)['rekindra_compose'](
-            {'project_id': p['project_id'], 'asset_ids': [aid], 'scene': scene(aid)}))
+            {'project_id': p['project_id'], 'asset_ids': [aid], 'scene': scene(aid), 'allow_text': True}))
         self.assertTrue(result['ok'], result)
         self.assertTrue(Path(result['result']['path']).is_file())
+
+    def test_compose_rejects_unsolicited_text(self):
+        from test_plugin import plugin
+        (self.source / 'old.tga').write_bytes(fixture())
+        p = self.store.inspect(self.source); aid = p['assets'][0]['asset_id']
+        result = json.loads(plugin.handlers.make_handlers(lambda: self.store)['rekindra_compose'](
+            {'project_id': p['project_id'], 'asset_ids': [aid], 'scene': scene(aid)}))
+        self.assertFalse(result['ok'])
+        self.assertIn('text', result['error']['message'])
 
     def test_plan_build_and_safe_embedding(self):
         (self.source / 'old.tga').write_bytes(fixture())
