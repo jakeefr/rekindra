@@ -8,7 +8,7 @@ FUNCTIONS={'sin':(1,'sin'),'cos':(1,'cos'),'abs':(1,'abs'),'sqrt':(1,'rsqrt'),
            'clamp':(3,'rclamp'),'mix':(3,'rmix')}
 
 
-def compile_expression(source):
+def compile_expression(source, names=None):
     if not isinstance(source,str) or not 1<=len(source)<=512:
         raise SceneError('Surface expressions require 1-512 characters')
     try:tree=ast.parse(source.strip(),mode='eval')
@@ -21,7 +21,9 @@ def compile_expression(source):
         if isinstance(node,ast.Constant) and type(node.value) in (int,float):
             if abs(node.value)>1000 or not math.isfinite(node.value):raise SceneError('Expression constants must be finite and within +/-1000')
             return format(float(node.value),'.9f')
-        if isinstance(node,ast.Name) and node.id in ('u','v','t','pi'):return node.id
+        if isinstance(node,ast.Name):
+            if node.id in ('u','v','t','pi'):return node.id
+            if names and node.id in names:return names[node.id]
         if isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.USub,ast.UAdd)):
             return ('-' if isinstance(node.op,ast.USub) else '+')+'('+visit(node.operand,depth+1)+')'
         if isinstance(node,ast.BinOp) and isinstance(node.op,(ast.Add,ast.Sub,ast.Mult,ast.Div)):
@@ -33,6 +35,6 @@ def compile_expression(source):
             arity,name=FUNCTIONS[node.func.id]
             if len(node.args)!=arity:raise SceneError('Wrong number of math function arguments')
             return f'bound({name}('+','.join(visit(arg,depth+1) for arg in node.args)+'))'
-        raise SceneError('Only u, v, t, pi, arithmetic and supported math functions are allowed')
+        raise SceneError('Only u, v, t, pi, earlier local bindings, arithmetic and supported math functions are allowed')
     glsl=visit(tree.body)
     return {'glsl':glsl,'cost':cost}

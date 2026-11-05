@@ -1,7 +1,8 @@
 """Scene v2: source-grounded procedural geometry with bounded GPU work."""
 import copy
+import re
 from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
-from .expressions import compile_expression
+from .expressions import compile_expression, FUNCTIONS
 
 
 def fields(value,names,label):
@@ -16,6 +17,26 @@ def vector(value,label):
 
 def color(value):
     if not isinstance(value,str) or not _COLOR.fullmatch(value):raise SceneError('World colors must be #RRGGBB')
+
+
+def compile_surface(obj):
+    bindings=obj.get('bindings',[])
+    if not isinstance(bindings,list) or len(bindings)>16:raise SceneError('Surface allows at most 16 local bindings')
+    names={};definitions=[];cost=0
+    for binding in bindings:
+        fields(binding,'name expression','local binding')
+        name=binding['name']
+        if not isinstance(name,str) or not re.fullmatch('[a-z][a-z0-9_]{0,23}',name) or name in names or name in FUNCTIONS or name in ('u','v','t','pi'):
+            raise SceneError('Binding names must be unique lowercase identifiers, not reserved math names')
+        # Only prior names are in scope. No recursion, cycles, forward references,
+        # caller-supplied shader identifiers, or executable code are accepted.
+        value=compile_expression(binding['expression'],names)
+        shader_name=f'rk_local_{len(names)}';names[name]=shader_name
+        definitions.append(f'float {shader_name}={value["glsl"]};');cost+=value['cost']
+    pos=[compile_expression(obj['position'][k],names) for k in ('x','y','z')]
+    blend=compile_expression(obj['color_mix'],names)
+    return {'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
+            'definitions':'\n'.join(definitions),'cost':cost+sum(p['cost'] for p in pos)+blend['cost']}
 
 
 def validate_world(value,asset_ids):
@@ -34,10 +55,18 @@ def validate_world(value,asset_ids):
         for key in ('observed','created'):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
-    env=s['environment'];fields(env,'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
+    env=s['environment']
+    optional={'fill_color','fill_direction','fill_strength','exposure'}
+    if not isinstance(env,dict):raise SceneError('Invalid environment fields')
+    fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
     _number(env['fog_density'],0,.15,'fog density');_number(env['sun_size'],.003,.15,'sun size');_number(env['sun_strength'],0,4,'sun strength')
     if sum(x*x for x in vector(env['light_direction'],'light direction'))<.0001:raise SceneError('Light direction cannot be zero')
+    if 'fill_color' in env:color(env['fill_color'])
+    if 'fill_strength' in env:_number(env['fill_strength'],0,2,'fill strength')
+    if 'exposure' in env:_number(env['exposure'],.25,4,'exposure')
+    if 'fill_direction' in env and sum(x*x for x in vector(env['fill_direction'],'fill direction'))<.0001:
+        raise SceneError('Fill direction cannot be zero')
     camera=s['camera']
     if not isinstance(camera,list) or not 2<=len(camera)<=12:raise SceneError('Camera requires 2-12 states')
     last=-1;previous=None
@@ -57,23 +86,31 @@ def validate_world(value,asset_ids):
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=12:raise SceneError('World requires 1-12 surfaces')
     ids=set();cells=work=0
     for obj in s['objects']:
-        fields(obj,'id position segments color color_high color_mix roughness metalness emission','surface')
+        if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
+        fields({k:v for k,v in obj.items() if k!='bindings'},'id position segments color color_high color_mix roughness metalness emission','surface')
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique simple names')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
-        expressions=[compile_expression(obj['position'][k]) for k in ('x','y','z')]+[compile_expression(obj['color_mix'])]
+        compiled=compile_surface(obj)
         segments=obj['segments']
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
-        count=segments[0]*segments[1];cells+=count;work+=count*sum(e['cost'] for e in expressions)
+        count=segments[0]*segments[1];cells+=count;work+=count*compiled['cost']
         color(obj['color']);color(obj['color_high'])
         _number(obj['roughness'],.04,1,'roughness');_number(obj['metalness'],0,1,'metalness');_number(obj['emission'],0,3,'emission')
-    if cells>32000 or work>4_000_000:raise SceneError('World exceeds geometry or shader work budget')
+    if cells>32000 or work>4_000_000:
+        # Actionable authoring feedback: reducing each segment axis by this
+        # factor reduces the cell/work total approximately quadratically.
+        scale=min((32000/max(cells,1))**.5,(4_000_000/max(work,1))**.5,1)
+        raise SceneError(f'World exceeds geometry or shader work budget: {cells} cells (max 32000), '
+                         f'{work} expression-weighted work (max 4000000). '
+                         f'Reduce both segment counts per object to about {scale*.95:.2f} times their current values '
+                         '(round down, minimum 4), or simplify repeated position/color expressions. '
+                         'Preserve the intended shapes and timing; resubmit the full scene.')
     return s
 
 
 def compile_world(scene):
-    return [{'position':[compile_expression(o['position'][k])['glsl'] for k in ('x','y','z')],
-             'color_mix':compile_expression(o['color_mix'])['glsl']} for o in scene['objects']]
+    return [{k:v for k,v in compile_surface(o).items() if k!='cost'} for o in scene['objects']]
 
 
 def obj_schema(properties):return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
@@ -91,3 +128,14 @@ WORLD_SCHEMA=obj_schema({
     'objects':{'type':'array','minItems':1,'maxItems':12,'items':obj_schema({'id':TEXT,'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
+# Optional studio-light controls preserve all existing v2 plans.
+WORLD_SCHEMA['properties']['environment']['properties'].update({
+    'fill_color':{'type':'string','description':'Optional unshadowed fill light color; default #B8D1FF.'},
+    'fill_direction':VEC,
+    'fill_strength':{'type':'number','minimum':0,'maximum':2,'description':'Optional fill intensity, default 0.25. Set 0 for no fill.'},
+    'exposure':{'type':'number','minimum':.25,'maximum':4,'description':'Optional scene exposure multiplier, default 1.'}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
+    'type':'array','maxItems':16,
+    'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
+    'items':obj_schema({'name':{'type':'string','pattern':'^[a-z][a-z0-9_]{0,23}$'},
+                        'expression':{'type':'string','minLength':1,'maxLength':512}})}
