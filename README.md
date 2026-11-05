@@ -32,8 +32,11 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 - `rekindra_compose`: validate an agent-authored scene and build a portable, offline HTML player with ASCII mode and silent WebM export.
 - `rekindra_plan`: optional separate host-owned structured model call to infer mood and save a scene plan.
 - `rekindra_build`: rebuild a saved plan after verifying source integrity.
+- `rekindra_create_world`: create generated geometry, animated surfaces, atmosphere, materials and a moving perspective camera from source interpretation. No source-image textures or text are drawn in this mode.
 
 Recommended flow: inspect the selected folder, recover TGA images, let the active Hermes agent view selected images with consent, then have it call `rekindra_compose`. Creative output is labelled generated. `rekindra_plan` is an optional route; on the tested native Hermes build, its Python auxiliary model client could not access the working Codex chat sign-in. Do not copy credentials or add a second provider to work around this. Use the active agent route.
+
+For a new environment rather than picture effects, prefer `rekindra_create_world` after source inspection. The agent records what it observed and what it invented, then authors parametric geometry in scene v2. The original WebGL2 renderer calculates moving geometry and shading at the requested time. The source image remains in the provenance gallery; it is not a texture on a rectangle. Camera and object motion are independent. This is generated interpretation, not recovery of a photograph's true 3D scene. See `docs/world-authoring.md`.
 
 Scenes currently support 1-6 PNG/JPEG/recovered TGA sources, 4-30 seconds at 1280x720, images, source fragments, optional requested text, and deterministic particles. On-screen text is off by default: new creation calls require allow_text=true only when the user asks for it. Explicit per-layer transform tracks support 2-16 complete states; fragments can separate, turn through generated depth, and resolve. These are creative transformations, not recovered 3D geometry. PNG/JPEG headers are bounded before upload; baseline/progressive 8-bit JPEG only. Image bytes are capped at 2 MB each / 8 MB total. Saved HTML embeds its assets and checks their hashes before playback. Hashes detect corruption; they are not signatures proving authenticity.
 
@@ -45,11 +48,11 @@ Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited direct
 
 ## Verification
 
-Local Windows: 42 Python and 4 Node tests pass; real Hermes Plugin Doctor registers six tools and catalog validation passes. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.
+Local Windows: 46 Python and 6 Node tests pass; real Hermes Plugin Doctor registers seven tools. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.
 
 Real Windows Chrome acceptance now verifies original 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Playwright is development-only. Reproduce with `scripts/make_scene_fixture.py`, then `scripts/browser_scene_test.cjs` (requires a development Playwright installation and Chrome).
 
-Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 42 Python and 4 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41985996380). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
+Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 46 Python and 6 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41989227727). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
 
 Next: stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
 
