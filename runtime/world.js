@@ -122,22 +122,32 @@ ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${sky}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
+ // Neighboring texels lie at different depths on a sloped receiver. Compare
+ // each tap against that plane, not against the center pixel's depth.
+ // Derivatives must be evaluated before any nonuniform coverage branch.
+ vec3 qx=dFdx(q),qy=dFdy(q);float det=qx.x*qy.y-qx.y*qy.x;
+ vec2 gradient=abs(det)>1.e-12?vec2(qx.z*qy.y-qx.y*qy.z,qx.x*qy.z-qx.z*qy.x)/det:vec2(0.);
+ gradient=clamp(gradient,vec2(-4.),vec2(4.));
  if(any(lessThanEqual(q,vec3(0.)))||any(greaterThanEqual(q,vec3(1.))))return 1.;
  float slope=sqrt(max(0.,1.-nl*nl))/max(nl,.1);
- float bias=(.003+min(.06,.75*(2.*shadowExtent/2048.)*slope))/(2.*shadowDepthExtent),sum=0.,blockerSum=0.,blockers=0.;
+ float bias=(.003+min(.06,.75*(2.*shadowExtent/2048.)*slope))/(2.*shadowDepthExtent),sum=0.,blockerGap=0.,blockers=0.;
  // Bounded blocker search estimates a penumbra from source angular radius.
  float searchRadius=clamp(tan(sunSize)*.06,1./2048.,10./2048.);
  for(int i=0;i<16;i++){
   float angle=float(i)*2.39996323,r=sqrt((float(i)+.5)/16.);
-  float depth=texture(shadowDepth,q.xy+vec2(cos(angle),sin(angle))*r*searchRadius).r;
-  if(depth<q.z-bias){blockerSum+=depth;blockers+=1.;}
+  vec2 tap=(floor((q.xy+vec2(cos(angle),sin(angle))*r*searchRadius)*2048.)+.5)/2048.;
+  if(any(lessThan(tap,vec2(0.)))||any(greaterThan(tap,vec2(1.))))continue;
+  float depth=texture(shadowDepth,tap).r,receiver=q.z+dot(gradient,tap-q.xy);
+  if(depth<receiver-bias){blockerGap+=receiver-depth;blockers+=1.;}
  }
  float radius=1.;
- if(blockers>0.)radius=clamp((q.z-blockerSum/blockers)*shadowDepthExtent*tan(sunSize)/shadowExtent*2048.,1.,12.);
+ if(blockers>0.)radius=clamp((blockerGap/blockers)*shadowDepthExtent*tan(sunSize)/shadowExtent*2048.,1.,12.);
  for(int i=0;i<32;i++){
   float angle=float(i)*2.39996323,r=sqrt((float(i)+.5)/32.);
-  float depth=texture(shadowDepth,q.xy+vec2(cos(angle),sin(angle))*r*radius/2048.).r;
-  sum+=q.z-bias<=depth?1.:0.;
+  vec2 tap=(floor(q.xy*2048.+vec2(cos(angle),sin(angle))*r*radius)+.5)/2048.;
+  if(any(lessThan(tap,vec2(0.)))||any(greaterThan(tap,vec2(1.)))){sum+=1.;continue;}
+  float depth=texture(shadowDepth,tap).r,receiver=q.z+dot(gradient,tap-q.xy);
+  sum+=receiver-bias<=depth?1.:0.;
  }return sum/32.;
 }
 void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);if(dot(N,V)<0.)N=-N;

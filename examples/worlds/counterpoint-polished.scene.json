@@ -108,15 +108,15 @@
           "name": "e"
         },
         {
-          "expression": "e*2*pi*cos(2*pi*u)",
+          "expression": "e*2*pi*cos(2*pi*min(u,.84))",
           "name": "dx"
         },
         {
-          "expression": "mix(2.5*3.8*cos(3.8*u-.8),7.8,e)",
+          "expression": "mix(2.5*3.8*cos(3.8*min(u,.84)-.8),7.8,e)",
           "name": "dy"
         },
         {
-          "expression": "mix(2.5*3.8*sin(3.8*u-.8),-1.2*2*pi*sin(2*pi*u)+.3,e)",
+          "expression": "mix(2.5*3.8*sin(3.8*min(u,.84)-.8),-1.2*2*pi*sin(2*pi*min(u,.84))+.3,e)",
           "name": "dz"
         },
         {
@@ -128,7 +128,7 @@
           "name": "n"
         },
         {
-          "expression": "mix(.15,-.05+1.2*sin(2*pi*u),e)",
+          "expression": "mix(.15,-.05+1.2*sin(2*pi*min(u,.84)),e)",
           "name": "phi"
         },
         {
@@ -144,7 +144,7 @@
           "name": "den"
         },
         {
-          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sin(pi*min((1-u)/.38,1)/2)",
           "name": "cap"
         },
         {
@@ -171,9 +171,9 @@
       "id": "rose-sweeping-s-blade",
       "metalness": 0.16,
       "position": {
-        "x": "-6.6+e*sin(2*pi*u)+aa*q/n",
-        "y": ".25+.18*(1-(-6.6/8.4)*(-6.6/8.4))+mix(2.5*(sin(3.8*u-.8)+sin(.8)),7.8*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
-        "z": ".6*(-6.6/8.4)*(-6.6/8.4)-.3+mix(2.5*(cos(.8)-cos(3.8*u-.8)),1.2*(cos(2*pi*u)-1)+.3*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+        "x": "-6.6+e*sin(2*pi*min(u,.84))+aa*q/n+dx*(u-min(u,.84))",
+        "y": ".25+.18*(1-(-6.6/8.4)*(-6.6/8.4))+mix(2.5*(sin(3.8*min(u,.84)-.8)+sin(.8)),7.8*min(u,.84),e)-aa*dx*dy/(q*n)-bb*dz/q+dy*(u-min(u,.84))",
+        "z": ".6*(-6.6/8.4)*(-6.6/8.4)-.3+mix(2.5*(cos(.8)-cos(3.8*min(u,.84)-.8)),1.2*(cos(2*pi*min(u,.84))-1)+.3*min(u,.84),e)-aa*dx*dz/(q*n)+bb*dy/q+dz*(u-min(u,.84))"
       },
       "roughness": 0.38,
       "segments": [
@@ -192,15 +192,15 @@
           "name": "e"
         },
         {
-          "expression": "-e*.95*1.65*pi*cos(1.65*pi*u)",
+          "expression": "-e*.95*1.65*pi*cos(1.65*pi*min(u,.84))",
           "name": "dx"
         },
         {
-          "expression": "mix(1.9*3.8*cos(3.8*u-.8),5.7,e)",
+          "expression": "mix(1.9*3.8*cos(3.8*min(u,.84)-.8),5.7,e)",
           "name": "dy"
         },
         {
-          "expression": "mix(1.9*3.8*sin(3.8*u-.8),-.9*2*pi*sin(2*pi*u)+.25,e)",
+          "expression": "mix(1.9*3.8*sin(3.8*min(u,.84)-.8),-.9*2*pi*sin(2*pi*min(u,.84))+.25,e)",
           "name": "dz"
         },
         {
@@ -212,7 +212,7 @@
           "name": "n"
         },
         {
-          "expression": "mix(-.25,.35-1.55*sin(pi*u),e)",
+          "expression": "mix(-.25,.35-1.55*sin(pi*min(u,.84)),e)",
           "name": "phi"
         },
         {
@@ -228,7 +228,7 @@
           "name": "den"
         },
         {
-          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sin(pi*min((1-u)/.38,1)/2)",
           "name": "cap"
         },
         {
@@ -255,9 +255,9 @@
       "id": "cyan-low-counterwave",
       "metalness": 0.12,
       "position": {
-        "x": "-2.2-e*.95*sin(1.65*pi*u)+aa*q/n",
-        "y": ".25+.18*(1-(-2.2/8.4)*(-2.2/8.4))+mix(1.9*(sin(3.8*u-.8)+sin(.8)),5.7*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
-        "z": ".6*(-2.2/8.4)*(-2.2/8.4)-.3+mix(1.9*(cos(.8)-cos(3.8*u-.8)),.9*(cos(2*pi*u)-1)+.25*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+        "x": "-2.2-e*.95*sin(1.65*pi*min(u,.84))+aa*q/n+dx*(u-min(u,.84))",
+        "y": ".25+.18*(1-(-2.2/8.4)*(-2.2/8.4))+mix(1.9*(sin(3.8*min(u,.84)-.8)+sin(.8)),5.7*min(u,.84),e)-aa*dx*dy/(q*n)-bb*dz/q+dy*(u-min(u,.84))",
+        "z": ".6*(-2.2/8.4)*(-2.2/8.4)-.3+mix(1.9*(cos(.8)-cos(3.8*min(u,.84)-.8)),.9*(cos(2*pi*min(u,.84))-1)+.25*min(u,.84),e)-aa*dx*dz/(q*n)+bb*dy/q+dz*(u-min(u,.84))"
       },
       "roughness": 0.34,
       "segments": [
@@ -276,15 +276,15 @@
           "name": "e"
         },
         {
-          "expression": "-e*.75*2.2*pi*cos(2.2*pi*u)",
+          "expression": "-e*.75*2.2*pi*cos(2.2*pi*min(u,.84))",
           "name": "dx"
         },
         {
-          "expression": "mix(2.9*3.8*cos(3.8*u-.8),9.3,e)",
+          "expression": "mix(2.9*3.8*cos(3.8*min(u,.84)-.8),9.3,e)",
           "name": "dy"
         },
         {
-          "expression": "mix(2.9*3.8*sin(3.8*u-.8),-1.5*2*pi*sin(2*pi*u)+.35,e)",
+          "expression": "mix(2.9*3.8*sin(3.8*min(u,.84)-.8),-1.5*2*pi*sin(2*pi*min(u,.84))+.35,e)",
           "name": "dz"
         },
         {
@@ -296,7 +296,7 @@
           "name": "n"
         },
         {
-          "expression": "mix(.1,-.25+1.45*sin(pi*u),e)",
+          "expression": "mix(.1,-.25+1.45*sin(pi*min(u,.84)),e)",
           "name": "phi"
         },
         {
@@ -312,7 +312,7 @@
           "name": "den"
         },
         {
-          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sin(pi*min((1-u)/.38,1)/2)",
           "name": "cap"
         },
         {
@@ -339,9 +339,9 @@
       "id": "gold-high-cantilever",
       "metalness": 0.62,
       "position": {
-        "x": "2.2-e*.75*sin(2.2*pi*u)+aa*q/n",
-        "y": ".25+.18*(1-(2.2/8.4)*(2.2/8.4))+mix(2.9*(sin(3.8*u-.8)+sin(.8)),9.3*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
-        "z": ".6*(2.2/8.4)*(2.2/8.4)-.3+mix(2.9*(cos(.8)-cos(3.8*u-.8)),1.5*(cos(2*pi*u)-1)+.35*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+        "x": "2.2-e*.75*sin(2.2*pi*min(u,.84))+aa*q/n+dx*(u-min(u,.84))",
+        "y": ".25+.18*(1-(2.2/8.4)*(2.2/8.4))+mix(2.9*(sin(3.8*min(u,.84)-.8)+sin(.8)),9.3*min(u,.84),e)-aa*dx*dy/(q*n)-bb*dz/q+dy*(u-min(u,.84))",
+        "z": ".6*(2.2/8.4)*(2.2/8.4)-.3+mix(2.9*(cos(.8)-cos(3.8*min(u,.84)-.8)),1.5*(cos(2*pi*min(u,.84))-1)+.35*min(u,.84),e)-aa*dx*dz/(q*n)+bb*dy/q+dz*(u-min(u,.84))"
       },
       "roughness": 0.27,
       "segments": [
@@ -360,15 +360,15 @@
           "name": "e"
         },
         {
-          "expression": "e*1.05*1.85*pi*cos(1.85*pi*u)",
+          "expression": "e*1.05*1.85*pi*cos(1.85*pi*min(u,.84))",
           "name": "dx"
         },
         {
-          "expression": "mix(2.35*3.8*cos(3.8*u-.8),7.1,e)",
+          "expression": "mix(2.35*3.8*cos(3.8*min(u,.84)-.8),7.1,e)",
           "name": "dy"
         },
         {
-          "expression": "mix(-2.35*3.8*sin(3.8*u-.8),1.4*2*pi*sin(2*pi*u)-.3,e)",
+          "expression": "mix(-2.35*3.8*sin(3.8*min(u,.84)-.8),1.4*2*pi*sin(2*pi*min(u,.84))-.3,e)",
           "name": "dz"
         },
         {
@@ -380,7 +380,7 @@
           "name": "n"
         },
         {
-          "expression": "mix(-.15,.15-1.25*sin(2*pi*u+.2),e)",
+          "expression": "mix(-.15,.15-1.25*sin(2*pi*min(u,.84)+.2),e)",
           "name": "phi"
         },
         {
@@ -396,7 +396,7 @@
           "name": "den"
         },
         {
-          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sqrt(1-u*u)",
+          "expression": "(.35+.65*sin(pi*min(u/.23,1)/2))*sin(pi*min((1-u)/.38,1)/2)",
           "name": "cap"
         },
         {
@@ -423,9 +423,9 @@
       "id": "violet-reverse-serpentine",
       "metalness": 0.2,
       "position": {
-        "x": "6.6+e*1.05*sin(1.85*pi*u)+aa*q/n",
-        "y": ".25+.18*(1-(6.6/8.4)*(6.6/8.4))+mix(2.35*(sin(3.8*u-.8)+sin(.8)),7.1*u,e)-aa*dx*dy/(q*n)-bb*dz/q",
-        "z": ".6*(6.6/8.4)*(6.6/8.4)-.3+mix(-2.35*(cos(.8)-cos(3.8*u-.8)),-1.4*(cos(2*pi*u)-1)-.3*u,e)-aa*dx*dz/(q*n)+bb*dy/q"
+        "x": "6.6+e*1.05*sin(1.85*pi*min(u,.84))+aa*q/n+dx*(u-min(u,.84))",
+        "y": ".25+.18*(1-(6.6/8.4)*(6.6/8.4))+mix(2.35*(sin(3.8*min(u,.84)-.8)+sin(.8)),7.1*min(u,.84),e)-aa*dx*dy/(q*n)-bb*dz/q+dy*(u-min(u,.84))",
+        "z": ".6*(6.6/8.4)*(6.6/8.4)-.3+mix(-2.35*(cos(.8)-cos(3.8*min(u,.84)-.8)),-1.4*(cos(2*pi*min(u,.84))-1)-.3*min(u,.84),e)-aa*dx*dz/(q*n)+bb*dy/q+dz*(u-min(u,.84))"
       },
       "roughness": 0.42,
       "segments": [
@@ -458,7 +458,7 @@
       ]
     }
   ],
-  "reason": "Developer art-direction pass over Hermes-authored geometry. Center the smaller opening vertically, follow growth gently, and compare front fill and differentiated satin materials. No claim of new geometry or autonomous Hermes revision.",
+  "reason": "Developer repair: continue the last 16 percent of each ribbon along its local tangent, with a finite-slope width taper. Stop terminal centerline curl and twist instead of hiding the silhouette defect. Receiver-plane shadow correction remains active.",
   "references": [
     {
       "asset_id": "00000000000000000000000000000000",
@@ -468,6 +468,6 @@
   ],
   "schema_version": 2,
   "seed": 8427,
-  "title": "Counterpoint V - Framing and light study",
+  "title": "Counterpoint VII - Tangent tips",
   "width": 1280
 }
