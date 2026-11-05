@@ -95,3 +95,21 @@ Filtered shadow taps now compare against the receiver plane's depth at each samp
 Conceptual reference: [Microsoft's per-texel depth-bias explanation](https://learn.microsoft.com/en-us/windows/desktop/DxTechArts/cascaded-shadow-maps). The GLSL is original. `scripts/browser_shadow_test.cjs` is a development-only installed-browser regression that isolates the actual production shadow visibility calculation, checks a lone sloped receiver and preserves a separate occluder's shadow. It is not a production dependency or a complete curved-surface acceptance suite.
 
 For a clean authored ribbon tip, avoid relying on a sparse mesh to approximate an infinite-slope square-root taper. Review the terminal centerline as well as width: narrowing a curled end alone leaves the hook. A short tangent continuation with controlled taper is one option, not a universal shape template.
+
+## Source-specific concept selection
+
+Before geometry, compare three materially different premises based on visible evidence: change the action and spatial relationships, not merely palette or object names. Record a brief selected premise and why the alternatives are weaker in `scene.reason`; this is a design summary, not a reasoning transcript. An unfolding ornament and rising sphere are not defaults for unrelated folders.
+
+Design the supporting space to communicate scale, depth or meaning across the full sequence. An empty stage and decorative clutter are both weak substitutes for that decision. Allocate the limited object budget deliberately. Check whether replacing the source files would leave the same concept; if so, source specificity is probably weak.
+
+Define material contrast through shape, color variation, roughness and lighting together. Wet surfaces, cloth, stone, foliage and metal should not all become glossy ribbed sheets. The current color expression is evaluated at mesh vertices and interpolated: sub-grid patterns do not become fine texture. Actual transparency and physical water remain unavailable. Treat a constrained interpretation honestly.
+
+Review four separate questions in each preview: is the invention specific to these sources, is spatial depth convincing, are materials distinguishable, and does the sequence develop? Reconsider a weak premise before another cosmetic revision. This guidance is not a requirement that every result be realistic or densely populated.
+
+### Per-pixel material detail
+
+Optional surface `color_detail` supplies an original bounded math expression evaluated per pixel in interpolated surface coordinates `u,v`, with `t` in seconds and `pi`. It uses the same allowed arithmetic/functions but cannot reference geometry bindings. The result clamps to -0.35..0.35 and multiplies linear albedo by 1+detail; it does not add displacement, normal mapping, transparency, roughness variation or physical simulation.
+
+Use it for restrained surface color grain or weave, with `color_mix` retaining broad mesh-interpolated color variation. For example `.12*sin(u*80)*sin(v*85)` resolves on a coarse mesh; this simple pattern is an illustration, not a universal material preset. Choose frequencies that remain visible at the intended view; subpixel patterns can alias. Detail does not rescue balloon-like stone geometry or a weak composition.
+
+Limits are 128 characters and 32 compiled expression nodes per detail expression, plus 128 detail nodes across the world, separate from geometry budgets. This bounds added per-pixel work even when tessellation is low; it is not a frame-rate guarantee. Omit the optional field for the prior shader path. `scripts/browser_material_test.cjs` verifies resolved detail on a 4×4 mesh and bounded brightness under extreme inputs using an installed real browser.

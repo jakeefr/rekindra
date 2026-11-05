@@ -2,6 +2,8 @@
 from .rekindra_core.scenes import SCENE_SCHEMA
 from .rekindra_core.worlds import WORLD_SCHEMA
 
+WORLD_ART_DIRECTION = '''Before geometry, compare three genuinely different source-led premises: change the action and spatial relationships, not just colors or object names. Choose one that depends on distinctive evidence in these files. A generic unfolding ornament with a rising sphere is not a default solution. Briefly record the chosen premise and why the alternatives are weaker in scene.reason. Plan the occupied space and camera composition across beginning, middle and end. A supporting environment must contribute scale, depth or meaning; an empty slab is not a world, but decorative clutter is not an improvement either. Use the object budget deliberately for the important relationships. Design material contrast: identify what should read as rough stone, wet surface, cloth, foliage or metal from shape, color variation, roughness and illumination together. Do not make everything metallic or add uniform ribs to simulate detail. Broad color_mix is interpolated across mesh vertices. Optional color_detail is per-pixel albedo modulation for subtle grain or weave: 128 characters, 32 math nodes each, 128 total across the world, only u/v/t/pi, no bindings; result clamps to -.35.. .35. It changes color only; subpixel frequencies can alias. Avoid promising transparency, physical water or features the renderer lacks. Review visual specificity, spatial depth, material readability and narrative progression separately. If the source files could be swapped without changing the concept, or the result still reads as an isolated generic ornament, reconsider the premise before polishing highlights. A creative interpretation may depart from literal appearance, but distinguish that invention from recovered facts.'''
+
 SCHEMAS = {
     'rekindra_inspect': {
         'name': 'rekindra_inspect',
@@ -50,3 +52,7 @@ SCHEMAS.update({
         'parameters':{'type':'object','properties':{'project_id':{'type':'string'},'plan_id':{'type':'string'}},
                       'required':['project_id','plan_id'],'additionalProperties':False}}
 })
+
+# Keep creative judgment alongside the tool the active native agent actually reads.
+SCHEMAS['rekindra_create_world']['description'] += ' ' + WORLD_ART_DIRECTION
+SCHEMAS['rekindra_preview']['description'] += ' Also assess whether the result depends on the source files, whether supporting space adds depth or meaning, and whether distinct materials actually read differently. A technically clean but generic ornament is not artistic acceptance.'

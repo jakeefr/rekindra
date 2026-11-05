@@ -106,18 +106,19 @@ precision highp float;in vec2 screen;out vec4 pixel;${uniforms}${sky}
 void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y*tanHalf);pixel=vec4(displayColor(atmosphere(ray)),1.);}`);
     const surfaces=scene.objects.map((o,index)=>{
       const source=programs[index];
+      const hasDetail=source.color_detail!==undefined;
       const definitions=source.definitions??'';
       const position=`vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
       const p=program(`#version 300 es
-precision highp float;layout(location=0)in vec2 uv;out vec3 worldPos,worldNormal;out float blend;
+precision highp float;layout(location=0)in vec2 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}
 ${uniforms}${math}${position}
-void main(){float u=uv.x,v=uv.y;${definitions}vec3 pos=surface(u,v);
+void main(){float u=uv.x,v=uv.y;${hasDetail?'detailUV=uv;':''}${definitions}vec3 pos=surface(u,v);
 vec3 du=surface(u+.0005,v)-surface(u-.0005,v),dv=surface(u,v+.0005)-surface(u,v-.0005);
 vec3 n=cross(dv,du);worldNormal=length(n)>.0000001?normalize(n):vec3(0.,1.,0.);
 worldPos=pos;blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
 gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
-precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;
+precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${sky}
 float visibility(vec3 p,float nl){
@@ -152,6 +153,7 @@ float visibility(vec3 p,float nl){
 }
 void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);if(dot(N,V)<0.)N=-N;
 vec3 albedo=mix(baseColor,highColor,blend);
+${hasDetail?`float u=detailUV.x,v=detailUV.y;float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail;`:''}
 float nl=max(dot(N,lightDir),0.),nv=max(dot(N,V),.001);
 vec3 hv=V+lightDir;vec3 H=length(hv)>.00001?normalize(hv):N;
 float nh=max(dot(N,H),0.),vh=max(dot(V,H),0.);

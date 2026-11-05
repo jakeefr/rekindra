@@ -23,6 +23,26 @@ def world(aid='a'*32):
 
 
 class WorldTests(unittest.TestCase):
+    def test_fragment_detail_compiles_without_geometry_bindings(self):
+        from rekindra_core.worlds import compile_world
+        s=world();s['objects'][0]['color_detail']='.2*sin(u*80)*sin(v*80)'
+        valid=validate_world(s, {'a'*32})
+        self.assertIn('sin',compile_world(valid)[0]['color_detail'])
+        self.assertNotIn('color_detail',compile_world(world())[0])
+        s['objects'][0]['bindings']=[{'name':'shape','expression':'u*2'}]
+        s['objects'][0]['color_detail']='shape'
+        with self.assertRaises(SceneError):validate_world(s, {'a'*32})
+
+    def test_fragment_detail_has_separate_per_pixel_work_bounds(self):
+        s=world();s['objects'][0]['color_detail']='+'.join(['u']*20)
+        with self.assertRaisesRegex(SceneError,'detail'):validate_world(s, {'a'*32})
+        s=world();s['objects'][0]['segments']=[4,4]
+        s['objects'][0]['color_detail']='+'.join(['u']*15)
+        s['objects']=[dict(s['objects'][0],id=f's{i}') for i in range(5)]
+        with self.assertRaisesRegex(SceneError,'detail'):validate_world(s, {'a'*32})
+        s=world();s['objects'][0]['color_detail']='__import__("os")'
+        with self.assertRaises(SceneError):validate_world(s, {'a'*32})
+
     def test_model_schema_advertises_metadata_limits_enforced_at_runtime(self):
         # Live Hermes generated an overlong mood because its tool schema omitted
         # the runtime limit. Compare the advertised contract at each boundary.
@@ -75,8 +95,10 @@ class WorldIntegrationTests(unittest.TestCase):
         (self.source/'old.tga').write_bytes(fixture())
         p=self.store.inspect(self.source);aid=p['assets'][0]['asset_id']
         handlers=plugin.handlers.make_handlers(lambda:self.store)
-        result=json.loads(handlers['rekindra_create_world']({'project_id':p['project_id'],'asset_ids':[aid],'scene':world(aid)}))
+        scene=world(aid);scene['objects'][0]['color_detail']='.1*sin(u*90)'
+        result=json.loads(handlers['rekindra_create_world']({'project_id':p['project_id'],'asset_ids':[aid],'scene':scene}))
         self.assertTrue(result['ok'],result)
         document=Path(result['result']['path']).read_text(encoding='utf8')
         self.assertIn('RekindraWorld',document)
         self.assertIn('"programs"',document)
+        self.assertIn('"color_detail"',document)

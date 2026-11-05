@@ -35,8 +35,18 @@ def compile_surface(obj):
         definitions.append(f'float {shader_name}={value["glsl"]};');cost+=value['cost']
     pos=[compile_expression(obj['position'][k],names) for k in ('x','y','z')]
     blend=compile_expression(obj['color_mix'],names)
-    return {'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
+    result={'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
             'definitions':'\n'.join(definitions),'cost':cost+sum(p['cost'] for p in pos)+blend['cost']}
+    if 'color_detail' in obj:
+        detail=obj['color_detail']
+        if not isinstance(detail,str) or not 1<=len(detail)<=128:
+            raise SceneError('Material detail requires 1-128 characters')
+        # Per-pixel work is independent of tessellation. Geometry bindings are
+        # deliberately unavailable here; their cost can be much larger.
+        compiled=compile_expression(detail)
+        if compiled['cost']>32:raise SceneError('Material detail exceeds 32 expression nodes')
+        result.update(color_detail=compiled['glsl'],detail_cost=compiled['cost'])
+    return result
 
 
 def validate_world(value,asset_ids):
@@ -84,19 +94,21 @@ def validate_world(value,asset_ids):
         previous=delta
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError('Camera must span the full duration')
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=12:raise SceneError('World requires 1-12 surfaces')
-    ids=set();cells=work=0
+    ids=set();cells=work=detail_work=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k!='bindings'},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail')},'id position segments color color_high color_mix roughness metalness emission','surface')
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique simple names')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
+        detail_work+=compiled.get('detail_cost',0)
         segments=obj['segments']
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
         count=segments[0]*segments[1];cells+=count;work+=count*compiled['cost']
         color(obj['color']);color(obj['color_high'])
         _number(obj['roughness'],.04,1,'roughness');_number(obj['metalness'],0,1,'metalness');_number(obj['emission'],0,3,'emission')
+    if detail_work>128:raise SceneError('World material detail exceeds 128 total expression nodes; simplify detail expressions or use them on fewer surfaces')
     if cells>32000 or work>4_000_000:
         # Actionable authoring feedback: reducing each segment axis by this
         # factor reduces the cell/work total approximately quadratically.
@@ -110,7 +122,7 @@ def validate_world(value,asset_ids):
 
 
 def compile_world(scene):
-    return [{k:v for k,v in compile_surface(o).items() if k!='cost'} for o in scene['objects']]
+    return [{k:v for k,v in compile_surface(o).items() if k not in ('cost','detail_cost')} for o in scene['objects']]
 
 
 def obj_schema(properties):return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
@@ -139,3 +151,6 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
     'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
     'items':obj_schema({'name':{'type':'string','pattern':'^[a-z][a-z0-9_]{0,23}$'},
                         'expression':{'type':'string','minLength':1,'maxLength':512}})}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['color_detail']={
+    'type':'string','minLength':1,'maxLength':128,
+    'description':'Optional per-pixel albedo detail expression using only u/v/t/pi and supported math, no local bindings. At most32 expression nodes per surface and128 across the world. Result clamps to -0.35..0.35 and multiplies base color by 1+detail. Use subtle grain/weave/material variation; does not change geometry, normals or roughness. Default absent preserves existing rendering. Avoid subpixel frequencies and animated noise unless intentional.'}
