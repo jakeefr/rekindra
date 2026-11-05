@@ -16,7 +16,8 @@ const fs=require('node:fs'),path=require('node:path');
     await page.waitForFunction(()=>document.querySelector('video')?.readyState>=2);
     const sheets=await page.evaluate(async()=>{
       const video=document.querySelector('video');video.pause();
-      const result=[];
+      const result=[],overview=document.createElement('canvas');overview.width=1920;overview.height=800;
+      const ox=overview.getContext('2d');ox.fillStyle='#111';ox.fillRect(0,0,1920,800);
       for(let sheet=0;sheet<4;sheet++){
         const c=document.createElement('canvas');c.width=1536;c.height=636;const x=c.getContext('2d');
         x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
@@ -29,11 +30,13 @@ const fs=require('node:fs'),path=require('node:path');
           const px=j%3*512,py=Math.floor(j/3)*318;
           x.drawImage(video,px,py,512,288);
           x.fillStyle='#eee';x.font='16px monospace';x.fillText(t.toFixed(2)+' s',px+12,py+309);
+          const n=sheet*6+j,opx=n%6*320,opy=Math.floor(n/6)*200;
+          ox.drawImage(video,opx,opy,320,180);ox.fillStyle='#eee';ox.font='12px monospace';ox.fillText(t.toFixed(2)+' s',opx+8,opy+195);
         }
         result.push(c.toDataURL().split(',')[1]);
-      }return result;
+      }result.push(overview.toDataURL().split(',')[1]);return result;
     });
-    sheets.forEach((data,i)=>fs.writeFileSync(path.join(out,`decoded-${i+1}.png`),Buffer.from(data,'base64')));
-    console.log(`Saved 24 decoded frames across ${sheets.length} review sheets.`);
+    sheets.forEach((data,i)=>fs.writeFileSync(path.join(out,i===4?'decoded-overview.png':`decoded-${i+1}.png`),Buffer.from(data,'base64')));
+    console.log('Saved 24 decoded frames across 4 review sheets and one overview.');
   }finally{await context.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -36,7 +36,10 @@ if __name__ == '__main__':
     rows = [summarize(p) for p in sorted(args.runs.glob('*-events.jsonl')) if 'budget-rejection' not in p.name]
     (args.runs/'summary.json').write_text(json.dumps(rows, indent=2), encoding='utf-8')
     for row in rows:
-        print(row['case'], 'tools:', ', '.join(row['tools']), 'finished:', bool(row['results']))
+        if args.compact:
+            print(row['case'], 'calls:', len(row['tools']), 'worlds:', sum(a['tool']=='rekindra_create_world' and 'path' in a for a in row['artifacts']), 'previews:', sum(a['tool']=='rekindra_preview' and 'path' in a for a in row['artifacts']), 'last:', row['tools'][-1:] or ['none'], 'finished:', bool(row['results']))
+        else:
+            print(row['case'], 'tools:', ', '.join(row['tools']), 'finished:', bool(row['results']))
         for item in ([] if args.compact else row['artifacts']):
             if item['tool'] != 'rekindra_inspect':
                 print(json.dumps(item))

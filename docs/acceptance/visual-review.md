@@ -92,5 +92,105 @@ No scene-specific developer corrections were sent during these autonomous runs.
   particular fixtures, not a general claim of adversarial robustness or support
   for repairing all damaged formats.
 
-Remaining cases are pending native generation and evaluator review. Their mere
-presence in the input corpus does not count as completed creative acceptance.
+## Further autonomous cases
+
+The following judgments cover final native previews and 24 decoded video samples
+unless a row explicitly states otherwise. All are **below showcase quality**.
+The agent performed its own native preview/vision revisions without developer
+geometry, camera, palette or scene-specific art direction.
+
+| Case | Interpretation and remaining problems |
+| --- | --- |
+| B02, cave entrances | Three blades open around a rising pale core between columns. Cave/vine cues remain, but columns lack stone character, materials are muted and the petal/core motif repeats other cases. |
+| C01, cloud forest | Ferns unfurl under branch arches. Real shape change, but sparse flat foliage and empty surroundings do not communicate a lush forest. |
+| C02, ruins | Arch stones assemble above an island and gold orb. Clear transformation; wavy columns and smooth surfaces read as toys rather than masonry. |
+| D01, rain on glass | Droplet sculpture with opening fins and concentric rings. Source colors and droplets are legible, but the stage is bare, the fins are simplistic and this repeats the central-opening motif. |
+| D02, rain/harbor | Purple cupped surface opens among small colored satellite forms. Actual geometry motion, but low contrast, small subject, flat materials and substantial unused space. |
+| E01, overcast coast | Teal wave-like surfaces curl above rocks. Revisions reduced hose-like ribs and improved framing; surfaces still resemble plastic sails and rocks resemble cushions. |
+| E02, winter fog | Forked tree forms open on a pale island around a small rising core. Coherent silhouette, but isolated ornament rather than forest; materials and surroundings remain underdeveloped. |
+| L01, raw TGA recovery | Recovered rainbow grid inspires seven ribbed vanes around a gold core. Source recovery is exact; creative output is an invented sculpture, with pointed forms, overlaps and repetitive unfolding. |
+| L02, RLE TGA recovery | Recovered rainbow grid inspires sequential colored arches. Distinct from L01, but thin sheets, overlapping crowns, a visible stage edge and a weak final hold remain. |
+
+B02's original client transcript ended before the server-side session completed.
+Provider API retries were present. The eventual completed durable session was
+exported locally and its three worlds/three previews recovered into an explicitly
+labeled event record; it was not silently counted as a first-pass client success.
+Raw session exports remain ignored local data.
+
+L01 and L02 each recovered the extension-bearing and extensionless files. Each
+pair is duplicate content, not two independent visual references. These are
+constructed format fixtures, not recovered personal or historical work.
+
+## Mixed textual context
+
+M01 used two coastal photographs plus fictional journal/CSV notes, and explicitly
+left the ZIP unopened. Its four native worlds and previews culminated in plan
+`40b40212c6e941a7ae786562ed7e3f49`, project
+`bd9101e495ed44beb309789ca8f755b4`: ribbons above coastal stacks and a chair-like
+threshold, with a descending bronze kernel. The final native preview was reviewed.
+The source accounting correctly separates photographs, fictional notes and invented
+events. The visual result still has mechanically layered rocks, regular water,
+thin opening ribbons and a weak arrival. Initial export verification failed exact
+seeking and is retained as failed evidence; see the technical investigation below.
+
+M01's diagnostic export (12 seconds, 1280×720, 6,563,475 bytes) was reviewed at
+24 decoded timestamps. It confirms the native-preview weaknesses above. This
+export/decode-only result does **not** override its failed exact-seek acceptance.
+
+M02 used forest photographs, fictional game notes, map CSV and a BASIC fragment
+read only as text. It left the unknown `.dat` unsupported and explicitly called
+the scene invented, not a recovered game. Four worlds/previews culminated in
+`fc07bf187e3b48b3bcfe4f1c0f339b89`, project
+`0c7577c8fd054a518c5bc389065a991b`. Final native preview and 24 decoded samples
+were reviewed; browser checks passed. Opening leaves reveal a gold armillary over
+a small path. There is real motion and text-derived context, but a tiny smooth
+island, sparse environment, heavy shadows, thin arches and recurring central
+reveal remain below showcase quality. No playable game was created.
+
+A second photographic-compose case used D02, project
+`2541a36385eb45c88661215f847d9210`, plan
+`9062aaa550b1487d86805aba7770bc30`. The agent retained its first previewed draft:
+purple rain paving breaks into rectangular tiles to reveal a marina photograph.
+Browser checks passed and 24 decoded samples were reviewed (4,036,771-byte WebM).
+This route works as a source-photo transition, but contains frozen rain/boats and
+an obvious mosaic; it does not satisfy the main original-world requirement.
+
+All 16 folders completed native runs: 14 produced worlds and two stopped honestly
+on unusable sources. All 14 final worlds received decoded-frame review, including
+M01's explicitly diagnostic export. None is accepted as showcase quality. Two
+photographic compositions and two saved ASCII videos cover the secondary routes.
+
+## Export and readback investigations
+
+- E02's original 3 Mbps VP8 video had visible rectangular background patches in
+  its opening decoded frames. A second unchanged export was byte-identical
+  (SHA-256 `2328c39357f3f3cb56b2561bcf55af092f7e82a33f18630841998dc4352f689a`).
+  Changing only the target bitrate to 8 Mbps removed those patches in the reviewed
+  samples. The rebuilt production artifact also passed the browser checks and its
+  opening decoded sheet was inspected. This fixes the demonstrated encoding defect,
+  not the scene's artistic limitations. Existing 100 MB output cap remains.
+- A02, D02 and M01 encountered repeated-frame failures. D02 passed a subsequent
+  full run. M01's decoded-pixel diagnosis measured 26 changed channels (maximum
+  delta 4), and a later run measured three channels (maximum delta 1). Thus these
+  were not merely different PNG compression bytes. Exact pixel equality remains
+  required; no tolerance was introduced.
+- A synchronous diagnostic loop hid the M01 discrepancy. Separate browser calls
+  reproduced it in two of three control runs; the otherwise identical HTML using
+  a CPU-backed stage canvas passed three of three. A longer ten-run regression
+  disproved that apparent repair: the original failed seven of ten trials and
+  the CPU-backed variant failed nine of ten. The candidate player change was
+  reverted. This remains unresolved; strict pixel equality was not relaxed.
+
+## What this matrix does and does not establish
+
+The source folders produce different palettes and some recognizable source forms,
+and native self-review corrects particular framing and shape defects. It does not
+yet consistently produce impressive finished work. Across unrelated inputs the
+agent often chooses a sparse object on a stage, opening petals/ribbons, and a
+rising core. Material detail, environment design, narrative specificity and
+concept diversity are the next quality targets. More passing render checks alone
+would not address these failures.
+
+General damaged-file reconstruction, playable-game recovery and faithful factual
+story reconstruction are not implemented capabilities demonstrated by this matrix.
+Text is host-assisted context; unsupported archives/binaries remain unsupported.

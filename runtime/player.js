@@ -34,7 +34,8 @@
   async function exportVideo({download=true}={}){
     if(exporting)throw Error('An export is already running');
     if(!globalThis.VideoEncoder)throw Error('This browser does not provide WebCodecs. Use a supported Chromium browser.');
-    const config={codec:'vp8',width:1280,height:720,bitrate:3_000_000,framerate:30};
+    // Preserve smooth gradients in opening keyframes; 3 Mbps produced visible blocks.
+    const config={codec:'vp8',width:1280,height:720,bitrate:8_000_000,framerate:30};
     if(!(await VideoEncoder.isConfigSupported(config)).supported)throw Error('Native VP8 encoding is unavailable in this browser.');
     stop();exporting=true;cancelled=false;$('export').disabled=true;$('play').disabled=true;$('seek').disabled=true;$('ascii').disabled=true;$('cancel').hidden=false;
     const wasTime=time,ascii=$('ascii').checked,chunks=[],out=document.createElement('canvas');out.width=1280;out.height=720;

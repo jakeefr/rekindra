@@ -86,10 +86,13 @@ then resumed with a technical repair notice and no scene-specific art direction.
 python scripts/check_native_preview.py <local path>/home/plugin-data/rekindra/projects 0ffb58025c944f57aff99fe2349d2ca9 b2b35b1b4a034ec88d9f75ad89a63c15
 ```
 
-The developer session temporarily uses `agent.run_budget_seconds: 600` rather
+The developer session temporarily used `agent.run_budget_seconds: 600` rather
 than 120 so the native agent can complete its preview cycle. The installed
 gateway rejects the CLI `--run-budget` flag, so the documented config setting was
-used. This is a model wrap-up budget, not a proven wall-clock timeout.
+used. It was restored to 120 after the matrix. This is a model wrap-up budget,
+not a proven wall-clock timeout.
 
-Creative scores and export outcomes are recorded separately as they are reviewed.
+All 16 native folder runs finished. See `visual-review.md` and `outcomes.json` for
+reviewed results, retries and the unresolved M01 exact-pixel seeking defect.
+The matrix is completed evidence collection, not artistic acceptance.
 No cross-platform browser success is claimed from this Windows-only live run.

@@ -14,7 +14,15 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
     const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
     assert.notEqual(frames[0],frames[1],'Animation did not change frames');
     const repeat=await page.evaluate(()=>{rekindra.renderAt(.1);rekindra.renderAt(1);return document.querySelector('canvas').toDataURL()});
-    assert.equal(digest(repeat),digest(frames[0]),'Seeking changed the same frame');
+    // Compare decoded pixels: PNG encoding bytes are not the rendering contract.
+    const samePixels=await page.evaluate(async([a,b])=>{
+      const pixels=async url=>{const img=new Image();img.src=url;await img.decode();const c=document.createElement('canvas');c.width=img.width;c.height=img.height;const x=c.getContext('2d');x.drawImage(img,0,0);return x.getImageData(0,0,c.width,c.height).data};
+      const x=await pixels(a),y=await pixels(b);let changed=0,maxDelta=0;
+      for(let i=0;i<x.length;i++){const d=Math.abs(x[i]-y[i]);if(d)changed++;maxDelta=Math.max(maxDelta,d)}
+      return {changed,maxDelta};
+    },[frames[0],repeat]);
+    if(digest(repeat)!==digest(frames[0]))console.log(JSON.stringify({pngEncodingDiffers:true,...samePixels}));
+    assert.equal(samePixels.changed,0,'Seeking changed rendered pixels');
     if(process.env.REKINDRA_WORLD_STUDY){
       const result=await page.evaluate(()=>{
         if(rekindra.scene.schema_version!==2)throw Error('Not a generated world');
