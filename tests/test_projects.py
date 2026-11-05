@@ -120,6 +120,21 @@ class ProjectTests(unittest.TestCase):
         with self.assertRaises(ProjectError):
             self.store.status(p['project_id'])
 
+    def test_invalid_manifest_entries_fail_before_artifact_writes(self):
+        (self.source / 'image.tga').write_bytes(fixture())
+        p = self.store.inspect(self.source)
+        asset_id = p['assets'][0]['asset_id']
+        manifest = self.store.root / p['project_id'] / 'project.json'
+        for field, values in (('artifacts', [None]), ('assets', [None]),
+                              ('assets', [{'asset_id': asset_id, 'sha256': 17}])):
+            invalid = dict(p)
+            invalid[field] = values
+            manifest.write_text(json.dumps(invalid))
+            with self.subTest(field=field, values=values):
+                with self.assertRaises(ProjectError):
+                    self.store.recover(p['project_id'], asset_id)
+                self.assertEqual(list((manifest.parent / 'artifacts').iterdir()), [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -54,6 +54,22 @@ class TgaTests(unittest.TestCase):
         with self.assertRaises(RecoveryError):
             decode_tga(fixture(b'\0' * 12, 2, 2), max_pixels=3)
 
+    def test_footer_and_extension_are_never_treated_as_missing_pixels(self):
+        footer = struct.pack('<II', 0, 0) + b'TRUEVISION-XFILE.\0'
+        for data in (fixture(width=2, height=2) + footer,
+                     fixture(b'\x83\0', width=2, height=2, kind=10) + footer):
+            with self.subTest(data=data):
+                with self.assertRaises(RecoveryError):
+                    decode_tga(data)
+        # Extension area starts immediately after one pixel; it is not raster data.
+        data = fixture(width=2, height=2) + bytes(495) + struct.pack('<II', 21, 0) + b'TRUEVISION-XFILE.\0'
+        with self.assertRaises(RecoveryError):
+            decode_tga(data)
+
+    def test_valid_footer_does_not_change_pixels(self):
+        footer = struct.pack('<II', 0, 0) + b'TRUEVISION-XFILE.\0'
+        self.assertEqual(decode_tga(fixture() + footer).rgba, b'\xff\0\0\xff')
+
     def test_png_pixels_and_crc_are_valid(self):
         png = encode_png(decode_tga(fixture()))
         self.assertEqual(png[:8], b'\x89PNG\r\n\x1a\n')

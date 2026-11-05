@@ -20,6 +20,7 @@ from .png import encode_png
 
 _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
+_HASH = re.compile(r'^[0-9a-f]{64}$')
 _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
 
 
@@ -89,6 +90,28 @@ class ProjectStore:
                     raise ProjectError('Unsupported or malformed project manifest')
                 if not isinstance(project.get('assets'), list) or not isinstance(project.get('artifacts'), list):
                     raise ProjectError('Malformed project collections')
+                asset_ids = set()
+                for asset in project['assets']:
+                    if (not isinstance(asset, dict)
+                            or not isinstance(asset.get('asset_id'), str) or not _ID.fullmatch(asset['asset_id'])
+                            or asset['asset_id'] in asset_ids
+                            or not isinstance(asset.get('sha256'), str) or not _HASH.fullmatch(asset['sha256'])
+                            or type(asset.get('size')) is not int or asset['size'] < 0
+                            or not isinstance(asset.get('source_path'), str)
+                            or not isinstance(asset.get('format'), str) or asset.get('kind') != 'original'):
+                        raise ProjectError('Malformed asset record: project manifest integrity failure')
+                    asset_ids.add(asset['asset_id'])
+                artifact_ids = set()
+                for artifact in project['artifacts']:
+                    if (not isinstance(artifact, dict)
+                            or not isinstance(artifact.get('asset_id'), str)
+                            or artifact['asset_id'] not in asset_ids or artifact['asset_id'] in artifact_ids
+                            or artifact.get('kind') != 'recovered' or artifact.get('format') != 'png'
+                            or not isinstance(artifact.get('sha256'), str) or not _HASH.fullmatch(artifact['sha256'])
+                            or not isinstance(artifact.get('source_sha256'), str) or not _HASH.fullmatch(artifact['source_sha256'])
+                            or not isinstance(artifact.get('path'), str)):
+                        raise ProjectError('Malformed artifact record: project manifest integrity failure')
+                    artifact_ids.add(artifact['asset_id'])
                 return project
             except (OSError, json.JSONDecodeError, UnicodeError) as exc:
                 raise ProjectError('Cannot read project manifest; preserve the project for diagnosis') from exc

@@ -32,18 +32,27 @@ def decode_tga(data: bytes, max_pixels: int = 20_000_000) -> Raster:
     if not width or not height or pixels > max_pixels:
         raise RecoveryError('Invalid dimensions or decoded pixel limit exceeded')
     stride, cursor = depth // 8, 18 + id_size
-    if cursor > len(data):
+    pixel_end = len(data)
+    if len(data) >= 26 and data[-18:] == b'TRUEVISION-XFILE.\0':
+        pixel_end = len(data) - 26
+        extension, developer = struct.unpack_from('<II', data, pixel_end)
+        for offset in (extension, developer):
+            if offset:
+                if not cursor <= offset < len(data) - 26:
+                    raise RecoveryError('Invalid TGA metadata offset')
+                pixel_end = min(pixel_end, offset)
+    if cursor > pixel_end:
         raise RecoveryError('Truncated TGA image ID')
     required = pixels * stride
     if kind == 2:
-        if len(data) - cursor < required:
+        if pixel_end - cursor < required:
             raise RecoveryError('Truncated TGA pixel data; missing pixels are not invented')
         raw = data[cursor:cursor + required]
         cursor += required
     else:
         raw = bytearray()
         while len(raw) < required:
-            if cursor >= len(data):
+            if cursor >= pixel_end:
                 raise RecoveryError('Truncated TGA RLE packet')
             packet = data[cursor]
             cursor += 1
@@ -51,7 +60,7 @@ def decode_tga(data: bytes, max_pixels: int = 20_000_000) -> Raster:
             if len(raw) + count * stride > required:
                 raise RecoveryError('TGA RLE packet exceeds image bounds')
             amount = stride if packet & 128 else count * stride
-            if cursor + amount > len(data):
+            if cursor + amount > pixel_end:
                 raise RecoveryError('Truncated TGA RLE payload')
             payload = data[cursor:cursor + amount]
             raw.extend(payload * count if packet & 128 else payload)
