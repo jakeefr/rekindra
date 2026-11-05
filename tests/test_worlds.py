@@ -23,6 +23,24 @@ def world(aid='a'*32):
 
 
 class WorldTests(unittest.TestCase):
+    def test_model_schema_advertises_metadata_limits_enforced_at_runtime(self):
+        # Live Hermes generated an overlong mood because its tool schema omitted
+        # the runtime limit. Compare the advertised contract at each boundary.
+        from rekindra_core.worlds import WORLD_SCHEMA
+        props = WORLD_SCHEMA['properties']
+        for name, limit in [('title', 100), ('mood', 100), ('reason', 600),
+                            ('observed', 500), ('created', 500)]:
+            with self.subTest(name=name):
+                field = props[name] if name in props else props['references']['items']['properties'][name]
+                self.assertEqual(field.get('maxLength'), limit)
+                s = world()
+                target = s if name in props else s['references'][0]
+                target[name] = 'x' * limit
+                validate_world(s, {'a'*32})
+                target[name] += 'x'
+                with self.assertRaises(SceneError):
+                    validate_world(s, {'a'*32})
+
     def test_expression_whitelist(self):
         result=compile_expression('.2*sin(u*12+t)+cos(v*pi)')
         self.assertIn('sin',result['glsl']);self.assertGreater(result['cost'],1)

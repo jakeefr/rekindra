@@ -13,6 +13,18 @@ This is the current primary-side scene system. The second developer's isolated s
 
 The active-agent route does not require a second model login or plugin-owned credentials. The separate `ctx.llm` route remains optional and has an unresolved native-chat/Python-client auth mismatch on this development installation.
 
+## Creative acceptance: source recognition is only the first step
+
+Contrasting botanical and geometric live-agent trials both recognized the sources but initially produced small, nearly literal sculptures with subtle periodic movement. Neither first draft was accepted creatively, despite passing all browser checks. Do not equate a new mesh with a compelling new creation.
+
+Before authoring, choose three concrete visual cues from the source, an invented spatial concept, and visibly different opening/transformation/resolution states. Keep observed evidence separate from inventions. For a transformation, use bounded time progress such as `clamp((t-2)/6,0,1)` inside formulas; sinusoidal motion can add life but need not carry the whole story. This is guidance, not a required visual template: a user-requested ambient loop may deliberately stay cyclical.
+
+Frame the important forms at useful scale, preserve their silhouettes, and check depth from the actual camera. Review color identity after shading; source hex values alone do not guarantee a matching rendered palette. Do not solve every empty frame with extra objects or every weak composition with camera movement.
+
+Inspect decoded frames from the exported video at the beginning, middle and end. Ask separately: are source cues recognizable, is the invention substantial, is the transformation legible with a fixed camera, is framing readable, and does the final state feel intentional? Automated motion and integrity checks cannot answer these aesthetic questions. Feed observed defects and the actual contact sheet back to the authoring agent, then render the revision. This development review loop is currently external tooling, not an autonomous plugin feature.
+
+`scripts/make_variety_sources.py` reproduces the original synthetic visual references on D: in `.local/variety-study`. These test rendering and creative interpretation only; they are unrelated to the second developer's intake fixtures and do not establish performance on real damaged archives.
+
 ## Geometry, clock and camera
 
 Each object is a parametric surface defined by x/y/z expressions in `u`, `v` (both 0..1) and `t` (seconds). Y is up; positions are world units. The agent can construct planes, folded sheets, spheres, arches, loops, terrain and other surfaces by combining mathematics. These are not canned visual templates. There are no arbitrary-code, file, network or shell operations in the expression language.

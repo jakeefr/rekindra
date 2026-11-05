@@ -81,9 +81,11 @@ NUM={'type':'number'}
 TEXT={'type':'string'}
 VEC={'type':'array','items':NUM,'minItems':3,'maxItems':3}
 WORLD_SCHEMA=obj_schema({
-    'schema_version':{'type':'integer','const':2},'title':TEXT,'mood':TEXT,'reason':TEXT,
+    'schema_version':{'type':'integer','const':2},'title':{'type':'string','maxLength':100},
+    'mood':{'type':'string','maxLength':100},'reason':{'type':'string','maxLength':600},
     'duration':{'type':'number','minimum':4,'maximum':30},'width':{'type':'integer','const':1280},'height':{'type':'integer','const':720},'seed':{'type':'integer'},
-    'references':{'type':'array','minItems':1,'maxItems':6,'items':obj_schema({'asset_id':TEXT,'observed':TEXT,'created':TEXT})},
+    'references':{'type':'array','minItems':1,'maxItems':6,'items':obj_schema({'asset_id':TEXT,
+        'observed':{'type':'string','maxLength':500},'created':{'type':'string','maxLength':500}})},
     'environment':obj_schema({'sky_top':TEXT,'sky_bottom':TEXT,'fog_color':TEXT,'fog_density':NUM,'light_color':TEXT,'light_direction':VEC,'sun_size':NUM,'sun_strength':NUM}),
     'camera':{'type':'array','minItems':2,'maxItems':12,'items':obj_schema({'at':NUM,'eye':VEC,'target':VEC,'fov':NUM})},
     'objects':{'type':'array','minItems':1,'maxItems':12,'items':obj_schema({'id':TEXT,'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
