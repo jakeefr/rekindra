@@ -1,5 +1,22 @@
 # Generated world authoring
 
+## Solid ends and connected construction
+
+Optional `caps: ["v0", "v1"]` closes the selected v boundaries with triangle fans
+around their boundary average, evaluated at the same time as the side surface.
+Use it only when u wraps a closed, planar convex or star-shaped ring (with its
+average inside the kernel). The fan does not repair arbitrary concave holes,
+nonplanar ends, open u seams, or self intersections. Caps have flat triangle
+normals, interpolate the surface's vertex colors, and omit fine color/bump detail.
+They cast shadows and share the existing cell/work budgets. Omit for sheets,
+cloth, terrain and water. Existing scenes without caps retain the old topology.
+
+For assemblies, establish attachment points and share the same time-dependent
+translation/bend definitions between adjoining surfaces. Inspect a side or
+reverse view when joins are hidden. Decide thickness and proportions before
+material noise; reserve surfaces for the focal construction. Automatic caps
+remove endpoint bookkeeping, not the need for visual judgment.
+
 This is the current primary-side scene system. The second developer's isolated source-intake assignment must not modify it.
 
 ## Workflow

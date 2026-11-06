@@ -31,6 +31,18 @@
   }
   function projectPoint(p,c,w,h){const b=basis(c),d=sub(p,c.eye),z=dot(d,b.forward),tan=Math.tan(c.fov*Math.PI/360);return [w/2+dot(d,b.right)/z/tan*h/2,h/2-dot(d,b.up)/z/tan*h/2,z]}
   const rgb=hex=>[1,3,5].map(i=>Math.pow(parseInt(hex.slice(i,i+2),16)/255,2.2));
+  function surfaceMesh(segments,caps=[]){
+    const [cols,rows]=segments,vertices=[],indices=[];
+    for(let r=0;r<=rows;r++)for(let c=0;c<=cols;c++)vertices.push(c/cols,r/rows,0);
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const a=r*(cols+1)+c,b=a+cols+1;indices.push(a,b,a+1,a+1,b,b+1)}
+    for(const cap of caps){
+      const start=vertices.length/3,v=cap==='v0'?0:1;
+      vertices.push(0,v,1); // center: boundary average evaluated at render time
+      for(let c=0;c<=cols;c++)vertices.push(c/cols,v,2);
+      for(let c=0;c<cols;c++)indices.push(start,start+1+c,start+2+c);
+    }
+    return {vertices,indices};
+  }
   function shadowFrame(scene){
     const center=scene.camera[0].target.slice(),direction=unit(scene.environment.light_direction);
     const extent=Math.min(160,Math.max(12,...scene.camera.map(c=>Math.hypot(...sub(c.eye,center))*1.2)));
@@ -108,18 +120,20 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
       const source=programs[index];
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
       const hasDetail=hasColorDetail||hasBump;
+      const hasCaps=Boolean(o.caps?.length);
       const definitions=source.definitions??'';
       const position=`vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
+      const capPosition=hasCaps?`vec3 point(vec3 uv){if(uv.z>.5&&uv.z<1.5){vec3 center=vec3(0.);for(int i=0;i<${o.segments[0]};i++)center+=surface(float(i)/${o.segments[0]}.,uv.y);return center/${o.segments[0]}.;}return surface(uv.x,uv.y);}`:'';
       const p=program(`#version 300 es
-precision highp float;layout(location=0)in vec2 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}
-${uniforms}${math}${position}
-void main(){float u=uv.x,v=uv.y;${hasDetail?'detailUV=uv;':''}${definitions}vec3 pos=surface(u,v);
+precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
+${uniforms}${math}${position}${capPosition}
+void main(){float u=uv.x,v=uv.y;${hasDetail?'detailUV=uv.xy;':''}${hasCaps?'capFace=uv.z>.5?1.:0.;':''}${definitions}vec3 pos=${hasCaps?'point(uv)':'surface(u,v)'};
 vec3 du=surface(u+.0005,v)-surface(u-.0005,v),dv=surface(u,v+.0005)-surface(u,v-.0005);
 vec3 n=cross(dv,du);worldNormal=length(n)>.0000001?normalize(n):vec3(0.,1.,0.);
 worldPos=pos;blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
 gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
-precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}
+precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${sky}
 float visibility(vec3 p,float nl){
@@ -152,18 +166,20 @@ float visibility(vec3 p,float nl){
   sum+=receiver-bias<=depth?1.:0.;
  }return sum/32.;
 }
-void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);if(dot(N,V)<0.)N=-N;
+void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);
+${hasCaps?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(capFace>.5&&length(faceNormal)>1.e-10)N=normalize(faceNormal);':''}
+if(dot(N,V)<0.)N=-N;
 ${hasBump?`float geometricNl=max(dot(N,lightDir),0.);`:''}
 vec3 albedo=mix(baseColor,highColor,blend);
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}
-${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail;`:''}
+${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
 vec3 dx=dFdx(worldPos),dy=dFdy(worldPos),rx=cross(dy,N),ry=cross(N,dx);
 float determinant=dot(dx,rx),hx=dFdx(height),hy=dFdy(height);
 vec3 gradient=(hx*rx+hy*ry)/(abs(determinant)>1.e-10?determinant:1.);
-if(abs(determinant)>1.e-10){gradient*=min(1.,.6/max(length(gradient),.00001));N=normalize(N-gradient);}
+if(abs(determinant)>1.e-10${hasCaps?'&&capFace<.5':''}){gradient*=min(1.,.6/max(length(gradient),.00001));N=normalize(N-gradient);}
 `:''}
 float nl=max(dot(N,lightDir),0.),nv=max(dot(N,V),.001);
 vec3 hv=V+lightDir;vec3 H=length(hv)>.00001?normalize(hv):N;
@@ -185,15 +201,13 @@ lit+=ambient+reflected*envF*(1.-roughness*.45)+albedo*emission;
 float fog=1.-exp(-length(eye-worldPos)*fogDensity);lit=mix(lit,fogColor,fog);
 pixel=vec4(displayColor(lit),1.);}`);
       const depthProgram=program(`#version 300 es
-precision highp float;layout(location=0)in vec2 uv;uniform float t;${math}${shadowUniforms}${position}
-void main(){gl_Position=vec4(shadowPoint(surface(uv.x,uv.y)),1.);}`,
+precision highp float;layout(location=0)in vec3 uv;uniform float t;${math}${shadowUniforms}${position}${capPosition}
+void main(){gl_Position=vec4(shadowPoint(${hasCaps?'point(uv)':'surface(uv.x,uv.y)'}),1.);}`,
         `#version 300 es
 precision highp float;void main(){}`);
-      const [cols,rows]=o.segments,vertices=[],indices=[];
-      for(let r=0;r<=rows;r++)for(let c=0;c<=cols;c++)vertices.push(c/cols,r/rows);
-      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const a=r*(cols+1)+c,b=a+cols+1;indices.push(a,b,a+1,a+1,b,b+1)}
+      const {vertices,indices}=surfaceMesh(o.segments,o.caps);
       const vao=gl.createVertexArray();gl.bindVertexArray(vao);
-      const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,2,gl.FLOAT,false,0,0);
+      const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
       const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);gl.bindVertexArray(null);
       return {p,depthProgram,o,vao,vb,ib,count:indices.length};
     });
@@ -214,5 +228,5 @@ precision highp float;void main(){}`);
     }
     return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer)}};
   }
-  const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
+  const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

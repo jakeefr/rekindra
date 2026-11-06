@@ -99,7 +99,10 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        caps=obj.get('caps',[])
+        if not isinstance(caps,list) or len(caps)>2 or any(not isinstance(c,str) or c not in ('v0','v1') for c in caps) or len(set(caps))!=len(caps):
+            raise SceneError('Caps must be a unique list containing v0 and/or v1')
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique simple names')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
@@ -108,6 +111,10 @@ def validate_world(value,asset_ids):
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
         count=segments[0]*segments[1];cells+=count;work+=count*compiled['cost']
+        # Fan triangles and bounded boundary-average sampling consume the same
+        # budgets as the side mesh. Do not make closure free or raise limits.
+        cells+=len(caps)*((segments[0]+1)//2)
+        work+=len(caps)*6*(segments[0]+1)*compiled['cost']
         color(obj['color']);color(obj['color_high'])
         _number(obj['roughness'],.04,1,'roughness');_number(obj['metalness'],0,1,'metalness');_number(obj['emission'],0,3,'emission')
     if detail_work>128:raise SceneError('World material detail exceeds 128 total expression nodes; simplify detail expressions or use them on fewer surfaces')
@@ -159,3 +166,6 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['color_detail']={
 WORLD_SCHEMA['properties']['objects']['items']['properties']['bump_detail']={
     'type':'string','minLength':1,'maxLength':128,
     'description':'Optional per-pixel relief HEIGHT in world units, using u/v/t/pi and math, no bindings. <=32 expression nodes; color_detail and bump_detail together share128 nodes across the world. Height clamps to +/-0.1, slope magnitude to0.6. Changes lighting normals only, not silhouettes, shadow geometry, or roughness. Start .002-.02 amplitude for stone/cloth or .01-.04 for water ripples; scale frequency to surface size. Avoid subpixel frequencies, seams and sharp masks; inspect motion for shimmer. Not physical water, transparency or scene reflections.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['caps']={
+    'type':'array','maxItems':2,'uniqueItems':True,'items':{'type':'string','enum':['v0','v1']},
+    'description':'Optional solid end caps at v=0 and/or v=1. Use only when u wraps a closed planar convex or star-shaped ring, e.g. a beam or trunk cross-section. Generates a triangle fan to the average boundary position at current t, moving with the surface. Flat face normals; no bump/color_detail on caps. Counts toward existing geometry/work budgets. Not arbitrary concave hole repair or a guarantee against self-intersection. Omit on open cloth, terrain and water.'}

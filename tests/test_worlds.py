@@ -23,6 +23,18 @@ def world(aid='a'*32):
 
 
 class WorldTests(unittest.TestCase):
+    def test_caps_are_optional_unique_and_budgeted(self):
+        s=world();s['objects'][0]['caps']=['v0','v1']
+        self.assertEqual(validate_world(s, {'a'*32})['objects'][0]['caps'],['v0','v1'])
+        for invalid in (['u0'],['v0','v0'],'v0',[False],['v1',{}]):
+            s['objects'][0]['caps']=invalid
+            with self.assertRaises(SceneError):validate_world(s, {'a'*32})
+        s=world();o=s['objects'][0];o['segments']=[100,80]
+        s['objects']=[dict(o,id=f'p{i}') for i in range(4)]
+        validate_world(s, {'a'*32})
+        s['objects'][0]['caps']=['v0','v1']
+        with self.assertRaisesRegex(SceneError,'budget'):validate_world(s, {'a'*32})
+
     def test_bump_detail_is_bounded_and_shares_fragment_budget(self):
         from rekindra_core.worlds import compile_world
         s=world();s['objects'][0]['bump_detail']='.02*sin(u*80+t)*sin(v*80)'
