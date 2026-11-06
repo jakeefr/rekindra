@@ -81,6 +81,8 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
     },Boolean(process.env.REKINDRA_WORLD_STUDY));
     const download=await downloadPromise;await download.saveAs(path.join(out,'verified-scene.webm'));
     if(exportResult.decodedContactSheet){fs.writeFileSync(path.join(out,'decoded-contact-sheet.png'),Buffer.from(exportResult.decodedContactSheet,'base64'));delete exportResult.decodedContactSheet}
+    // Preserve failed decode evidence too; this is diagnostic data, not a pass marker.
+    fs.writeFileSync(path.join(out,'export-observation.json'),JSON.stringify(exportResult,null,2));
     assert.ok(Number.isFinite(exportResult.duration)&&Math.abs(exportResult.duration-await page.evaluate(()=>rekindra.scene.duration))<.05);
     assert.equal(exportResult.width,1280);assert.equal(exportResult.height,720);assert.ok(exportResult.seek>0);assert.ok(exportResult.sample.slice(0,3).some(x=>x>0));
     assert.deepEqual(errors,[]);assert.deepEqual(requests,[]);

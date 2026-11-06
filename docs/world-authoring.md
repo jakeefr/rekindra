@@ -183,3 +183,7 @@ Use `rekindra_revise_world` to replace the complete assemblies array and attach 
 An instance may include `rotation:[rx,ry,rz]`, static radians bounded to +/-2pi per axis. The order is local surface, instance scale, X/Y/Z rotation, instance offset, then its assembly chain. Scale is therefore along the original local axes. Omitted rotation preserves the earlier shader path. Caps, normals and cast shadows use the same transformed geometry. When any copy uses rotation, the fixed transform cost is charged to all copies, including capped boundary vertices, within existing work budgets.
 
 Use varied orientations for repeated leaves, branches or stones when the sources justify them. This does not automatically attach copies to terrain or resolve intersections; inspect their bases and silhouettes from stationary review views.
+
+## Compact bounded assembly easing
+
+Expanded polynomials can exceed the assembly's32-node expression limit before geometry is even considered. For a smooth held opening from second3 to8, `0.5-0.5*cos(pi*clamp((t-3)/5,0,1))` compiles to15nodes and stays0before the interval and1after it, with zero endpoint velocity. Multiply by the desired displacement or angle within the same budget. This is a timing example, not a scene template. It was checked through both expression and assembly compilers; fixed assembly work and all attached copies still count toward the world's total.

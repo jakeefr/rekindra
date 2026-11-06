@@ -11,6 +11,24 @@ const fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('n
  if(!original.includes(needle))throw Error('Uniform instrumentation anchor changed');
  let source=original.replace(needle,`if(globalThis.uniformTrace){const f=new Float32Array(Array.isArray(value)?value:[value]);globalThis.uniformTrace.push([name,...new Uint32Array(f.buffer)])} ${needle}`);
  if(mode==='no-dither')source=source.replace('const owned=[];let lost=false;','gl.disable(gl.DITHER);const owned=[];let lost=false;');
+ if(mode==='explicit-target'){
+  // Diagnostic only: remove browser-owned scene attachments from the draw path.
+  source=source.replace('antialias:true','antialias:false'); // Single-sample blit needs a single-sample destination.
+  source=source.replace('const owned=[];let lost=false;',`const owned=[];let lost=false;
+const target=gl.createFramebuffer(),color=gl.createRenderbuffer(),depth=gl.createRenderbuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER,target);gl.bindRenderbuffer(gl.RENDERBUFFER,color);
+gl.renderbufferStorage(gl.RENDERBUFFER,gl.RGBA8,canvas.width,canvas.height);
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.RENDERBUFFER,color);
+gl.bindRenderbuffer(gl.RENDERBUFFER,depth);gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,canvas.width,canvas.height);
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,depth);
+if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('Diagnostic framebuffer incomplete');
+gl.bindFramebuffer(gl.FRAMEBUFFER,null);`);
+  source=source.replace('gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindFramebuffer(gl.FRAMEBUFFER,null);','gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindFramebuffer(gl.FRAMEBUFFER,target);');
+  source=source.replace("gl.bindVertexArray(null);if(gl.getError()",`gl.bindFramebuffer(gl.READ_FRAMEBUFFER,target);gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER,null);
+gl.blitFramebuffer(0,0,canvas.width,canvas.height,0,0,canvas.width,canvas.height,gl.COLOR_BUFFER_BIT,gl.NEAREST);
+gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindVertexArray(null);if(gl.getError()`);
+  source=source.replace('dispose(){for(const s of surfaces)', 'dispose(){gl.deleteRenderbuffer(color);gl.deleteRenderbuffer(depth);gl.deleteFramebuffer(target);for(const s of surfaces)');
+ }
  const results=[];
  try{for(const warm of [false,true])for(let trial=0;trial<10;trial++){
   const page=await context.newPage();await page.goto(pathToFileURL(path.resolve(process.argv[2])).href);await page.waitForFunction(()=>globalThis.rekindra?.ready);
