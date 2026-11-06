@@ -1,5 +1,6 @@
 """Scene v2: source-grounded procedural geometry with bounded GPU work."""
 import copy
+import math
 import re
 from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
 from .expressions import compile_expression, FUNCTIONS
@@ -112,8 +113,13 @@ def validate_world(value,asset_ids):
         instances=obj.get('instances',[{'offset':[0,0,0],'scale':[1,1,1]}])
         if not isinstance(instances,list) or not 1<=len(instances)<=16:raise SceneError('A surface requires 1-16 instances when specified')
         for instance in instances:
-            fields(instance,'offset scale','instance')
+            if not isinstance(instance,dict):raise SceneError('Invalid instance fields')
+            fields({k:v for k,v in instance.items() if k!='rotation'},'offset scale','instance')
             vector(instance['offset'],'instance offset')
+            if 'rotation' in instance:
+                angles=instance['rotation']
+                if not isinstance(angles,list) or len(angles)!=3:raise SceneError('Instance rotation needs three radian angles')
+                for angle in angles:_number(angle,-2*math.pi,2*math.pi,'instance rotation')
             scale=instance['scale']
             if not isinstance(scale,list) or len(scale)!=3:raise SceneError('Instance scale needs three positive values')
             for x in scale:_number(x,.05,8,'instance scale')
@@ -121,6 +127,7 @@ def validate_world(value,asset_ids):
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique, 1-40 characters, using only letters, digits, underscore or hyphen')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
+        if any('rotation' in p for p in instances):compiled['cost']+=60
         if 'assembly' in obj:
             if not isinstance(obj['assembly'],str) or obj['assembly'] not in assemblies:
                 raise SceneError('Surface assembly must identify an existing assembly')
@@ -202,6 +209,10 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']={
     'type':'array','minItems':1,'maxItems':16,
     'items':obj_schema({'offset':VEC,'scale':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':.05,'maximum':8}}}),
     'description':'Optional placements of this same animated surface/material: each offset is a world vector -80..80 and scale is positive xyz .05..8. Scale local geometry about its origin, then offset. Caps/normals/shadows follow. 1-16 placements per surface, <=64 total; EVERY copy consumes the existing geometry/work budgets. Omitted means one identity placement. Use low-resolution local parts for repeated windows, supports, roof clusters or foliage. No rotation, hierarchy, independent per-copy animation or color. Final world coordinates clamp to +/-100; avoid clipping. Fine material math is shared, not duplicated shader source.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']['items']['properties']['rotation']={
+    'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi},
+    'description':'Optional static Euler X,Y,Z radians: scale local geometry, rotate X then Y then Z about origin, add offset, then assembly chain. Omitted means no rotation. Vary leaf/branch orientations without new surface definitions; all transformed copies consume work budgets.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']['description']=WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']['description'].replace('then offset.','optionally rotate Euler X/Y/Z, then offset.').replace('No rotation, hierarchy,','No per-instance hierarchy,')
 
 _ASSEMBLY_EXPR={'type':'string','minLength':1,'maxLength':128}
 _ASSEMBLY=obj_schema({'id':{'type':'string','pattern':_LAYER_ID.pattern},

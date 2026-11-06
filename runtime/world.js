@@ -124,14 +124,20 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
       const hasDetail=hasColorDetail||hasBump;
       const hasCaps=Boolean(o.caps?.length);
       const hasInstances=o.instances!==undefined;
+      const hasInstanceRotation=o.instances?.some(p=>p.rotation!==undefined)??false;
       const definitions=source.definitions??'';
       let position=hasInstances?`uniform vec3 instanceOffset,instanceScale;
 vec3 surface(float u,float v){${definitions}vec3 local=clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));return clamp(local*instanceScale+instanceOffset,vec3(-100.),vec3(100.));}`:
         `vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
-      if(source.assembly!==undefined){
-        position=`${hasInstances?'uniform vec3 instanceOffset,instanceScale;':''}
+      if(source.assembly!==undefined||hasInstanceRotation){
+        position=`${hasInstances?'uniform vec3 instanceOffset,instanceScale;':''}${hasInstanceRotation?'uniform vec3 instanceRotation;':''}
 vec3 surface(float u,float v){${definitions}vec3 p=vec3(${source.position.join(',')});
-${hasInstances?'p=p*instanceScale+instanceOffset;':''}${source.assembly}return clamp(p,vec3(-100.),vec3(100.));}`;
+${hasInstances?'p*=instanceScale;':''}
+${hasInstanceRotation?`vec3 c=cos(instanceRotation),s=sin(instanceRotation);
+p=vec3(p.x,c.x*p.y-s.x*p.z,s.x*p.y+c.x*p.z);
+p=vec3(c.y*p.x+s.y*p.z,p.y,-s.y*p.x+c.y*p.z);
+p=vec3(c.z*p.x-s.z*p.y,s.z*p.x+c.z*p.y,p.z);`:''}
+${hasInstances?'p+=instanceOffset;':''}${source.assembly??''}return clamp(p,vec3(-100.),vec3(100.));}`;
       }
       const capPosition=hasCaps?`vec3 point(vec3 uv){if(uv.z>.5&&uv.z<1.5){vec3 center=vec3(0.);for(int i=0;i<${o.segments[0]};i++)center+=surface(float(i)/${o.segments[0]}.,uv.y);return center/${o.segments[0]}.;}return surface(uv.x,uv.y);}`:'';
       const p=program(`#version 300 es
@@ -225,7 +231,7 @@ precision highp float;void main(){}`);
     function drawSurface(s,p){
       gl.bindVertexArray(s.vao);
       for(const placement of s.placements){
-        if(placement){uniform(p,'instanceOffset',placement.offset);uniform(p,'instanceScale',placement.scale)}
+        if(placement){uniform(p,'instanceOffset',placement.offset);uniform(p,'instanceScale',placement.scale);uniform(p,'instanceRotation',placement.rotation??[0,0,0])}
         gl.drawElements(gl.TRIANGLES,s.count,gl.UNSIGNED_SHORT,0);
       }
     }

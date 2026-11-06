@@ -177,3 +177,9 @@ Use `rekindra_revise_world` to replace the complete assemblies array and attach 
 ## Inspection-only cameras
 
 `rekindra_preview` accepts optional `review_camera: {eye:[x,y,z], target:[x,y,z], fov:57}` for a saved world. This uses one stationary pose for all six animation samples. It creates a separately labeled inspection HTML and PNG, leaving the saved plan and normal presentation HTML unchanged. The inspection HTML blocks video export through UI and API; use the normal saved scene for final export. Omit the override to review presentation framing. Use this for side, reverse and close attachment views rather than appending diagnostic travel to the final camera timeline.
+
+## Per-copy orientation
+
+An instance may include `rotation:[rx,ry,rz]`, static radians bounded to +/-2pi per axis. The order is local surface, instance scale, X/Y/Z rotation, instance offset, then its assembly chain. Scale is therefore along the original local axes. Omitted rotation preserves the earlier shader path. Caps, normals and cast shadows use the same transformed geometry. When any copy uses rotation, the fixed transform cost is charged to all copies, including capped boundary vertices, within existing work budgets.
+
+Use varied orientations for repeated leaves, branches or stones when the sources justify them. This does not automatically attach copies to terrain or resolve intersections; inspect their bases and silhouettes from stationary review views.
