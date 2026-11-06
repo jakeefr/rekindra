@@ -169,7 +169,7 @@ design. Diagnose those separately instead of adding stronger noise.
 
 ## Shared assembly frames and ambient controls
 
-Optional `assemblies` contains up to eight named frames. Each has `translation` and `rotation` x/y/z expressions using t/pi only, a fixed pivot, and positive xyz scale. Parent must appear earlier; depth is limited to four. Assign a surface with `assembly`. The order is surface → instance scale/offset → child frame → parent frames → final world clamp. Each frame subtracts pivot, scales, rotates X/Y/Z in radians, restores pivot and translates. Share frames across connected surfaces; this avoids duplicated joint motion but does not prevent collisions or fix inaccurate local attachment points. Transform work consumes existing budgets.
+Optional `assemblies` contains up to eight named frames. Each has `translation` and `rotation` x/y/z expressions using t/pi only, a fixed pivot, and positive xyz scale. Parent must appear earlier; depth is limited to four. Assign a surface with `assembly`. The order is surface → instance scale/rotation/offset → child frame → parent frames → final world clamp. Each frame subtracts pivot, scales, rotates X/Y/Z in radians, restores pivot and translates. Share frames across connected surfaces; this avoids duplicated joint motion but does not prevent collisions or fix inaccurate local attachment points. Transform work consumes existing budgets.
 
 Use `rekindra_revise_world` to replace the complete assemblies array and attach surfaces within one validated batch. Unchanged fields and original plan remain intact. Camera-only revision plans support alternate views. Optional surface `assembly` can be removed with null; removing a referenced group without detaching its surfaces is invalid.
 
@@ -194,3 +194,9 @@ Expanded polynomials can exceed the assembly's32-node expression limit before ge
 Optional surface `shading:"flat"` uses the actual rendered triangle normal. Omitted or `"smooth"` keeps the previous derivative-of-surface normal behavior; caps retain their flat normals in either mode. Flat mode is useful for cut planes, fractured stone and intentionally low-poly solids. It changes lighting only, not vertices, silhouette or shadow geometry. Planar triangles have constant geometric normals; bump detail can still perturb them. Avoid strong bump when the purpose is a clean plane.
 
 Choose geometry and segment layout deliberately: flat shading exposes every triangle and cannot create fractures or repair intersections. Inspect silhouettes and attachment points before material polish. Use `rekindra_revise_world` to set shading on an existing surface, or null to remove the optional field and return to default.
+
+## Shared attachment coordinates
+
+For a branch or leaf, define its base at its local origin. Evaluate the parent stem centerline at the chosen attachment parameter, apply the parent's instance scale, X/Y/Z rotation and offset, then use that position for the child's instance offset. Both parts should share the assembly that moves their joint. This makes the connection persist under common assembly motion without independently approximated trajectories. A leaf's v=0 edge can collapse to that base; a tube's root ring can overlap the parent tube radius.
+
+Check computed coordinates and inspect rendered joins. In the cleft construction trial,20declared branch/leaf connections agreed within0.000001local units; this did not establish rock contact, hidden intersections or convincing growth. If the parent itself deforms over time, a static offset will not follow its deformation: share the same time-dependent attachment formula or use a rigid shared frame.
