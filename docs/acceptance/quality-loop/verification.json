@@ -1,0 +1,43 @@
+{
+  "overall_pass": false,
+  "visual_acceptance": false,
+  "default_hardware_export_pass": false,
+  "reference_export_pass": true,
+  "reference_backend": {
+    "requested": "swiftshader",
+    "actual": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "scope": "development reference only; not default-browser acceptance"
+  },
+  "reference_export": {
+    "size": 10618147,
+    "duration": 12,
+    "width": 1280,
+    "height": 720,
+    "seek": 9.1536,
+    "sample": [
+      81,
+      84,
+      76,
+      255
+    ]
+  },
+  "reviewed_decoded_samples": 24,
+  "production_renderer_changed": false,
+  "native_session": "local-9d09b2e947d966e2f63c5b762c6e82cf61e77453928ec96a6669322253a614a1",
+  "native_exit": 0,
+  "native_submissions": 3,
+  "retained_plan": "7f50d947e4ab40c0a4ce2ad18ea16213",
+  "rejected_presentation_checkpoint": "f618942e68264a9d889058c1c393f0cf",
+  "source_hashes": {
+    "runtime/world.js": "5e9836ec6ee3371f5331012a7370c99d7942e8731526041ebbf0c7025b23c015",
+    "scripts/trace_render_boundaries.cjs": "623e4c62b2ef192fb3a6df17d70eefedf2f0c73300fd8bb9a3f4874dfc360cf3",
+    "scripts/browser_scene_test.cjs": "fefa7feee6c88dfca4409c2d5b4855f597f8dd3bb09de7358d90fd0df414f045"
+  },
+  "evidence_hashes": {
+    "boundaries/result.json": "e47b9ec16a1fe6ae02ff5564c0d7f5f49fdaa99211e35c81c4ac2bee7f2a1b82",
+    "no-dither/result.json": "99f6436a9f1722add2c7d020084eceb567edd1caf04a81fd8db45745f22fc7dd",
+    "software/result.json": "a0fae121f7d986e0aa1177acad313b59c9361e9dc88bf4315f730bfff58195af",
+    "retained-browser.log": "f67977717a92ff2b716fcea6138ca6b9d29d958b504a21ef1f9c592f91213c93",
+    "reference-browser.log": "f930eeba4cb6798b4e4ce63f1e895f0005b34c52f4a6f254d77e10cd5e6c0266"
+  }
+}

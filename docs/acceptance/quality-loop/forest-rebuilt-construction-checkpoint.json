@@ -1,0 +1,1225 @@
+{
+  "schema_version": 2,
+  "title": "A Fallen Limb Finds Its Footing",
+  "mood": "Enclosed woodland; pale branching wood above rust earth",
+  "reason": "Compared a lowering fallen limb, an opening fern gate and roots weaving steps. The limb best joins the narrow earthy passage in image01 to the interlaced pale wood in image02; gate loses wood topology and weaving weakens grounded attachment. Replace separate block banks with one continuous eroded hollow. A thick asymmetrically forked limb descends into a root cradle; grouped fern fans and tangled background boughs enclose rather than decorate it. This is invented geometry, not recovery.",
+  "duration": 12,
+  "width": 1280,
+  "height": 720,
+  "seed": 418,
+  "references": [
+    {
+      "asset_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed": "Overlapping arching fern fronds flank a narrow rust-brown passage; dark roots and rough rocks crowd the foreground, with multiple green depths.",
+      "created": "Continuous eroded earth hollow with a winding reddish passage, three directional frond families in grouped growth and an embedded root landing."
+    },
+    {
+      "asset_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "Irregular pale limbs cross and branch at unequal angles; moss forms uneven clumps around wood, with foliage behind and between branches.",
+      "created": "An asymmetric thick fallen limb with two tapering side forks and discrete moss cushions turns on one shared hinge; crooked boughs and irregular foliage masses enclose the view."
+    }
+  ],
+  "environment": {
+    "ambient_strength": 0.5,
+    "exposure": 1.05,
+    "fill_color": "#D0D8E0",
+    "fill_direction": [
+      0.8,
+      0.5,
+      0.2
+    ],
+    "fill_strength": 0.35,
+    "fog_color": "#8D9894",
+    "fog_density": 0.012,
+    "ground_color": "#504238",
+    "ground_strength": 0.25,
+    "light_color": "#FFF0D8",
+    "light_direction": [
+      -0.5,
+      0.8,
+      0.6
+    ],
+    "sky_bottom": "#B2B9AD",
+    "sky_top": "#697981",
+    "sun_size": 0.1,
+    "sun_strength": 1.5
+  },
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        9,
+        6.5,
+        13
+      ],
+      "fov": 52,
+      "target": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "at": 6,
+      "eye": [
+        8.5,
+        6.1,
+        12.5
+      ],
+      "fov": 52,
+      "target": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "at": 9,
+      "eye": [
+        8.25,
+        5.95,
+        12.25
+      ],
+      "fov": 52,
+      "target": [
+        0,
+        1.95,
+        0
+      ]
+    },
+    {
+      "at": 10.5,
+      "eye": [
+        1,
+        3,
+        -7
+      ],
+      "fov": 57,
+      "target": [
+        0,
+        0.9,
+        0
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        1,
+        3,
+        -7
+      ],
+      "fov": 57,
+      "target": [
+        0,
+        0.9,
+        0
+      ]
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "living_limb",
+      "translation": {
+        "x": "0",
+        "y": "0",
+        "z": "0"
+      },
+      "rotation": {
+        "x": "0",
+        "y": "0",
+        "z": "0.4*(1+cos(pi*clamp((t-2)/7,0,1)))"
+      },
+      "pivot": [
+        -3.8,
+        0.72,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "continuous_earth",
+      "bindings": [
+        {
+          "name": "x",
+          "expression": "(u-.5)*40"
+        },
+        {
+          "name": "z",
+          "expression": "(v-.5)*36"
+        },
+        {
+          "name": "h",
+          "expression": "1-exp(-z*z/5)"
+        }
+      ],
+      "position": {
+        "x": "x",
+        "y": ".24-3.1*exp(-x*x/3.6)+h*(.24*sin(x*.7)*cos(z*.6)+.14*sin(z*1.7+x))",
+        "z": "z"
+      },
+      "segments": [
+        96,
+        64
+      ],
+      "color": "#583929",
+      "color_high": "#4E6035",
+      "color_mix": ".85*clamp(abs(z-.4*sin(x*.4))-.65,0,1)+.08*sin(x*1.5)*sin(z*1.2)",
+      "roughness": 0.96,
+      "metalness": 0,
+      "emission": 0,
+      "bump_detail": ".003*sin(73*pi*u)*sin(67*pi*v)"
+    },
+    {
+      "id": "fallen_trunk",
+      "assembly": "living_limb",
+      "bindings": [
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        },
+        {
+          "name": "r",
+          "expression": "(.58-.24*v+.045*sin(7*pi*v))*(1+.08*cos(5*a+v*8))"
+        }
+      ],
+      "position": {
+        "x": "-3.8+8.3*v",
+        "y": ".72+.21*sin(pi*v)+r*cos(a)",
+        "z": ".23*sin(2*pi*v)+r*sin(a)"
+      },
+      "segments": [
+        20,
+        44
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#766658",
+      "color_high": "#D7CCAF",
+      "color_mix": ".53+.19*cos(2*pi*u)+.14*sin(v*27)",
+      "roughness": 0.73,
+      "metalness": 0,
+      "emission": 0,
+      "color_detail": ".07*sin(18*pi*u+2*sin(7*pi*v))",
+      "bump_detail": ".004*sin(22*pi*u+sin(9*pi*v))"
+    },
+    {
+      "id": "fork_back",
+      "assembly": "living_limb",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": ".27*(1-v)+.025"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": "-1.9+3.8*v+.2*sin(2*pi*v)",
+        "y": ".91+1.6*v-.5*v*v+r*cos(a)",
+        "z": ".16-2*v+.2*sin(3*pi*v)+r*sin(a)"
+      },
+      "segments": [
+        12,
+        28
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#827362",
+      "color_high": "#D8CEB6",
+      "color_mix": ".55+.2*cos(2*pi*u)+.12*sin(v*19)",
+      "roughness": 0.77,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "fork_front",
+      "assembly": "living_limb",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": ".22*(1-v)+.018"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": ".15+3.1*v",
+        "y": ".91+.8*sin(pi*v*.7)+r*cos(a)",
+        "z": ".12+1.35*v+.16*sin(3*pi*v)+r*sin(a)"
+      },
+      "segments": [
+        12,
+        28
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#827362",
+      "color_high": "#D8CEB6",
+      "color_mix": ".55+.2*cos(2*pi*u)+.12*sin(v*19)",
+      "roughness": 0.77,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "moss_cushions",
+      "assembly": "living_limb",
+      "bindings": [
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        },
+        {
+          "name": "b",
+          "expression": "pi*v"
+        },
+        {
+          "name": "r",
+          "expression": "1+.13*sin(5*a)*sin(3*b)"
+        }
+      ],
+      "position": {
+        "x": ".62*r*cos(a)*sin(b)",
+        "y": ".18*r*cos(b)",
+        "z": ".38*r*sin(a)*sin(b)"
+      },
+      "segments": [
+        16,
+        12
+      ],
+      "instances": [
+        {
+          "offset": [
+            -3.2,
+            1.18,
+            0.12
+          ],
+          "scale": [
+            1.1,
+            1.3,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -1.8,
+            1.35,
+            0.2
+          ],
+          "scale": [
+            0.8,
+            1.2,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -0.3,
+            1.39,
+            0.05
+          ],
+          "scale": [
+            1.2,
+            1.2,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            1.5,
+            1.18,
+            -0.15
+          ],
+          "scale": [
+            0.65,
+            1.4,
+            0.7
+          ]
+        },
+        {
+          "offset": [
+            3.5,
+            1.09,
+            -0.12
+          ],
+          "scale": [
+            0.7,
+            1,
+            0.7
+          ]
+        }
+      ],
+      "color": "#344B1E",
+      "color_high": "#829344",
+      "color_mix": ".5+.2*sin(7*pi*u)*sin(5*pi*v)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "root_cradles",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": ".48-.25*v"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": "2.9*v",
+        "y": ".12+.27*sin(pi*v)+r*cos(a)",
+        "z": ".3*sin(2*pi*v)+r*sin(a)"
+      },
+      "segments": [
+        16,
+        24
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1.1,
+            1.6
+          ]
+        },
+        {
+          "offset": [
+            3.6,
+            0,
+            0.05
+          ],
+          "scale": [
+            1.3,
+            1,
+            1.6
+          ]
+        }
+      ],
+      "color": "#4F3E32",
+      "color_high": "#9B8666",
+      "color_mix": ".5+.22*cos(2*pi*u)+.1*sin(v*19)",
+      "roughness": 0.86,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "crooked_stems",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": ".39*(1-.72*v)"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": ".75*sin(v*4)+r*cos(a)",
+        "y": "7.5*v",
+        "z": ".45*sin(v*7)+r*sin(a)"
+      },
+      "segments": [
+        10,
+        24
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "instances": [
+        {
+          "offset": [
+            -7,
+            0,
+            -4
+          ],
+          "scale": [
+            1,
+            1.1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            5,
+            0,
+            -5
+          ],
+          "scale": [
+            1.2,
+            1.25,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -3,
+            0,
+            -9
+          ],
+          "scale": [
+            0.8,
+            1.3,
+            0.8
+          ]
+        },
+        {
+          "offset": [
+            8,
+            0,
+            -9
+          ],
+          "scale": [
+            1,
+            1.4,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -10,
+            0,
+            2
+          ],
+          "scale": [
+            1.3,
+            1.3,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            8,
+            0,
+            3
+          ],
+          "scale": [
+            1.2,
+            1.3,
+            1.2
+          ]
+        }
+      ],
+      "color": "#5D594D",
+      "color_high": "#B7B39A",
+      "color_mix": ".48+.25*cos(2*pi*u)+.1*sin(v*31)",
+      "roughness": 0.84,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "crossing_boughs",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": ".22*(1-v)+.025"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": "4*v+.3*sin(v*8)",
+        "y": "3.75+2.6*v+.4*sin(v*5)+r*cos(a)",
+        "z": "-.158-1.7*v+.3*sin(v*7)+r*sin(a)"
+      },
+      "segments": [
+        10,
+        24
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6.318,
+            0,
+            -4
+          ],
+          "scale": [
+            1,
+            1.1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            5.818,
+            0,
+            -5
+          ],
+          "scale": [
+            1.2,
+            1.25,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -2.454,
+            0,
+            -9
+          ],
+          "scale": [
+            0.8,
+            1.3,
+            0.8
+          ]
+        },
+        {
+          "offset": [
+            8.682,
+            0,
+            -9
+          ],
+          "scale": [
+            1,
+            1.4,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -9.113,
+            0,
+            2
+          ],
+          "scale": [
+            1.3,
+            1.3,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            8.818,
+            0,
+            3
+          ],
+          "scale": [
+            1.2,
+            1.3,
+            1.2
+          ]
+        }
+      ],
+      "color": "#756C59",
+      "color_high": "#C2B99E",
+      "color_mix": ".6+.2*cos(2*pi*u)+.12*sin(23*v)",
+      "roughness": 0.8,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "foliage_masses",
+      "bindings": [
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "pi*v",
+          "name": "b"
+        },
+        {
+          "expression": "1+.24*sin(5*a+1)*sin(3*b)+.16*cos(7*a)*sin(b)",
+          "name": "r"
+        }
+      ],
+      "position": {
+        "x": "2.3*r*cos(a)*sin(b)",
+        "y": ".8*r*cos(b)+.23*sin(3*a)*sin(b)",
+        "z": "1.4*r*sin(a)*sin(b)"
+      },
+      "segments": [
+        20,
+        14
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6.5,
+            6.7,
+            -4.5
+          ],
+          "scale": [
+            1.4,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -3.5,
+            7.5,
+            -6
+          ],
+          "scale": [
+            1,
+            1.1,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            5.5,
+            7.3,
+            -5
+          ],
+          "scale": [
+            1.4,
+            1.2,
+            1
+          ]
+        },
+        {
+          "offset": [
+            8,
+            9,
+            -7
+          ],
+          "scale": [
+            1.4,
+            1.1,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -2.4,
+            8.5,
+            -10
+          ],
+          "scale": [
+            1.5,
+            1.3,
+            1
+          ]
+        },
+        {
+          "offset": [
+            2,
+            7,
+            -11
+          ],
+          "scale": [
+            1.5,
+            1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -9,
+            7,
+            1
+          ],
+          "scale": [
+            1.4,
+            1.5,
+            1
+          ]
+        },
+        {
+          "offset": [
+            8.5,
+            8,
+            3
+          ],
+          "scale": [
+            1,
+            1.5,
+            1.4
+          ]
+        },
+        {
+          "offset": [
+            -7,
+            1.3,
+            -6
+          ],
+          "scale": [
+            1.4,
+            0.8,
+            1
+          ]
+        },
+        {
+          "offset": [
+            5,
+            1.4,
+            -7
+          ],
+          "scale": [
+            1.2,
+            0.9,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -1,
+            2,
+            -13
+          ],
+          "scale": [
+            2,
+            1.3,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            8,
+            1,
+            -2
+          ],
+          "scale": [
+            1,
+            0.7,
+            1.2
+          ]
+        }
+      ],
+      "color": "#233F30",
+      "color_high": "#60794A",
+      "color_mix": ".45+.23*sin(5*pi*u)*sin(3*pi*v)",
+      "roughness": 0.93,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "fern_east",
+      "bindings": [
+        {
+          "expression": "(u-.5)*1.4*sin(pi*v)*(.035+.965*pow(abs(sin(10*pi*v)),3))",
+          "name": "w"
+        }
+      ],
+      "position": {
+        "x": "2.3*v-.25*abs(w)",
+        "y": ".15+1.8*sin(pi*v*.85)-.35*v+.65*abs(w)-.2*w*w",
+        "z": "w+.3*v*v"
+      },
+      "segments": [
+        4,
+        96
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            2.5
+          ],
+          "scale": [
+            1.2,
+            1.2,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -5,
+            0,
+            -2.4
+          ],
+          "scale": [
+            0.9,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            4.5,
+            0,
+            2.2
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            5.5,
+            0,
+            -3
+          ],
+          "scale": [
+            0.8,
+            0.9,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            -8,
+            0,
+            5
+          ],
+          "scale": [
+            1.4,
+            1.2,
+            1.4
+          ]
+        },
+        {
+          "offset": [
+            -6,
+            0,
+            -6
+          ],
+          "scale": [
+            1.1,
+            1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -10,
+            0,
+            -1
+          ],
+          "scale": [
+            1.6,
+            1.4,
+            1.6
+          ]
+        },
+        {
+          "offset": [
+            -7,
+            0,
+            -8
+          ],
+          "scale": [
+            1.3,
+            1.2,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            -9
+          ],
+          "scale": [
+            1.2,
+            1.3,
+            1.3
+          ]
+        }
+      ],
+      "color": "#35632E",
+      "color_high": "#91AD53",
+      "color_mix": ".25+.5*v+.13*cos(2*pi*u)",
+      "roughness": 0.69,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "fern_west",
+      "bindings": [
+        {
+          "expression": "(u-.5)*1.5*sin(pi*v)*(.035+.965*pow(abs(sin(10*pi*v)),3))",
+          "name": "w"
+        }
+      ],
+      "position": {
+        "x": "-2*v+.25*abs(w)",
+        "y": ".15+1.65*sin(pi*v*.9)-.2*v+.65*abs(w)-.2*w*w",
+        "z": "w-.4*v*v"
+      },
+      "segments": [
+        4,
+        96
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            2.5
+          ],
+          "scale": [
+            1.1,
+            1,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -5,
+            0,
+            -2.4
+          ],
+          "scale": [
+            0.8,
+            1.1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            4.5,
+            0,
+            2.2
+          ],
+          "scale": [
+            1,
+            1.1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            5.5,
+            0,
+            -3
+          ],
+          "scale": [
+            1.1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -8,
+            0,
+            5
+          ],
+          "scale": [
+            1.3,
+            1.2,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            7,
+            0,
+            4
+          ],
+          "scale": [
+            1.2,
+            1.3,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            -10,
+            0,
+            -1
+          ],
+          "scale": [
+            1.5,
+            1.2,
+            1.5
+          ]
+        },
+        {
+          "offset": [
+            -7,
+            0,
+            -8
+          ],
+          "scale": [
+            1.3,
+            1.4,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            -9
+          ],
+          "scale": [
+            1.4,
+            1.3,
+            1.4
+          ]
+        }
+      ],
+      "color": "#35632E",
+      "color_high": "#91AD53",
+      "color_mix": ".25+.5*v+.13*cos(2*pi*u)",
+      "roughness": 0.69,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "fern_forward",
+      "bindings": [
+        {
+          "expression": "(u-.5)*1.4*sin(pi*v)*(.035+.965*pow(abs(sin(10*pi*v)),3))",
+          "name": "w"
+        }
+      ],
+      "position": {
+        "x": "w+.35*v",
+        "y": ".15+1.9*sin(pi*v*.88)-.2*v+.6*abs(w)-.2*w*w",
+        "z": "2.1*v-.25*abs(w)"
+      },
+      "segments": [
+        4,
+        96
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            2.5
+          ],
+          "scale": [
+            1.2,
+            1.1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -5,
+            0,
+            -2.4
+          ],
+          "scale": [
+            1,
+            1.1,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            4.5,
+            0,
+            2.2
+          ],
+          "scale": [
+            1.1,
+            1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            5.5,
+            0,
+            -3
+          ],
+          "scale": [
+            0.9,
+            1.1,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -8,
+            0,
+            5
+          ],
+          "scale": [
+            1.3,
+            1.3,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            7,
+            0,
+            4
+          ],
+          "scale": [
+            1.3,
+            1.2,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -10,
+            0,
+            -1
+          ],
+          "scale": [
+            1.5,
+            1.4,
+            1.5
+          ]
+        },
+        {
+          "offset": [
+            -7,
+            0,
+            -8
+          ],
+          "scale": [
+            1.3,
+            1.4,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            -9
+          ],
+          "scale": [
+            1.3,
+            1.2,
+            1.3
+          ]
+        }
+      ],
+      "color": "#35632E",
+      "color_high": "#91AD53",
+      "color_mix": ".25+.5*v+.13*cos(2*pi*u)",
+      "roughness": 0.69,
+      "metalness": 0,
+      "emission": 0
+    }
+  ]
+}

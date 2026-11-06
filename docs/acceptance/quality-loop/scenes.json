@@ -1,0 +1,22 @@
+[
+  {
+    "name": "forest-rebuilt-presentation-draft",
+    "project_id": "f2cd55de2c9c4074a04ab044646c1633",
+    "plan_id": "7f50d947e4ab40c0a4ce2ad18ea16213",
+    "source_ids": [
+      "51f8c855c7cf4660b74e7ee4e5ec61fb",
+      "ba62b4b56ca44310b9e09aac2043eb81"
+    ],
+    "verdict": "rejected-showcase-draft"
+  },
+  {
+    "name": "forest-rebuilt-construction-checkpoint",
+    "project_id": "f2cd55de2c9c4074a04ab044646c1633",
+    "plan_id": "f618942e68264a9d889058c1c393f0cf",
+    "source_ids": [
+      "51f8c855c7cf4660b74e7ee4e5ec61fb",
+      "ba62b4b56ca44310b9e09aac2043eb81"
+    ],
+    "verdict": "rejected-showcase-draft"
+  }
+]

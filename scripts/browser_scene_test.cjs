@@ -5,11 +5,16 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
 (async()=>{
   const root=path.resolve(__dirname,'..'),out=process.env.REKINDRA_BROWSER_OUTPUT||path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
   const input=process.argv[2]||JSON.parse(fs.readFileSync(path.join(root,'.local/scene-fixture/result.json'),'utf8')).path;
-  const context=await chromium.launchPersistentContext(path.join(out,'profile'),{channel:'chrome',headless:true,viewport:{width:1400,height:1200},acceptDownloads:true});
+  const reference=process.env.REKINDRA_REFERENCE_BACKEND;
+  if(reference && reference!=='swiftshader')throw Error('Unknown reference backend');
+  const context=await chromium.launchPersistentContext(path.join(out,'profile'),{channel:'chrome',headless:true,viewport:{width:1400,height:1200},acceptDownloads:true,
+    args:reference?['--use-angle=swiftshader','--enable-unsafe-swiftshader']:[]});
   try{
     const page=await context.newPage(),errors=[],requests=[];page.on('pageerror',e=>errors.push(String(e)));
     page.on('request',r=>{if(/^https?:/.test(r.url()))requests.push(r.url())});
     await page.goto(pathToFileURL(input).href);await page.waitForFunction(()=>globalThis.rekindra?.ready,{},{timeout:20000});
+    const backend=await page.evaluate(()=>{const gl=document.createElement('canvas').getContext('webgl2'),e=gl.getExtension('WEBGL_debug_renderer_info');return e?gl.getParameter(e.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)});
+    fs.writeFileSync(path.join(out,'backend.json'),JSON.stringify({requested:reference||'default',actual:backend,scope:reference?'development reference only; not default-browser acceptance':'default browser'},null,2));
     assert.equal(await page.evaluate(()=>globalThis.injected),undefined,'Source text executed');
     const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
     assert.notEqual(frames[0],frames[1],'Animation did not change frames');
@@ -56,7 +61,7 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
     await page.locator('#ascii').check();
     assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),frames[1]);
     await page.locator('#ascii').uncheck();
-    const downloadPromise=page.waitForEvent('download');
+    const downloadPromise=page.waitForEvent('download',{timeout:reference?300000:30000});
     const exportResult=await page.evaluate(async(worldStudy)=>{
       const blob=await rekindra.exportVideo({download:false});
       const url=URL.createObjectURL(blob),video=document.createElement('video');video.muted=true;video.src=url;

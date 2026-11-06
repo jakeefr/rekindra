@@ -1,0 +1,45 @@
+# Unit Q — independent visual critique
+
+Verdict: REJECT prior draft for showcase use. This is visual judgment, not a failed schema test. One critique attempt; no production changes or new scene authored.
+
+Evidence inspected: both C01 source photographs; `docs/acceptance/assembly-loop/forest-assembly-draft.json`; all 24 thumbnails in `.local/assembly-loop/forest-diagnostic/decoded/decoded-overview.png`; assembly-loop outcome; world-authoring capability documentation and material shader. The overview supports composition and large-shape judgments, not certification of small seams, continuous collision freedom, or export correctness. The diagnostic export remains diagnostic.
+
+## What the sources contribute
+
+Image 01 has fern fronds overlapping a narrow rust-colored passage, close dark roots/rocks, and vegetation enclosing the view at several depths. Image 02 has branching, crossing pale limbs with irregular moss masses and foliage behind and between them. Their shared identity is enclosed, tangled woodland with readable differences between wood, ground and vegetation. A literal reconstruction is unnecessary. The invented living crossing can carry that identity, but the current open, sparse platform setting does not.
+
+## Causes and limits
+
+| Observed defect | Evidence and likely cause | Classification |
+|---|---|---|
+| Terrain resembles two cut display blocks; bright straight lip seams dominate the cleft | Banks are broad rectangular sheets, walls separate vertical sheets, trail a further raised strip. Bank height varies independently from wall top and trail height. This authors unmatched boundaries and floating/embedded patches rather than a joined terrain edge. | Authored construction. Assembly support alone cannot weld unrelated boundaries. |
+| Trees resemble umbrellas; forest feels empty | Four copies of a single bent unbranched trunk support four copies of one shallow radial canopy sheet. Large empty sky gaps replace the sources' interwoven branches and vegetation. | Authored silhouette and allocation. Realistic foliage is constrained, but this particular silhouette is not required. |
+| Ferns read as tiny serrated paper strips | Six copies of one broad thin surface share direction; their small projected size and isolated placement prevent a legible layered plant structure. | Authored scale/orientation/grouping. Instances lack individual rotation/material; separate definitions or assembly groups are available within budget. |
+| Bridge reads as an engineered bow/rail device | Two smooth near-symmetric arches join a straight tube at matching endpoints. Attached moss is a continuous thin sleeve. No strong irregular woody branching or clustered moss silhouette. | Authored geometry. Joined motion appears coherent at overview scale, which is a useful success to preserve. |
+| Final landing feels perched rather than rooted | Narrow tip arrives at the sharp bank lip; the surrounding trail and bank do not visually embrace the contact. The motion changes angle but the final attachment does not feel organically resolved. | Authored proportions and contact design; exact penetration needs close preview inspection. |
+| Materials merge into muted olive | Most surfaces have roughness near one, similar olive/brown value ranges and smooth broad shading. Green atmosphere/fog further unifies the scene. Fine bump is limited to trunk/moss, with no color_detail. | Predominantly art direction. Roughness variation alone will not fix flat silhouettes or value grouping. |
+| Camera improvement sacrifices setting | The lower targeting during descent keeps the bridge visible but progressively cuts crowns at the top. Broad plain foreground banks and cleft take screen area while source-specific structure disappears. | Authored framing and scene arrangement. |
+
+The scene uses all 12 definitions, only 26 placements and one assembly. The exhausted definition count is an allocation issue, not evidence that the engine cannot produce a stronger interpretation. Available caps, parametric surfaces, instances, shared frames and procedural material controls have room for deliberate use. Actual limits include no automatic junction welding/contact integration, no per-instance rotation or material, capped expression/work budgets, no transparency, and no physical bounce or contact occlusion. Bump cannot improve silhouette. These constrain photoreal reconstruction and cheap foliage variety, but do not justify an external engine or a new capability yet. A need for original engine work would require a small isolated example of a required visual relationship that current authoring cannot express within its budgets; none is established here.
+
+## Visual acceptance criteria for the next native candidate
+
+Evaluate opening, descent midpoint, settled end and all 24 decoded samples. Reject on any major defect; a pleasing contact sheet is not sufficient export verification.
+
+- Source identity: the actual rendered scene visibly combines layered fern-like growth, irregular pale branching wood and a narrow earthy passage. The author identifies which visible regions convey each cue, without relying on its title or prose.
+- Focal action: an unbriefed viewer can locate the crossing and understand its changed relationship from opening to resolution. Its important joins and landing remain visible. Camera movement must not be the sole evidence of transformation.
+- Connected forms: close views of hinge, fork joins, moss attachment and landing show no detached pieces, abrupt open ends, prominent mismatched boundary seams or accidental intersections. The final contact appears supported. A side/reverse diagnostic preview should check joins obscured in the presentation camera.
+- Organic geometry: the focal silhouette has intentional asymmetric branching and convincing changes in thickness. Background crowns do not read as repeated umbrellas, and nearby plants read as grouped growth rather than isolated paper strips. Stylization is acceptable when deliberate and coherent.
+- Material separation: wood, foliage/moss and earth remain distinguishable at normal playback size through value, hue, shape and surface response together. No all-over green wash or fine periodic noise substitutes for material identity.
+- Composition/depth: vegetation establishes near, middle and far spatial relationships while preserving the action's silhouette. Large rectangular boundaries, accidental canopy crops and empty featureless slabs do not dominate any sampled frame. Any intentional cropping contributes to the woodland enclosure.
+- Temporal finish: opening, transition and settled hold each form a deliberate image; movement keeps attachments coherent and ends in a convincing spatial resolution. Sampling does not establish continuous collision freedom, so report that limit honestly.
+
+## Budget strategy, not a scene recipe
+
+Native Hermes should freely retain or replace its invention. First reconsider the definition allocation: consolidate redundant forms where feasible and reserve capacity for the shapes that communicate woodland identity and attachment. Use the unused placement budget for varied scale/depth groupings only after one representative organic form is convincing. Separate a few orientation families when necessary; do not simply multiply the same canopy or fern. Keep connected moving parts on a common frame. Remain within 12 definitions, 64 placements and 8 assemblies, including global expression/geometry/detail work budgets; the numeric ceilings are not targets.
+
+Review large silhouette and landing before fine texture. Then compare neutral and directed lighting at the same camera to distinguish material choices from atmosphere. For each of at most three submissions, record the visible defect addressed, causal change and preview result. Use native vision on its own previews. Preserve the original immutable plan and actual source provenance. Do not copy the portable placeholder IDs as source records. If a candidate remains weak, report a rejected draft rather than declaring impeccable quality.
+
+## Concise feedback to native Hermes
+
+Your living crossing is an original, readable premise and its shared motion appears connected. The previous scene fails visually because rectangular banks expose straight seams, sparse umbrella trees and flat fern strips lose the dense woodland identity, smooth paired rails feel manufactured, and the final tip merely meets a sharp bank lip. Reconsider geometry and budget allocation before lighting. Create your own stronger candidate from the two actual references, preserving observed versus invented provenance. Show layered irregular branching/growth, convincing joins and landing, distinct wood/earth/foliage, and framing that keeps both the action and woodland context legible throughout. Inspect your own opening/middle/end and join-detail previews, then revise only against visible evidence. Stay within 12 definitions, 64 placements, 8 assemblies and three submissions; no supplied geometry recipe or external creative engine. State remaining defects candidly.
