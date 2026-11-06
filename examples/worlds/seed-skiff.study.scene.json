@@ -1,0 +1,1265 @@
+{
+  "schema_version": 2,
+  "title": "What the Tide Brought Home",
+  "mood": "A bright coast, a waiting chair, a small return made visible",
+  "reason": "Choose the returning seed skiff: chair/canvas/limestone from photos meet the fictional seed-return journal. A chair-to-bridge transformation weakens the seed story; a draining garden tide-clock discards the distinctive chair and cloth. Invent a docking sailboat whose sail gathers as its seed packet opens into leaves. This depicts an imagined return, not the entire fictional itinerary or any recovered real event.",
+  "duration": 18,
+  "width": 1280,
+  "height": 720,
+  "seed": 71,
+  "references": [
+    {
+      "asset_id": "00000000000000000000000000000001",
+      "observed": "Pale broken coastal rock rises on left beneath dark green foliage; rich blue water and sky; loose white fabric hangs on a thin diagonal line. Tiny distant boats.",
+      "created": "Invented limestone landing and wind-bellied cream sail, with dark blue nonphysical water. No photograph is mapped or drawn."
+    },
+    {
+      "asset_id": "00000000000000000000000000000002",
+      "observed": "Dark angular wooden director-style chair with off-white canvas back and seat on a rough stone edge beside blue water; a distant railing, rock wall and mountainous coast.",
+      "created": "Constructed timber-and-canvas chair beside an invented returning seed boat. Fictional journal and CSV inform docking, envelope opening and growth; they are not instructions or real recovered biography."
+    }
+  ],
+  "environment": {
+    "sky_top": "#235F83",
+    "sky_bottom": "#A9C4C9",
+    "fog_color": "#92AAB2",
+    "fog_density": 0.004,
+    "light_color": "#FFE9CE",
+    "light_direction": [
+      -6,
+      5,
+      3
+    ],
+    "sun_size": 0.032,
+    "sun_strength": 2.7,
+    "fill_color": "#A8C9DF",
+    "fill_direction": [
+      4,
+      3,
+      -4
+    ],
+    "fill_strength": 0.16,
+    "ambient_strength": 0.38,
+    "exposure": 1.0,
+    "ground_color": "#74796F",
+    "ground_strength": 0.16,
+    "occlusion_strength": 0.35,
+    "occlusion_radius": 0.45
+  },
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        -7.8,
+        5.3,
+        10
+      ],
+      "fov": 49,
+      "target": [
+        -2,
+        1,
+        -1.2
+      ]
+    },
+    {
+      "at": 7,
+      "eye": [
+        -7,
+        4.9,
+        9.4
+      ],
+      "fov": 47,
+      "target": [
+        -2,
+        1,
+        0.4
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        -6.5,
+        4.5,
+        8.5
+      ],
+      "fov": 46,
+      "target": [
+        -2,
+        1.35,
+        1
+      ]
+    },
+    {
+      "at": 18,
+      "eye": [
+        -6.5,
+        4.5,
+        8.5
+      ],
+      "fov": 46,
+      "target": [
+        -2,
+        1.35,
+        1
+      ]
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "skiff",
+      "translation": {
+        "x": "-.65",
+        "y": "0",
+        "z": "-5+6*(.5-.5*cos(pi*clamp(t/7,0,1)))"
+      },
+      "rotation": {
+        "x": ".015*sin(t*1.5)*(1-clamp(t/8,0,1))",
+        "y": "0",
+        "z": ".025*sin(t*1.2)*(1-clamp(t/8,0,1))"
+      },
+      "pivot": [
+        0,
+        0,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "blue_cove",
+      "position": {
+        "x": "(v-.5)*160",
+        "y": "-.18+.055*sin(u*170+v*45-t*.85)+.018*sin(u*307+v*73-t*1.2)",
+        "z": "(u-.5)*160"
+      },
+      "segments": [
+        128,
+        96
+      ],
+      "color": "#073C53",
+      "color_high": "#236B7A",
+      "color_mix": ".45+.2*sin(u*17+v*9)",
+      "roughness": 0.16,
+      "metalness": 0,
+      "emission": 0,
+      "bump_detail": ".008*sin(u*610+v*160-t*1.7)",
+      "color_pattern": ".48+.035*sin(u*170+v*45-t*.85)"
+    },
+    {
+      "id": "limestone_apron",
+      "position": {
+        "x": "-3.15-12*u+.55*cos(v*22)*(1-u)",
+        "y": "-.3+.85*(1-exp(-u*23))+1.2*u+.13*sin(u*16+v*9)+.06*cos(v*31)",
+        "z": "(v-.5)*38"
+      },
+      "segments": [
+        40,
+        48
+      ],
+      "color": "#817E73",
+      "color_high": "#D9D4C0",
+      "color_mix": ".55+.22*sin(u*13+v*17)*cos(v*19)",
+      "roughness": 0.96,
+      "metalness": 0,
+      "emission": 0,
+      "color_detail": ".025*sin(u*83+v*97)"
+    },
+    {
+      "id": "shore_stones",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        6,
+        4
+      ],
+      "color": "#7F8078",
+      "color_high": "#CDCDBD",
+      "color_mix": ".25+.5*v",
+      "roughness": 0.95,
+      "metalness": 0,
+      "emission": 0,
+      "shading": "flat",
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "loft": [
+        {
+          "height": -0.3,
+          "points": [
+            [
+              -0.9,
+              -0.55
+            ],
+            [
+              -0.1,
+              -0.78
+            ],
+            [
+              0.85,
+              -0.48
+            ],
+            [
+              0.96,
+              0.35
+            ],
+            [
+              0.15,
+              0.72
+            ],
+            [
+              -0.8,
+              0.52
+            ]
+          ]
+        },
+        {
+          "height": 0.38,
+          "points": [
+            [
+              -0.72,
+              -0.45
+            ],
+            [
+              -0.12,
+              -0.6
+            ],
+            [
+              0.7,
+              -0.33
+            ],
+            [
+              0.75,
+              0.25
+            ],
+            [
+              0.12,
+              0.52
+            ],
+            [
+              -0.7,
+              0.37
+            ]
+          ]
+        }
+      ],
+      "instances": [
+        {
+          "offset": [
+            -3.35,
+            0.15,
+            -2.7
+          ],
+          "scale": [
+            0.9,
+            0.85,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -3.65,
+            0.27,
+            -4.25
+          ],
+          "scale": [
+            1.2,
+            1.3,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            -3.5,
+            0.2,
+            3.2
+          ],
+          "scale": [
+            0.8,
+            0.65,
+            1.1
+          ]
+        },
+        {
+          "offset": [
+            -4.1,
+            0.4,
+            4.35
+          ],
+          "scale": [
+            1.2,
+            1.4,
+            1.4
+          ]
+        },
+        {
+          "offset": [
+            -5,
+            0.8,
+            -6.4
+          ],
+          "scale": [
+            1.7,
+            2.7,
+            1.6
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chair_charcoal_frame",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        4,
+        4
+      ],
+      "color": "#151D22",
+      "color_high": "#334044",
+      "color_mix": ".3",
+      "roughness": 0.32,
+      "metalness": 0,
+      "emission": 0,
+      "loft": [
+        {
+          "height": 0,
+          "points": [
+            [
+              -0.075,
+              -0.075
+            ],
+            [
+              0.075,
+              -0.075
+            ],
+            [
+              0.075,
+              0.075
+            ],
+            [
+              -0.075,
+              0.075
+            ]
+          ]
+        },
+        {
+          "height": 1.4,
+          "points": [
+            [
+              -0.075,
+              -0.075
+            ],
+            [
+              0.075,
+              -0.075
+            ],
+            [
+              0.075,
+              0.075
+            ],
+            [
+              -0.075,
+              0.075
+            ]
+          ]
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "shading": "flat",
+      "instances": [
+        {
+          "offset": [
+            -5.45,
+            0.8365452743879164,
+            -0.45
+          ],
+          "scale": [
+            1,
+            1.488181946865774,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            0.8749877705530134,
+            0.85
+          ],
+          "scale": [
+            1,
+            0.800723021033562,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -3.95,
+            0.2788725660997283,
+            -0.45
+          ],
+          "scale": [
+            1,
+            1.8865195956430514,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -3.95,
+            0.5038073123807695,
+            0.85
+          ],
+          "scale": [
+            1,
+            1.0658519197280218,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            2.0,
+            -0.5
+          ],
+          "scale": [
+            1,
+            1.0,
+            1.2
+          ],
+          "rotation": [
+            1.5707963267948966,
+            0,
+            0
+          ]
+        },
+        {
+          "offset": [
+            -3.95,
+            2.0,
+            -0.5
+          ],
+          "scale": [
+            1,
+            1.0,
+            1.2
+          ],
+          "rotation": [
+            1.5707963267948966,
+            0,
+            0
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            1.45,
+            -0.45
+          ],
+          "scale": [
+            1,
+            1.08,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            1.45,
+            0.85
+          ],
+          "scale": [
+            1,
+            1.08,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            2.72,
+            -0.53
+          ],
+          "scale": [
+            1,
+            1.08,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            0.9265452743879163,
+            -0.45
+          ],
+          "scale": [
+            1,
+            1.08,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        },
+        {
+          "offset": [
+            -5.45,
+            0.9649877705530133,
+            0.85
+          ],
+          "scale": [
+            1,
+            1.08,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        }
+      ]
+    },
+    {
+      "id": "chair_ivory_canvas",
+      "position": {
+        "x": "(u-.5)*1.36",
+        "y": "v",
+        "z": ".045*sin(pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        20,
+        12
+      ],
+      "color": "#BEB59A",
+      "color_high": "#E7DDC3",
+      "color_mix": ".7",
+      "roughness": 0.97,
+      "metalness": 0,
+      "emission": 0,
+      "color_detail": ".035*sin(u*120)*sin(v*95)",
+      "instances": [
+        {
+          "offset": [
+            -4.7,
+            1.53,
+            0.88
+          ],
+          "scale": [
+            1,
+            1.3,
+            1
+          ],
+          "rotation": [
+            -1.5707963267948966,
+            0,
+            0
+          ]
+        },
+        {
+          "offset": [
+            -4.7,
+            1.65,
+            -0.48
+          ],
+          "scale": [
+            1,
+            1.07,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ivory_skiff",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        16,
+        8
+      ],
+      "color": "#96A6A2",
+      "color_high": "#DFE7D8",
+      "color_mix": ".3+.5*v",
+      "roughness": 0.33,
+      "metalness": 0,
+      "emission": 0,
+      "shading": "flat",
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "assembly": "skiff",
+      "loft": [
+        {
+          "height": -0.1,
+          "points": [
+            [
+              0,
+              1.9788999999999999
+            ],
+            [
+              0.14809848869999998,
+              1.8341264865000002
+            ],
+            [
+              0.27365032300000003,
+              1.4218463875
+            ],
+            [
+              0.3575413794,
+              0.8048256216
+            ],
+            [
+              0.387,
+              0.07700000000000001
+            ],
+            [
+              0.3575413794,
+              -0.6508256216
+            ],
+            [
+              0.27365032300000003,
+              -1.2678463875000001
+            ],
+            [
+              0.14809848869999998,
+              -1.6801264865
+            ],
+            [
+              0,
+              -1.8249000000000002
+            ],
+            [
+              -0.14809848869999998,
+              -1.6801264865
+            ],
+            [
+              -0.27365032300000003,
+              -1.2678463875000001
+            ],
+            [
+              -0.3575413794,
+              -0.6508256216
+            ],
+            [
+              -0.387,
+              0.07700000000000001
+            ],
+            [
+              -0.3575413794,
+              0.8048256216
+            ],
+            [
+              -0.27365032300000003,
+              1.4218463875
+            ],
+            [
+              -0.14809848869999998,
+              1.8341264865000002
+            ]
+          ]
+        },
+        {
+          "height": 0.16,
+          "points": [
+            [
+              0,
+              2.4671999999999996
+            ],
+            [
+              0.3030852792,
+              2.2867031520000003
+            ],
+            [
+              0.560028568,
+              1.7726916
+            ],
+            [
+              0.7317125904,
+              1.0034189568
+            ],
+            [
+              0.792,
+              0.096
+            ],
+            [
+              0.7317125904,
+              -0.8114189568
+            ],
+            [
+              0.560028568,
+              -1.5806916
+            ],
+            [
+              0.3030852792,
+              -2.094703152
+            ],
+            [
+              0,
+              -2.2752
+            ],
+            [
+              -0.3030852792,
+              -2.094703152
+            ],
+            [
+              -0.560028568,
+              -1.5806916
+            ],
+            [
+              -0.7317125904,
+              -0.8114189568
+            ],
+            [
+              -0.792,
+              0.096
+            ],
+            [
+              -0.7317125904,
+              1.0034189568
+            ],
+            [
+              -0.560028568,
+              1.7726916
+            ],
+            [
+              -0.3030852792,
+              2.2867031520000003
+            ]
+          ]
+        },
+        {
+          "height": 0.65,
+          "points": [
+            [
+              0,
+              2.57
+            ],
+            [
+              0.34441509,
+              2.38198245
+            ],
+            [
+              0.6363961,
+              1.84655375
+            ],
+            [
+              0.83149158,
+              1.04522808
+            ],
+            [
+              0.9,
+              0.1
+            ],
+            [
+              0.83149158,
+              -0.84522808
+            ],
+            [
+              0.6363961,
+              -1.64655375
+            ],
+            [
+              0.34441509,
+              -2.18198245
+            ],
+            [
+              0,
+              -2.37
+            ],
+            [
+              -0.34441509,
+              -2.18198245
+            ],
+            [
+              -0.6363961,
+              -1.64655375
+            ],
+            [
+              -0.83149158,
+              -0.84522808
+            ],
+            [
+              -0.9,
+              0.1
+            ],
+            [
+              -0.83149158,
+              1.04522808
+            ],
+            [
+              -0.6363961,
+              1.84655375
+            ],
+            [
+              -0.34441509,
+              2.38198245
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dark_gunwale",
+      "position": {
+        "x": "(.91+.055*cos(2*pi*v))*sin(2*pi*u)",
+        "y": ".65+.055*sin(2*pi*v)",
+        "z": ".1+(2.47+.055*cos(2*pi*v))*cos(2*pi*u)"
+      },
+      "segments": [
+        64,
+        8
+      ],
+      "color": "#253436",
+      "color_high": "#485751",
+      "color_mix": ".3",
+      "roughness": 0.3,
+      "metalness": 0,
+      "emission": 0,
+      "assembly": "skiff"
+    },
+    {
+      "id": "mast_and_boom",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        4,
+        4
+      ],
+      "color": "#786043",
+      "color_high": "#B39A67",
+      "color_mix": ".3",
+      "roughness": 0.65,
+      "metalness": 0,
+      "emission": 0,
+      "loft": [
+        {
+          "height": 0,
+          "points": [
+            [
+              -0.035,
+              -0.035
+            ],
+            [
+              0.035,
+              -0.035
+            ],
+            [
+              0.035,
+              0.035
+            ],
+            [
+              -0.035,
+              0.035
+            ]
+          ]
+        },
+        {
+          "height": 1,
+          "points": [
+            [
+              -0.035,
+              -0.035
+            ],
+            [
+              0.035,
+              -0.035
+            ],
+            [
+              0.035,
+              0.035
+            ],
+            [
+              -0.035,
+              0.035
+            ]
+          ]
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "shading": "flat",
+      "assembly": "skiff",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0.65,
+            -0.62
+          ],
+          "scale": [
+            1,
+            3.65,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0.86,
+            -0.62
+          ],
+          "scale": [
+            1,
+            1.95,
+            1
+          ],
+          "rotation": [
+            0,
+            0,
+            -1.5707963267948966
+          ]
+        }
+      ]
+    },
+    {
+      "id": "gathering_ivory_sail",
+      "position": {
+        "x": ".045+(1.9*(1-v)*u+.03*sin(u*18))*g",
+        "y": ".94+3.12*v",
+        "z": "-.62+.23*sin(pi*u)*sin(pi*v)*g+.025*sin(u*28)* (1-g)"
+      },
+      "segments": [
+        28,
+        28
+      ],
+      "color": "#D8CAAA",
+      "color_high": "#FFF0CD",
+      "color_mix": ".6+.22*sin(pi*u)*sin(pi*v)",
+      "roughness": 0.96,
+      "metalness": 0,
+      "emission": 0,
+      "assembly": "skiff",
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "clamp((t-6)/3,0,1)"
+        },
+        {
+          "name": "g",
+          "expression": "1-.955*(.5-.5*cos(pi*p))"
+        }
+      ]
+    },
+    {
+      "id": "kraft_seed_packet",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        4,
+        4
+      ],
+      "color": "#795039",
+      "color_high": "#B88451",
+      "color_mix": ".6",
+      "roughness": 0.94,
+      "metalness": 0,
+      "emission": 0,
+      "loft": [
+        {
+          "height": 0,
+          "points": [
+            [
+              -0.35,
+              -0.49
+            ],
+            [
+              0.35,
+              -0.49
+            ],
+            [
+              0.35,
+              0.49
+            ],
+            [
+              -0.35,
+              0.49
+            ]
+          ]
+        },
+        {
+          "height": 0.18,
+          "points": [
+            [
+              -0.35,
+              -0.49
+            ],
+            [
+              0.35,
+              -0.49
+            ],
+            [
+              0.35,
+              0.49
+            ],
+            [
+              -0.35,
+              0.49
+            ]
+          ]
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "shading": "flat",
+      "assembly": "skiff",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0.67,
+            1.05
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "opening_packet_flaps",
+      "position": {
+        "x": "xx*cos(a)-yy*sin(a)",
+        "y": "xx*sin(a)+yy*cos(a)",
+        "z": "loft_z"
+      },
+      "segments": [
+        4,
+        4
+      ],
+      "color": "#AB784B",
+      "color_high": "#D2AF79",
+      "color_mix": ".7",
+      "roughness": 0.98,
+      "metalness": 0,
+      "emission": 0,
+      "loft": [
+        {
+          "height": 0,
+          "points": [
+            [
+              -0.175,
+              -0.48
+            ],
+            [
+              0.175,
+              -0.48
+            ],
+            [
+              0.175,
+              0.48
+            ],
+            [
+              -0.175,
+              0.48
+            ]
+          ]
+        },
+        {
+          "height": 0.025,
+          "points": [
+            [
+              -0.175,
+              -0.48
+            ],
+            [
+              0.175,
+              -0.48
+            ],
+            [
+              0.175,
+              0.48
+            ],
+            [
+              -0.175,
+              0.48
+            ]
+          ]
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "shading": "flat",
+      "assembly": "skiff",
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "clamp((t-8)/3,0,1)"
+        },
+        {
+          "name": "a",
+          "expression": "1.95*(.5-.5*cos(pi*p))"
+        },
+        {
+          "name": "xx",
+          "expression": "loft_x+.175"
+        },
+        {
+          "name": "yy",
+          "expression": "loft_y"
+        }
+      ],
+      "instances": [
+        {
+          "offset": [
+            -0.35,
+            0.865,
+            1.05
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0.35,
+            0.865,
+            1.05
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "rotation": [
+            0,
+            3.141592653589793,
+            0
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seed_leaves",
+      "position": {
+        "x": ".47*sin(pi*v)*(2*u-1)*g",
+        "y": "(1.65*v+.08*sin(pi*u))*g",
+        "z": "(.72*v+.13*sin(pi*u)*sin(pi*v))*g"
+      },
+      "segments": [
+        16,
+        20
+      ],
+      "color": "#284C29",
+      "color_high": "#8CA74E",
+      "color_mix": ".3+.45*sin(pi*u)",
+      "roughness": 0.47,
+      "metalness": 0,
+      "emission": 0,
+      "assembly": "skiff",
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "clamp((t-11)/4,0,1)"
+        },
+        {
+          "name": "g",
+          "expression": ".015+.985*(.5-.5*cos(pi*p))"
+        }
+      ],
+      "instances": [
+        {
+          "offset": [
+            0,
+            0.87,
+            1.05
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ],
+          "rotation": [
+            0,
+            0.2,
+            0.28
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0.87,
+            1.05
+          ],
+          "scale": [
+            1,
+            0.87,
+            1
+          ],
+          "rotation": [
+            0,
+            2.35,
+            -0.45
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0.87,
+            1.05
+          ],
+          "scale": [
+            0.85,
+            1.17,
+            0.85
+          ],
+          "rotation": [
+            0,
+            4.3,
+            -0.23
+          ]
+        }
+      ]
+    }
+  ]
+}
