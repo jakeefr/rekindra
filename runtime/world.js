@@ -296,7 +296,13 @@ float visibility(vec3 p,float nl){
 }
 void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);
 ${o.shading==='flat'?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(length(faceNormal)>1.e-10)N=normalize(faceNormal);':hasCaps?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(capFace>.5&&length(faceNormal)>1.e-10)N=normalize(faceNormal);':''}
-if(dot(N,V)<0.)N=-N;
+// Orient against the visible triangle, not the interpolated normal/view dot.
+// The latter can cross zero inside a grazing triangle and flip a whole strip.
+vec3 facingFace=cross(dFdx(worldPos),dFdy(worldPos));
+// Mirrored camera bases reverse raster handedness; face the geometric normal
+// toward this pass's eye before using it to orient the smooth/cap normal.
+if(dot(facingFace,V)<0.)facingFace=-facingFace;
+if(dot(N,length(facingFace)>1.e-10?facingFace:V)<0.)N=-N;
 ${hasBump?`float geometricNl=max(dot(N,lightDir),0.);`:''}
 ${hasColorPattern?`float u=detailUV.x,v=detailUV.y;
 float patternBlend=clamp(${source.color_pattern},0.,1.);
