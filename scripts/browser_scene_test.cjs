@@ -1,6 +1,7 @@
 const {chromium}=require(process.env.REKINDRA_PLAYWRIGHT_PATH||'playwright');
 const path=require('node:path'),fs=require('node:fs'),assert=require('node:assert/strict');
 const {pathToFileURL}=require('node:url');
+const {probeMotion}=require('./motion_probe.cjs');
 const digest=value=>require('node:crypto').createHash('sha256').update(value).digest('hex');
 (async()=>{
   const root=path.resolve(__dirname,'..'),out=process.env.REKINDRA_BROWSER_OUTPUT||path.join(root,'.local','scene-browser');fs.mkdirSync(out,{recursive:true});
@@ -17,7 +18,8 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
     fs.writeFileSync(path.join(out,'backend.json'),JSON.stringify({requested:reference||'default',actual:backend,scope:reference?'development reference only; not default-browser acceptance':'default browser'},null,2));
     assert.equal(await page.evaluate(()=>globalThis.injected),undefined,'Source text executed');
     const frames=await page.evaluate(()=>{rekindra.renderAt(1);const a=document.querySelector('canvas').toDataURL();rekindra.renderAt(2.5);return [a,document.querySelector('canvas').toDataURL()]});
-    assert.notEqual(frames[0],frames[1],'Animation did not change frames');
+    const motion=await page.evaluate(probeMotion,{});
+    assert.equal(motion.changed,true,'Animation did not change sampled timeline frames');
     const repeat=await page.evaluate(()=>{rekindra.renderAt(.1);rekindra.renderAt(1);return document.querySelector('canvas').toDataURL()});
     // Compare decoded pixels: PNG encoding bytes are not the rendering contract.
     const samePixels=await page.evaluate(async([a,b])=>{
@@ -33,12 +35,13 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
         if(rekindra.scene.schema_version!==2)throw Error('Not a generated world');
         let imageDraws=0;const original=CanvasRenderingContext2D.prototype.drawImage;
         CanvasRenderingContext2D.prototype.drawImage=function(...args){if(args[0] instanceof HTMLImageElement)imageDraws++;return original.apply(this,args)};
-        const saved=rekindra.scene.camera;const fixed=saved.map(k=>({...k,eye:saved[0].eye,target:saved[0].target,fov:saved[0].fov}));
-        try{rekindra.scene.camera=fixed;rekindra.renderAt(1);const a=document.querySelector('#stage').toDataURL();rekindra.renderAt(4);const b=document.querySelector('#stage').toDataURL();return {independentMotion:a!==b,imageDraws}}
-        finally{rekindra.scene.camera=saved;CanvasRenderingContext2D.prototype.drawImage=original;rekindra.renderAt(2.5)}
+        try{for(let i=0;i<24;i++)rekindra.renderAt(rekindra.scene.duration*(i+.5)/24);return {imageDraws}}
+        finally{CanvasRenderingContext2D.prototype.drawImage=original;rekindra.renderAt(2.5)}
       });
       assert.equal(result.imageDraws,0,'Source pixels were drawn in world mode');
-      assert.equal(result.independentMotion,true,'Only the camera moved; geometry must animate');
+      const independent=await page.evaluate(probeMotion,{fixedCamera:true});
+      fs.writeFileSync(path.join(out,'motion-probe.json'),JSON.stringify({motion,independent},null,2));
+      assert.equal(independent.changed,true,'No visual motion detected with the camera fixed');
     }
     if(process.env.REKINDRA_MOTION_STUDY){
       assert.equal(await page.evaluate(()=>rekindra.scene.layers.some(l=>l.kind==='text')),false);
@@ -57,9 +60,11 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
       assert.ok(change>.15,'Motion study must change a substantial part of the frame');
       console.log(JSON.stringify({motionChangedFraction:change}));
     }
+    await page.evaluate(()=>rekindra.renderAt(2.5));
+    const normalBeforeAscii=await page.locator('canvas').evaluate(c=>c.toDataURL());
     await page.screenshot({path:path.join(out,'scene.png'),fullPage:true});
     await page.locator('#ascii').check();
-    assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),frames[1]);
+    assert.notEqual(await page.locator('canvas').evaluate(c=>c.toDataURL()),normalBeforeAscii);
     await page.locator('#ascii').uncheck();
     const downloadPromise=page.waitForEvent('download',{timeout:reference?300000:30000});
     const exportResult=await page.evaluate(async(worldStudy)=>{
