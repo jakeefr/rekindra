@@ -34,6 +34,7 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 - `rekindra_build`: rebuild a saved plan after verifying source integrity.
 - `rekindra_preview`: render a saved scene into a timed PNG contact sheet in an isolated local browser so the active agent can inspect and revise it. Requires installed Chrome/Chromium/Edge; no production Playwright dependency.
 - `rekindra_create_world`: create generated geometry, animated surfaces, atmosphere, materials and a moving perspective camera from source interpretation. No source-image textures or text are drawn in this mode.
+- `rekindra_revise_world`: apply bounded field edits to a new immutable world plan, then review its rendered output.
 
 Recommended flow: inspect the selected folder, recover TGA images, let the active Hermes agent view selected images with consent, then have it call `rekindra_compose`. Creative output is labelled generated. `rekindra_plan` is an optional route; on the tested native Hermes build, its Python auxiliary model client could not access the working Codex chat sign-in. Do not copy credentials or add a second provider to work around this. Use the active agent route.
 
@@ -49,11 +50,12 @@ Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited direct
 
 ## Verification
 
-Prior full core verification: 47 Python and 6 Node tests pass. The current plugin declares eight tools including native preview; see docs/progress.md for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.
+Latest local core verification: 86 Python and 10 Node tests pass. The current plugin declares nine tools including native preview and immutable revision; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.
 
 Real Windows Chrome acceptance now verifies original 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Playwright is development-only. Reproduce with `scripts/make_scene_fixture.py`, then `scripts/browser_scene_test.cjs` (requires a development Playwright installation and Chrome).
 
 Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 46 Python and 6 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41989227727). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
 
 Next: stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
+
 

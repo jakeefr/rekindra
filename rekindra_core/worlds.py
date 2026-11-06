@@ -131,10 +131,24 @@ def validate_world(value,asset_ids):
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError('Camera must span the full duration')
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=MAX_SURFACES:
         raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
-    ids=set();cells=work=detail_work=placements=0
+    ids=set();cells=work=detail_work=placements=active_reflectors=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft','reflection')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        if 'reflection' in obj:
+            reflection=obj['reflection'];fields(reflection,'strength blur','planar reflection')
+            _number(reflection['strength'],0,1,'reflection strength');_number(reflection['blur'],0,8,'reflection blur')
+            if any(k in obj for k in ('assembly','instances','caps','loft')):
+                raise SceneError('Reflection requires an unassembled horizontal surface without instances, caps or loft')
+            try:
+                y=obj['position']['y']
+                if not isinstance(y,str) or not re.fullmatch(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?',y.strip(),flags=re.ASCII):raise ValueError()
+                height=float(y)
+            except (ValueError,TypeError,KeyError):
+                raise SceneError('Reflection surface y must be a numeric constant string')
+            _number(height,-80,80,'reflection plane height')
+            active_reflectors+=reflection['strength']>0
+            if active_reflectors>1:raise SceneError('World allows only one active planar reflection')
         if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
             raise SceneError('Surface shading must be smooth or flat')
         caps=obj.get('caps',[])
@@ -233,6 +247,10 @@ WORLD_SCHEMA['properties']['environment']['properties']['environment_panels']={
     'items':obj_schema({'direction':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':16},
         'size':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.03,'maximum':1}},
         'rotation':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi}})}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['reflection']=obj_schema({
+    'strength':{'type':'number','minimum':0,'maximum':1},
+    'blur':{'type':'number','minimum':0,'maximum':8}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['reflection']['description']='Optional one horizontal scene reflection: y position must be a numeric constant string within +/-80, no assembly/instances/caps/loft on reflector. At most one active reflector. Strength blends reflected radiance; blur is bounded fixed pixel filtering, not physical roughness. No recursion, refraction or curved/vertical mirrors. Omit or strength0 preserves old path. Adds bounded offscreen passes; preview deadlines unchanged.'
 WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
     'type':'array','maxItems':16,
     'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
