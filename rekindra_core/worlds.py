@@ -75,7 +75,7 @@ def validate_world(value,asset_ids):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
-    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength'}
+    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights'}
     if not isinstance(env,dict):raise SceneError('Invalid environment fields')
     fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
@@ -87,6 +87,14 @@ def validate_world(value,asset_ids):
     if 'ambient_strength' in env:_number(env['ambient_strength'],0,2,'ambient strength')
     if 'ground_strength' in env:_number(env['ground_strength'],0,1,'ground strength')
     if 'ground_color' in env:color(env['ground_color'])
+    if 'point_lights' in env:
+        lights=env['point_lights']
+        if not isinstance(lights,list) or len(lights)>4:raise SceneError('At most four point lights are allowed')
+        for light in lights:
+            fields(light,'position color intensity range','point light')
+            vector(light['position'],'point light position');color(light['color'])
+            _number(light['intensity'],0,200,'point light intensity')
+            _number(light['range'],.1,80,'point light range')
     if 'fill_direction' in env and sum(x*x for x in vector(env['fill_direction'],'fill direction'))<.0001:
         raise SceneError('Fill direction cannot be zero')
     camera=s['camera']
@@ -191,6 +199,8 @@ WORLD_SCHEMA=obj_schema({
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
 # Optional studio-light controls preserve all existing v2 plans.
 WORLD_SCHEMA['properties']['environment']['properties'].update({
+    'point_lights':{'type':'array','maxItems':4,'description':'Optional static unshadowed local lights. Finite-range inverse-square illumination; not attached to emissive meshes.',
+        'items':obj_schema({'position':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':200},'range':{'type':'number','minimum':.1,'maximum':80}})},
     'fill_color':{'type':'string','description':'Optional unshadowed fill light color; default #B8D1FF.'},
     'fill_direction':VEC,
     'fill_strength':{'type':'number','minimum':0,'maximum':2,'description':'Optional fill intensity, default 0.25. Set 0 for no fill.'},

@@ -76,6 +76,26 @@ vec3 atmosphere(vec3 ray){
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
   function createRenderer(scene,programs){
+    const pointLights=scene.environment.point_lights??[];
+    const pointUniforms=pointLights.map((_,i)=>`uniform vec3 pointPosition${i},pointColor${i};uniform float pointIntensity${i},pointRange${i};`).join('\n');
+    const pointBRDF=pointLights.length?`
+vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness){
+ float nl=max(dot(N,L),0.),nv=max(dot(N,V),.001);
+ vec3 hv=V+L,H=length(hv)>.00001?normalize(hv):N;
+ float nh=max(dot(N,H),0.),vh=max(dot(V,H),0.);
+ float a=max(.06,roughness*roughness),a2=a*a,d=nh*nh*(a2-1.)+1.;
+ float distribution=a2/(3.14159265*d*d);
+ float gv=2.*nv/(nv+sqrt(a2+(1.-a2)*nv*nv));
+ float gl=2.*nl/max(nl+sqrt(a2+(1.-a2)*nl*nl),.00001);
+ vec3 f0=mix(vec3(.04),albedo,metalness),f=f0+(1.-f0)*pow(1.-vh,5.);
+ return ((1.-f)*(1.-metalness)*albedo/3.14159265+distribution*gv*gl*f/max(4.*nv*nl,.0001))*nl;
+}`:'';
+    const pointContribution=pointLights.map((_,i)=>`{
+ vec3 delta=pointPosition${i}-worldPos;float distance2=dot(delta,delta);
+ vec3 L=delta*inversesqrt(max(distance2,.000001));
+ float q=distance2/(pointRange${i}*pointRange${i});float fade=max(1.-q*q,0.);
+ lit+=localBRDF(N,V,L,albedo,roughness,metalness)*pointColor${i}*pointIntensity${i}*fade*fade/max(distance2,.25);
+}`).join('\n');
     const controlledAmbient=(scene.environment.ambient_strength??1)!==1||(scene.environment.ground_strength??0)>0;
     const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;
     const gl=canvas.getContext('webgl2',{alpha:false,antialias:true,preserveDrawingBuffer:true});
@@ -99,6 +119,7 @@ vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec
         fillStrength:e.fill_strength??.25,exposure:e.exposure??1,
         ambientStrength:e.ambient_strength??1,groundStrength:e.ground_strength??0,groundColor:rgb(e.ground_color??'#342A20')};
       for(const [name,value] of Object.entries(values))uniform(p,name,value);
+      pointLights.forEach((light,i)=>{uniform(p,'pointPosition'+i,light.position);uniform(p,'pointColor'+i,rgb(light.color));uniform(p,'pointIntensity'+i,light.intensity);uniform(p,'pointRange'+i,light.range)});
       uniform(p,'shadowCenter',shadow.center);uniform(p,'shadowRight',shadow.right);uniform(p,'shadowUp',shadow.up);
       uniform(p,'shadowForward',shadow.forward);uniform(p,'shadowExtent',shadow.extent);
       uniform(p,'shadowDepthExtent',shadow.depthExtent);
@@ -152,7 +173,7 @@ gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;
-${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}
+${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
  // Neighboring texels lie at different depths on a sloped receiver. Compare
@@ -210,6 +231,7 @@ vec3 spec=distribution*gv*gl*f/max(4.*nv*nl,.0001);
 vec3 diffuse=(1.-f)*(1.-metalness)*albedo/3.14159265;
 vec3 lit=(diffuse+spec)*lightColor*(sunStrength*3.)*nl*visibility(worldPos,${hasBump?'geometricNl':'nl'});
 lit+=albedo*(1.-metalness)*fillColor*fillStrength*max(dot(N,fillDir),0.);
+${pointContribution}
 vec3 hemisphere=mix(skyBottom,skyTop,N.y*.5+.5);
 ${controlledAmbient?'vec3 diffuseHemisphere=mix(hemisphere,groundColor,(1.-clamp(N.y,-1.,1.))*.5*groundStrength);vec3 ambient=albedo*(1.-metalness)*(.055+diffuseHemisphere*.22)*ambientStrength;':'vec3 ambient=albedo*(1.-metalness)*(.055+hemisphere*.22);'}
 vec3 reflected=mix(atmosphere(reflect(-V,N)),hemisphere,roughness*roughness);

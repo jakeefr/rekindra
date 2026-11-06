@@ -1,0 +1,3 @@
+{"unit": "V", "attempt": 1, "verdict": "pass", "evidence": "RED unsupported field; GREEN2focused tests,75Python10Node total."}
+{"unit": "R", "attempt": 1, "verdict": "pass", "evidence": "RED black receiver; GREEN near238/43/0 far45/6/0 outsideblack zero==omitted. Root viewed illuminated receiver."}
+{"unit": "review", "attempt": 1, "verdict": "no-concrete-defect", "evidence": "Independent read-only review of bounded schema, shader legacy path and numeric stability. Four-light/metal fixtures added to address coverage limits."}

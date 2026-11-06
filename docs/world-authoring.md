@@ -92,6 +92,18 @@ The camera takes explicit eye/target/FOV states over the full duration. Geometry
 
 ## Rendering and limits
 
+Optional `environment.point_lights` accepts up to four static world-space lights:
+`[{"position":[0,2,0],"color":"#FFB060","intensity":12,"range":8}]`.
+Coordinates are -80..80, intensity 0..200 and range .1..80. These illuminate nearby
+surfaces with the same GGX material response, inverse-square distance falloff
+(softened inside .5 units) and smooth cutoff at range. They do not follow assemblies
+or emissive meshes automatically. Place a light near the intended visible emitter
+and check moving surfaces across the whole timeline. Material emission alone does
+not cast light. These local lights are **unshadowed**: they can shine through walls;
+keep range tight and avoid arrangements that require occlusion. The directional key
+still owns the existing shadow map. This is direct illumination, not bounce lighting,
+bloom, ray tracing or global illumination. Omitted/empty lists preserve legacy behavior.
+
 Original WebGL2 renders into an offscreen canvas, which the shared player/exporter consumes. Surface normals come from local derivatives. Materials expose two colors and a blend expression, roughness, metalness, and emission. Direct lighting uses a GGX microfacet distribution, Smith masking and Schlick Fresnel with colored metal reflectance. The sky reflection remains an analytic approximation, not a prefiltered HDR environment. This is original implementation of established shading mathematics, not an imported engine; conceptual reference: [Filament material model](https://google.github.io/filament/main/filament.html).
 
 Directional light now honors `sun_strength` on surfaces and casts approximate soft shadows. A fixed 2048-square depth map uses a camera-derived lateral region and enough depth to include all clamped legal geometry along the light ray. Receivers outside the lateral region are unshadowed. A bounded 16-sample blocker search and 32-sample disk filter estimate penumbra from `sun_size`; this is not ray tracing or exact area-light integration. Very thin features and near contacts can still show shadow-map artifacts. The map evaluates from the same time as geometry and export; no frame-history accumulation occurs.
