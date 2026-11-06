@@ -96,27 +96,37 @@ def validate_world(value,asset_ids):
         previous=delta
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError('Camera must span the full duration')
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=12:raise SceneError('World requires 1-12 surfaces')
-    ids=set();cells=work=detail_work=0
+    ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances')},'id position segments color color_high color_mix roughness metalness emission','surface')
         caps=obj.get('caps',[])
         if not isinstance(caps,list) or len(caps)>2 or any(not isinstance(c,str) or c not in ('v0','v1') for c in caps) or len(set(caps))!=len(caps):
             raise SceneError('Caps must be a unique list containing v0 and/or v1')
-        if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique simple names')
+        instances=obj.get('instances',[{'offset':[0,0,0],'scale':[1,1,1]}])
+        if not isinstance(instances,list) or not 1<=len(instances)<=16:raise SceneError('A surface requires 1-16 instances when specified')
+        for instance in instances:
+            fields(instance,'offset scale','instance')
+            vector(instance['offset'],'instance offset')
+            scale=instance['scale']
+            if not isinstance(scale,list) or len(scale)!=3:raise SceneError('Instance scale needs three positive values')
+            for x in scale:_number(x,.05,8,'instance scale')
+        copies=len(instances);placements+=copies
+        if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique, 1-40 characters, using only letters, digits, underscore or hyphen')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
-        detail_work+=compiled.get('detail_cost',0)
+        detail_work+=compiled.get('detail_cost',0)*copies
         segments=obj['segments']
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
-        count=segments[0]*segments[1];cells+=count;work+=count*compiled['cost']
+        count=segments[0]*segments[1];cells+=count*copies;work+=count*compiled['cost']*copies
         # Fan triangles and bounded boundary-average sampling consume the same
         # budgets as the side mesh. Do not make closure free or raise limits.
-        cells+=len(caps)*((segments[0]+1)//2)
-        work+=len(caps)*6*(segments[0]+1)*compiled['cost']
+        cells+=copies*len(caps)*((segments[0]+1)//2)
+        work+=copies*len(caps)*6*(segments[0]+1)*compiled['cost']
         color(obj['color']);color(obj['color_high'])
         _number(obj['roughness'],.04,1,'roughness');_number(obj['metalness'],0,1,'metalness');_number(obj['emission'],0,3,'emission')
+    if placements>64:raise SceneError('World exceeds 64 total surface instances')
     if detail_work>128:raise SceneError('World material detail exceeds 128 total expression nodes; simplify detail expressions or use them on fewer surfaces')
     if cells>32000 or work>4_000_000:
         # Actionable authoring feedback: reducing each segment axis by this
@@ -146,7 +156,7 @@ WORLD_SCHEMA=obj_schema({
         'observed':{'type':'string','maxLength':500},'created':{'type':'string','maxLength':500}})},
     'environment':obj_schema({'sky_top':TEXT,'sky_bottom':TEXT,'fog_color':TEXT,'fog_density':NUM,'light_color':TEXT,'light_direction':VEC,'sun_size':NUM,'sun_strength':NUM}),
     'camera':{'type':'array','minItems':2,'maxItems':12,'items':obj_schema({'at':NUM,'eye':VEC,'target':VEC,'fov':NUM})},
-    'objects':{'type':'array','minItems':1,'maxItems':12,'items':obj_schema({'id':TEXT,'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
+    'objects':{'type':'array','minItems':1,'maxItems':12,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
 # Optional studio-light controls preserve all existing v2 plans.
@@ -169,3 +179,7 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['bump_detail']={
 WORLD_SCHEMA['properties']['objects']['items']['properties']['caps']={
     'type':'array','maxItems':2,'uniqueItems':True,'items':{'type':'string','enum':['v0','v1']},
     'description':'Optional solid end caps at v=0 and/or v=1. Use only when u wraps a closed planar convex or star-shaped ring, e.g. a beam or trunk cross-section. Generates a triangle fan to the average boundary position at current t, moving with the surface. Flat face normals; no bump/color_detail on caps. Counts toward existing geometry/work budgets. Not arbitrary concave hole repair or a guarantee against self-intersection. Omit on open cloth, terrain and water.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']={
+    'type':'array','minItems':1,'maxItems':16,
+    'items':obj_schema({'offset':VEC,'scale':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':.05,'maximum':8}}}),
+    'description':'Optional placements of this same animated surface/material: each offset is a world vector -80..80 and scale is positive xyz .05..8. Scale local geometry about its origin, then offset. Caps/normals/shadows follow. 1-16 placements per surface, <=64 total; EVERY copy consumes the existing geometry/work budgets. Omitted means one identity placement. Use low-resolution local parts for repeated windows, supports, roof clusters or foliage. No rotation, hierarchy, independent per-copy animation or color. Final world coordinates clamp to +/-100; avoid clipping. Fine material math is shared, not duplicated shader source.'}

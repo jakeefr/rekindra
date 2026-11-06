@@ -121,8 +121,11 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
       const hasDetail=hasColorDetail||hasBump;
       const hasCaps=Boolean(o.caps?.length);
+      const hasInstances=o.instances!==undefined;
       const definitions=source.definitions??'';
-      const position=`vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
+      const position=hasInstances?`uniform vec3 instanceOffset,instanceScale;
+vec3 surface(float u,float v){${definitions}vec3 local=clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));return clamp(local*instanceScale+instanceOffset,vec3(-100.),vec3(100.));}`:
+        `vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
       const capPosition=hasCaps?`vec3 point(vec3 uv){if(uv.z>.5&&uv.z<1.5){vec3 center=vec3(0.);for(int i=0;i<${o.segments[0]};i++)center+=surface(float(i)/${o.segments[0]}.,uv.y);return center/${o.segments[0]}.;}return surface(uv.x,uv.y);}`:'';
       const p=program(`#version 300 es
 precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
@@ -209,21 +212,28 @@ precision highp float;void main(){}`);
       const vao=gl.createVertexArray();gl.bindVertexArray(vao);
       const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
       const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);gl.bindVertexArray(null);
-      return {p,depthProgram,o,vao,vb,ib,count:indices.length};
+      return {p,depthProgram,o,vao,vb,ib,count:indices.length,placements:o.instances??[null]};
     });
+    function drawSurface(s,p){
+      gl.bindVertexArray(s.vao);
+      for(const placement of s.placements){
+        if(placement){uniform(p,'instanceOffset',placement.offset);uniform(p,'instanceScale',placement.scale)}
+        gl.drawElements(gl.TRIANGLES,s.count,gl.UNSIGNED_SHORT,0);
+      }
+    }
     function render(time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
       const frame=cameraFrame(scene.camera,time),c=frame.camera,b=frame.basis;
       gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,shadowBuffer);
       gl.viewport(0,0,shadowSize,shadowSize);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.clear(gl.DEPTH_BUFFER_BIT);
-      for(const s of surfaces){setup(s.depthProgram,c,b,time);gl.bindVertexArray(s.vao);gl.drawElements(gl.TRIANGLES,s.count,gl.UNSIGNED_SHORT,0)}
+      for(const s of surfaces){setup(s.depthProgram,c,b,time);drawSurface(s,s.depthProgram)}
       gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,depthTexture);gl.viewport(0,0,canvas.width,canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(null);setup(skyProgram,c,b,time);gl.drawArrays(gl.TRIANGLES,0,3);
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       for(const s of surfaces){setup(s.p,c,b,time);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
-        for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);gl.bindVertexArray(s.vao);gl.drawElements(gl.TRIANGLES,s.count,gl.UNSIGNED_SHORT,0)}
+        for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
       gl.bindVertexArray(null);if(gl.getError()!==gl.NO_ERROR)throw Error('World rendering failed');return canvas;
     }
     return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer)}};

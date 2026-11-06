@@ -1,5 +1,22 @@
 # Generated world authoring
 
+## Repeated parts
+
+A surface may specify `instances: [{"offset":[-2,0,0],"scale":[1,1,1]},
+{"offset":[2,0,0],"scale":[0.7,1.4,1]}]`. These place the same animated local
+geometry/material after scaling about its origin, then translating. Caps, normals
+and shadows follow each placement. Omit the field for a single unchanged surface.
+
+Limits:1–16 placements per surface,64 placements across the world; offsets -80..80,
+positive scales .05..8. Every copy consumes the unchanged geometry, expression-work
+and fragment-detail budgets. There is no rotation, parenting, independent copy
+animation or per-copy material. Final coordinates still clamp to +/-100.
+
+Use low-resolution local meshes for repeated windows, supports, roof clusters or
+foliage. Place parts deliberately and vary scale where meaningful; repetition is
+not a substitute for composition. Keep small instances free of expensive fine
+material expressions. Prefer source-specific assemblies over generic rows of boxes.
+
 ## Solid ends and connected construction
 
 Optional `caps: ["v0", "v1"]` closes the selected v boundaries with triangle fans

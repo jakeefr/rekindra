@@ -23,6 +23,28 @@ def world(aid='a'*32):
 
 
 class WorldTests(unittest.TestCase):
+    def test_surface_id_limit_is_advertised_and_actionable(self):
+        from rekindra_core.worlds import WORLD_SCHEMA
+        field=WORLD_SCHEMA['properties']['objects']['items']['properties']['id']
+        self.assertEqual(field['maxLength'],40)
+        s=world();s['objects'][0]['id']='x'*41
+        with self.assertRaisesRegex(SceneError,'40'):validate_world(s, {'a'*32})
+
+    def test_instances_validate_and_charge_repeated_geometry(self):
+        s=world();o=s['objects'][0]
+        o['instances']=[{'offset':[1,2,3],'scale':[1,.5,2]}]
+        self.assertEqual(validate_world(s, {'a'*32})['objects'][0]['instances'],o['instances'])
+        for invalid in ([],[{'offset':[0,0,0],'scale':[1,0,1]}],[{'offset':[0,0,0],'scale':[1,1,1],'extra':1}]):
+            o['instances']=invalid
+            with self.assertRaises(SceneError):validate_world(s, {'a'*32})
+        o['instances']=[{'offset':[0,0,0],'scale':[1,1,1]}]*6
+        with self.assertRaisesRegex(SceneError,'budget'):validate_world(s, {'a'*32})
+        o['segments']=[4,4];o['instances']=o['instances']*2
+        s['objects']=[dict(o,id=f'p{i}') for i in range(6)]
+        with self.assertRaisesRegex(SceneError,'64'):validate_world(s, {'a'*32})
+        s['objects']=[o];o['color_detail']='.2*sin(u*80)*sin(v*80)'
+        with self.assertRaisesRegex(SceneError,'detail'):validate_world(s, {'a'*32})
+
     def test_caps_are_optional_unique_and_budgeted(self):
         s=world();s['objects'][0]['caps']=['v0','v1']
         self.assertEqual(validate_world(s, {'a'*32})['objects'][0]['caps'],['v0','v1'])
