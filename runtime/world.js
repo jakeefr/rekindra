@@ -101,6 +101,25 @@ float indirectVisibility(vec3 P,vec3 N){
  return 1.-occlusionStrength*clamp(obscured/8.,0.,.85);
 }`:'';
     const pointLights=scene.environment.point_lights??[];
+    // Distant studio/window radiance. Original bounded lobe approximation:
+    // tangent-space rectangles broaden with roughness while their peak drops.
+    // Diffuse uses a center-direction solid-angle approximation, not ray tracing.
+    const panels=(scene.environment.environment_panels??[]).filter(p=>p.intensity>0);
+    const panelUniforms=panels.map((_,i)=>`uniform vec3 panelDirection${i},panelRight${i},panelUp${i},panelColor${i},panelShape${i};`).join('\n');
+    const panelShader=panels.length?`
+vec3 panelLight(vec3 N,vec3 V,vec3 albedo,float roughness,float metalness,vec3 F,
+                vec3 D,vec3 T,vec3 B,vec3 radiance,vec3 shape){
+ vec3 R=reflect(-V,N);float facing=dot(R,D),blur=roughness*roughness*.7;
+ vec2 width=sqrt(shape.xy*shape.xy+vec2(blur*blur));
+ vec2 uv=vec2(dot(R,T),dot(R,B))/max(facing,.0001)/width;
+ vec2 square=uv*uv;
+ float lobe=facing>0.?exp(-2.*dot(square,square)):0.;
+ float compensation=shape.x*shape.y/(width.x*width.y);
+ float solidAngle=4.*atan(shape.x*shape.y/sqrt(1.+dot(shape.xy,shape.xy)));
+ vec3 diffuse=albedo*(1.-metalness)*(1.-F)*max(dot(N,D),0.)*solidAngle/3.14159265;
+ return radiance*shape.z*(diffuse+F*lobe*compensation);
+}`:'';
+    const panelContribution=panels.map((_,i)=>`panelLight(N,V,albedo,roughness,metalness,envF,panelDirection${i},panelRight${i},panelUp${i},panelColor${i},panelShape${i})`).join('+');
     const pointUniforms=pointLights.map((_,i)=>`uniform vec3 pointPosition${i},pointColor${i};uniform float pointIntensity${i},pointRange${i};`).join('\n');
     const pointBRDF=pointLights.length?`
 vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness){
@@ -145,6 +164,13 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
       if(contactEnabled){values.occlusionStrength=e.occlusion_strength;values.occlusionRadius=e.occlusion_radius??1;gl.uniform1i(gl.getUniformLocation(p.p,'cameraDepth'),1);}
       for(const [name,value] of Object.entries(values))uniform(p,name,value);
       pointLights.forEach((light,i)=>{uniform(p,'pointPosition'+i,light.position);uniform(p,'pointColor'+i,rgb(light.color));uniform(p,'pointIntensity'+i,light.intensity);uniform(p,'pointRange'+i,light.range)});
+      panels.forEach((panel,i)=>{
+        const d=unit(panel.direction),a=unit(cross(Math.abs(d[1])>.99?[0,0,1]:[0,1,0],d)),b=cross(d,a);
+        const c=Math.cos(panel.rotation),s=Math.sin(panel.rotation);
+        uniform(p,'panelDirection'+i,d);uniform(p,'panelRight'+i,a.map((x,j)=>x*c+b[j]*s));
+        uniform(p,'panelUp'+i,b.map((x,j)=>x*c-a[j]*s));uniform(p,'panelColor'+i,rgb(panel.color));
+        uniform(p,'panelShape'+i,[...panel.size,panel.intensity]);
+      });
       uniform(p,'shadowCenter',shadow.center);uniform(p,'shadowRight',shadow.right);uniform(p,'shadowUp',shadow.up);
       uniform(p,'shadowForward',shadow.forward);uniform(p,'shadowExtent',shadow.extent);
       uniform(p,'shadowDepthExtent',shadow.depthExtent);
@@ -210,7 +236,7 @@ gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;
-${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}${contactShader}
+${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}${contactShader}${panelUniforms}${panelShader}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
  // Neighboring texels lie at different depths on a sloped receiver. Compare
@@ -277,6 +303,7 @@ ${controlledAmbient?'vec3 diffuseHemisphere=mix(hemisphere,groundColor,(1.-clamp
 vec3 reflected=mix(atmosphere(reflect(-V,N)),hemisphere,roughness*roughness);
 vec3 envF=f0+(max(vec3(1.-roughness),f0)-f0)*pow(1.-nv,5.);
 ${contactEnabled?'float indirect=indirectVisibility(worldPos,N);lit+=(ambient+reflected*envF*(1.-roughness*.45))*indirect+albedo*emission;':'lit+=ambient+reflected*envF*(1.-roughness*.45)+albedo*emission;'}
+${panels.length?`lit+=(${panelContribution})${contactEnabled?'*indirect':''};`:''}
 float fog=1.-exp(-length(eye-worldPos)*fogDensity);lit=mix(lit,fogColor,fog);
 pixel=vec4(displayColor(lit),1.);}`);
       const depthProgram=program(`#version 300 es

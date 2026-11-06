@@ -75,7 +75,7 @@ def validate_world(value,asset_ids):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
-    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights','occlusion_strength','occlusion_radius'}
+    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights','occlusion_strength','occlusion_radius','environment_panels'}
     if not isinstance(env,dict):raise SceneError('Invalid environment fields')
     fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
@@ -89,6 +89,19 @@ def validate_world(value,asset_ids):
     if 'ground_color' in env:color(env['ground_color'])
     if 'occlusion_strength' in env:_number(env['occlusion_strength'],0,1,'occlusion strength')
     if 'occlusion_radius' in env:_number(env['occlusion_radius'],.05,4,'occlusion radius')
+    if 'environment_panels' in env:
+        panels=env['environment_panels']
+        if not isinstance(panels,list) or len(panels)>4:raise SceneError('At most four environment panels are allowed')
+        for panel in panels:
+            fields(panel,'direction color intensity size rotation','environment panel')
+            if sum(x*x for x in vector(panel['direction'],'environment panel direction'))<.0001:
+                raise SceneError('Environment panel direction cannot be zero')
+            color(panel['color'])
+            _number(panel['intensity'],0,16,'environment panel intensity')
+            _number(panel['rotation'],-2*math.pi,2*math.pi,'environment panel rotation')
+            if not isinstance(panel['size'],list) or len(panel['size'])!=2:
+                raise SceneError('Environment panel size requires two tangent half-widths')
+            for size in panel['size']:_number(size,.03,1,'environment panel size')
     if 'point_lights' in env:
         lights=env['point_lights']
         if not isinstance(lights,list) or len(lights)>4:raise SceneError('At most four point lights are allowed')
@@ -212,6 +225,12 @@ WORLD_SCHEMA['properties']['environment']['properties'].update({
     'ambient_strength':{'type':'number','minimum':0,'maximum':2,'description':'Diffuse ambient intensity only, default1. Lower for stronger form contrast; does not change key/fill/emission or sky specular.'},
     'ground_color':{'type':'string','description':'Approximate lower hemisphere diffuse color, default #342A20. Does not sample geometry or provide occlusion.'},
     'ground_strength':{'type':'number','minimum':0,'maximum':1,'description':'Blend lower-facing diffuse illumination toward ground_color, default0 (legacy sky-only ambient). Not raytraced bounce or ambient occlusion.'}})
+WORLD_SCHEMA['properties']['environment']['properties']['environment_panels']={
+    'type':'array','maxItems':4,
+    'description':'Optional distant rectangular environment radiance lobes for broad reflections and approximate diffuse illumination. No local falloff, scene reflections, or panel shadows; sky background unchanged. Empty/omitted/off preserves legacy lighting. Size is tangent angular half-width/height (.03..1), rotation is radians about direction. Original bounded analytic approximation, not physical area-light integration.',
+    'items':obj_schema({'direction':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':16},
+        'size':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.03,'maximum':1}},
+        'rotation':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi}})}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
     'type':'array','maxItems':16,
     'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
