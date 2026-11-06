@@ -113,3 +113,21 @@ Optional surface `color_detail` supplies an original bounded math expression eva
 Use it for restrained surface color grain or weave, with `color_mix` retaining broad mesh-interpolated color variation. For example `.12*sin(u*80)*sin(v*85)` resolves on a coarse mesh; this simple pattern is an illustration, not a universal material preset. Choose frequencies that remain visible at the intended view; subpixel patterns can alias. Detail does not rescue balloon-like stone geometry or a weak composition.
 
 Limits are 128 characters and 32 compiled expression nodes per detail expression, plus 128 detail nodes across the world, separate from geometry budgets. This bounds added per-pixel work even when tessellation is low; it is not a frame-rate guarantee. Omit the optional field for the prior shader path. `scripts/browser_material_test.cjs` verifies resolved detail on a 4×4 mesh and bounded brightness under extreme inputs using an installed real browser.
+# Fine surface relief
+
+Optional surface `bump_detail` evaluates a bounded height expression per pixel.
+It uses the same restricted math as `color_detail` (u/v/t/pi, no local bindings,
+128 characters and 32 nodes per expression). Both fields **share** the existing
+128-node fragment budget across the world. It adds no production dependency.
+
+Height is in world units, clamped to +/-0.1. Its surface gradient perturbs the
+lighting normal, limited to magnitude 0.6. Geometric normals still determine
+shadow bias. The mesh, silhouette, cast shadow and collision geometry are
+unchanged. Constant height has no effect. The absent field preserves the old
+shader path. Example starting point: `.002*sin(u*83)*sin(v*71)` for subtle grain.
+
+Scale frequency to surface dimensions and projected size. Check multiple times
+and camera angles: short wavelengths can shimmer, UV seams can become visible,
+and strong periodic relief reads as carved ribs. This is not displacement,
+transparency, reflected objects, fluid simulation, or automatically good material
+design. Diagnose those separately instead of adding stronger noise.

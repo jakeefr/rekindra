@@ -37,15 +37,17 @@ def compile_surface(obj):
     blend=compile_expression(obj['color_mix'],names)
     result={'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
             'definitions':'\n'.join(definitions),'cost':cost+sum(p['cost'] for p in pos)+blend['cost']}
-    if 'color_detail' in obj:
-        detail=obj['color_detail']
+    for field in ('color_detail','bump_detail'):
+        if field not in obj:continue
+        detail=obj[field]
         if not isinstance(detail,str) or not 1<=len(detail)<=128:
             raise SceneError('Material detail requires 1-128 characters')
         # Per-pixel work is independent of tessellation. Geometry bindings are
         # deliberately unavailable here; their cost can be much larger.
         compiled=compile_expression(detail)
         if compiled['cost']>32:raise SceneError('Material detail exceeds 32 expression nodes')
-        result.update(color_detail=compiled['glsl'],detail_cost=compiled['cost'])
+        result[field]=compiled['glsl']
+        result['detail_cost']=result.get('detail_cost',0)+compiled['cost']
     return result
 
 
@@ -97,7 +99,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail')},'id position segments color color_high color_mix roughness metalness emission','surface')
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique simple names')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
@@ -153,4 +155,7 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
                         'expression':{'type':'string','minLength':1,'maxLength':512}})}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['color_detail']={
     'type':'string','minLength':1,'maxLength':128,
-    'description':'Optional per-pixel albedo detail expression using only u/v/t/pi and supported math, no local bindings. At most32 expression nodes per surface and128 across the world. Result clamps to -0.35..0.35 and multiplies base color by 1+detail. Use subtle grain/weave/material variation; does not change geometry, normals or roughness. Default absent preserves existing rendering. Avoid subpixel frequencies and animated noise unless intentional.'}
+    'description':'Optional per-pixel albedo detail expression using only u/v/t/pi and supported math, no local bindings. At most32 nodes per expression; color_detail and bump_detail share128 nodes across the world. Result clamps to -0.35..0.35 and multiplies base color by 1+detail. Use subtle grain/weave/material variation; does not change geometry, normals or roughness. Default absent preserves existing rendering. Avoid subpixel frequencies and animated noise unless intentional.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['bump_detail']={
+    'type':'string','minLength':1,'maxLength':128,
+    'description':'Optional per-pixel relief HEIGHT in world units, using u/v/t/pi and math, no bindings. <=32 expression nodes; color_detail and bump_detail together share128 nodes across the world. Height clamps to +/-0.1, slope magnitude to0.6. Changes lighting normals only, not silhouettes, shadow geometry, or roughness. Start .002-.02 amplitude for stone/cloth or .01-.04 for water ripples; scale frequency to surface size. Avoid subpixel frequencies, seams and sharp masks; inspect motion for shimmer. Not physical water, transparency or scene reflections.'}

@@ -106,7 +106,8 @@ precision highp float;in vec2 screen;out vec4 pixel;${uniforms}${sky}
 void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y*tanHalf);pixel=vec4(displayColor(atmosphere(ray)),1.);}`);
     const surfaces=scene.objects.map((o,index)=>{
       const source=programs[index];
-      const hasDetail=source.color_detail!==undefined;
+      const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
+      const hasDetail=hasColorDetail||hasBump;
       const definitions=source.definitions??'';
       const position=`vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
       const p=program(`#version 300 es
@@ -152,8 +153,18 @@ float visibility(vec3 p,float nl){
  }return sum/32.;
 }
 void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);if(dot(N,V)<0.)N=-N;
+${hasBump?`float geometricNl=max(dot(N,lightDir),0.);`:''}
 vec3 albedo=mix(baseColor,highColor,blend);
-${hasDetail?`float u=detailUV.x,v=detailUV.y;float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail;`:''}
+${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}
+${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail;`:''}
+${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
+// Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
+float height=clamp(${source.bump_detail},-.1,.1);
+vec3 dx=dFdx(worldPos),dy=dFdy(worldPos),rx=cross(dy,N),ry=cross(N,dx);
+float determinant=dot(dx,rx),hx=dFdx(height),hy=dFdy(height);
+vec3 gradient=(hx*rx+hy*ry)/(abs(determinant)>1.e-10?determinant:1.);
+if(abs(determinant)>1.e-10){gradient*=min(1.,.6/max(length(gradient),.00001));N=normalize(N-gradient);}
+`:''}
 float nl=max(dot(N,lightDir),0.),nv=max(dot(N,V),.001);
 vec3 hv=V+lightDir;vec3 H=length(hv)>.00001?normalize(hv):N;
 float nh=max(dot(N,H),0.),vh=max(dot(V,H),0.);
@@ -164,7 +175,7 @@ float gl=2.*nl/max(nl+sqrt(a2+(1.-a2)*nl*nl),.00001);
 vec3 f0=mix(vec3(.04),albedo,metalness),f=f0+(1.-f0)*pow(1.-vh,5.);
 vec3 spec=distribution*gv*gl*f/max(4.*nv*nl,.0001);
 vec3 diffuse=(1.-f)*(1.-metalness)*albedo/3.14159265;
-vec3 lit=(diffuse+spec)*lightColor*(sunStrength*3.)*nl*visibility(worldPos,nl);
+vec3 lit=(diffuse+spec)*lightColor*(sunStrength*3.)*nl*visibility(worldPos,${hasBump?'geometricNl':'nl'});
 lit+=albedo*(1.-metalness)*fillColor*fillStrength*max(dot(N,fillDir),0.);
 vec3 hemisphere=mix(skyBottom,skyTop,N.y*.5+.5);
 vec3 ambient=albedo*(1.-metalness)*(.055+hemisphere*.22);

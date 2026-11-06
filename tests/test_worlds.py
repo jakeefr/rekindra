@@ -23,6 +23,18 @@ def world(aid='a'*32):
 
 
 class WorldTests(unittest.TestCase):
+    def test_bump_detail_is_bounded_and_shares_fragment_budget(self):
+        from rekindra_core.worlds import compile_world
+        s=world();s['objects'][0]['bump_detail']='.02*sin(u*80+t)*sin(v*80)'
+        self.assertIn('sin',compile_world(validate_world(s, {'a'*32}))[0]['bump_detail'])
+        for invalid in ('shape','__import__("os")','+'.join(['u']*20)):
+            s['objects'][0]['bump_detail']=invalid
+            with self.assertRaises(SceneError):validate_world(s, {'a'*32})
+        s=world();o=s['objects'][0];o['segments']=[4,4]
+        o['bump_detail']=o['color_detail']='+'.join(['u']*15)
+        s['objects']=[dict(o,id=f's{i}') for i in range(3)]
+        with self.assertRaisesRegex(SceneError,'detail'):validate_world(s, {'a'*32})
+
     def test_fragment_detail_compiles_without_geometry_bindings(self):
         from rekindra_core.worlds import compile_world
         s=world();s['objects'][0]['color_detail']='.2*sin(u*80)*sin(v*80)'
