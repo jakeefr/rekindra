@@ -1,0 +1,990 @@
+{
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        5,
+        4.8,
+        18
+      ],
+      "fov": 53,
+      "target": [
+        0,
+        2.7,
+        -5
+      ]
+    },
+    {
+      "at": 4,
+      "eye": [
+        3.5,
+        4.5,
+        15
+      ],
+      "fov": 53,
+      "target": [
+        0,
+        3.2,
+        -5
+      ]
+    },
+    {
+      "at": 8,
+      "eye": [
+        1.5,
+        4.1,
+        10.5
+      ],
+      "fov": 56,
+      "target": [
+        0,
+        3.6,
+        -5
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        0,
+        3.8,
+        7
+      ],
+      "fov": 58,
+      "target": [
+        0,
+        3.7,
+        -5
+      ]
+    }
+  ],
+  "duration": 12,
+  "environment": {
+    "exposure": 1.05,
+    "fill_color": "#BDD7ED",
+    "fill_direction": [
+      0.7,
+      0.4,
+      0.8
+    ],
+    "fill_strength": 0.4,
+    "fog_color": "#ACCBB4",
+    "fog_density": 0.004,
+    "light_color": "#FFF0CF",
+    "light_direction": [
+      -0.6,
+      0.9,
+      0.6
+    ],
+    "sky_bottom": "#C5DBCB",
+    "sky_top": "#387DAB",
+    "sun_size": 0.07,
+    "sun_strength": 1.5
+  },
+  "height": 720,
+  "mood": "A garden ceremonially gathers itself into a welcoming doorway",
+  "objects": [
+    {
+      "bump_detail": ".003*sin(u*170)*sin(v*150)",
+      "color": "#34532C",
+      "color_high": "#CCA15F",
+      "color_mix": "max(clamp((2.8-abs((u-.5)*32))/.5,0,1),.13+.1*sin(u*29)*sin(v*27))",
+      "emission": 0,
+      "id": "garden_beds",
+      "metalness": 0,
+      "position": {
+        "x": "(u-.5)*32",
+        "y": "-.22+.08*sin(u*28)*sin(v*24)",
+        "z": "-22+31*v"
+      },
+      "roughness": 1,
+      "segments": [
+        64,
+        40
+      ]
+    },
+    {
+      "bump_detail": ".008*sin(u*110+v*20-t)",
+      "color": "#244A3B",
+      "color_high": "#719E80",
+      "color_mix": ".4+.15*sin(u*28+v*12-t*.6)",
+      "emission": 0,
+      "id": "canal",
+      "metalness": 0,
+      "position": {
+        "x": "(u-.5)*32",
+        "y": "-.52+.025*sin(u*50-t)*cos(v*10+t)",
+        "z": "9+5*v"
+      },
+      "roughness": 0.24,
+      "segments": [
+        64,
+        16
+      ]
+    },
+    {
+      "color": "#8F7046",
+      "color_high": "#BD9C62",
+      "color_mix": ".45+.15*sin(u*80)*sin(v*16)",
+      "emission": 0,
+      "id": "bank",
+      "metalness": 0,
+      "position": {
+        "x": "(u-.5)*32",
+        "y": "-.35+.35*sin(v*pi)",
+        "z": "7.6+1.4*v"
+      },
+      "roughness": 1,
+      "segments": [
+        64,
+        12
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#345625",
+      "color_high": "#8A9F45",
+      "color_mix": ".4+.2*sin(u*2*pi)",
+      "emission": 0,
+      "id": "left_stems",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "-3.7+2.05*p*v*v+.14*cos(a)*(1-.35*v)",
+        "y": "5.7*v",
+        "z": ".14*sin(a)*(1-.35*v)"
+      },
+      "roughness": 0.9,
+      "segments": [
+        12,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#345625",
+      "color_high": "#8A9F45",
+      "color_mix": ".4+.2*sin(u*2*pi)",
+      "emission": 0,
+      "id": "right_stems",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "3.7-2.05*p*v*v+.14*cos(a)*(1-.35*v)",
+        "y": "5.7*v",
+        "z": ".14*sin(a)*(1-.35*v)"
+      },
+      "roughness": 0.9,
+      "segments": [
+        12,
+        24
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "2*pi*v",
+          "name": "b"
+        },
+        {
+          "expression": ".87+.30*cos(b)+.17*cos(18*a)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(a)",
+          "name": "xx"
+        },
+        {
+          "expression": "r*sin(a)",
+          "name": "yy"
+        },
+        {
+          "expression": ".13*sin(b)+.06*cos(18*a)",
+          "name": "zz"
+        },
+        {
+          "expression": ".7*(1-p)",
+          "name": "h"
+        }
+      ],
+      "color": "#DC8508",
+      "color_high": "#FFD039",
+      "color_mix": ".5+.35*cos(b)+.1*sin(a*18)",
+      "emission": 0,
+      "id": "left_corollas",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "-3.7+2.05*p+xx*cos(h)+zz*sin(h)",
+        "y": "5.7+yy",
+        "z": "-xx*sin(h)+zz*cos(h)"
+      },
+      "roughness": 0.8,
+      "segments": [
+        108,
+        12
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "2*pi*v",
+          "name": "b"
+        },
+        {
+          "expression": ".87+.30*cos(b)+.17*cos(18*a)",
+          "name": "r"
+        },
+        {
+          "expression": "r*cos(a)",
+          "name": "xx"
+        },
+        {
+          "expression": "r*sin(a)",
+          "name": "yy"
+        },
+        {
+          "expression": ".13*sin(b)+.06*cos(18*a)",
+          "name": "zz"
+        },
+        {
+          "expression": "-.7*(1-p)",
+          "name": "h"
+        }
+      ],
+      "color": "#DC8508",
+      "color_high": "#FFD039",
+      "color_mix": ".5+.35*cos(b)+.1*sin(a*18)",
+      "emission": 0,
+      "id": "right_corollas",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "3.7-2.05*p+xx*cos(h)+zz*sin(h)",
+        "y": "5.7+yy",
+        "z": "-xx*sin(h)+zz*cos(h)"
+      },
+      "roughness": 0.8,
+      "segments": [
+        108,
+        12
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "pi*v",
+          "name": "b"
+        },
+        {
+          "expression": ".68*cos(a)*sin(b)",
+          "name": "xx"
+        },
+        {
+          "expression": ".24*cos(b)",
+          "name": "zz"
+        },
+        {
+          "expression": ".7*(1-p)",
+          "name": "h"
+        }
+      ],
+      "bump_detail": ".002*sin(u*120)*sin(v*80)",
+      "color": "#343913",
+      "color_high": "#748238",
+      "color_mix": ".3+.4*sin(b)*sin(b)",
+      "emission": 0,
+      "id": "left_disks",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "-3.7+2.05*p+xx*cos(h)+zz*sin(h)",
+        "y": "5.7+.68*sin(a)*sin(b)",
+        "z": "-xx*sin(h)+zz*cos(h)"
+      },
+      "roughness": 0.96,
+      "segments": [
+        36,
+        20
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "pi*v",
+          "name": "b"
+        },
+        {
+          "expression": ".68*cos(a)*sin(b)",
+          "name": "xx"
+        },
+        {
+          "expression": ".24*cos(b)",
+          "name": "zz"
+        },
+        {
+          "expression": "-.7*(1-p)",
+          "name": "h"
+        }
+      ],
+      "bump_detail": ".002*sin(u*120)*sin(v*80)",
+      "color": "#343913",
+      "color_high": "#748238",
+      "color_mix": ".3+.4*sin(b)*sin(b)",
+      "emission": 0,
+      "id": "right_disks",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "3.7-2.05*p+xx*cos(h)+zz*sin(h)",
+        "y": "5.7+.68*sin(a)*sin(b)",
+        "z": "-xx*sin(h)+zz*cos(h)"
+      },
+      "roughness": 0.96,
+      "segments": [
+        36,
+        20
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2.05*p*(2.7/5.7)*(2.7/5.7)",
+          "name": "q"
+        },
+        {
+          "expression": "sin(pi*v)",
+          "name": "w"
+        },
+        {
+          "expression": "u*2-1",
+          "name": "s"
+        }
+      ],
+      "color": "#204825",
+      "color_high": "#81A148",
+      "color_mix": ".4+.3*(1-abs(s))",
+      "emission": 0,
+      "id": "left_leaves",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "-3.7+q-2.3*v",
+        "y": "2.7+1.0*sin(pi*v)-.7*v+.2*w*(1-s*s)",
+        "z": "1.05*w*s"
+      },
+      "roughness": 0.9,
+      "segments": [
+        12,
+        20
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1)/8,0,1)",
+          "name": "k"
+        },
+        {
+          "expression": "k*k*(3-2*k)",
+          "name": "p"
+        },
+        {
+          "expression": "2.05*p*(2.7/5.7)*(2.7/5.7)",
+          "name": "q"
+        },
+        {
+          "expression": "sin(pi*v)",
+          "name": "w"
+        },
+        {
+          "expression": "u*2-1",
+          "name": "s"
+        }
+      ],
+      "color": "#204825",
+      "color_high": "#81A148",
+      "color_mix": ".4+.3*(1-abs(s))",
+      "emission": 0,
+      "id": "right_leaves",
+      "instances": [
+        {
+          "offset": [
+            0,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -5
+          ],
+          "scale": [
+            0.95,
+            0.96,
+            0.95
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -10
+          ],
+          "scale": [
+            0.9,
+            0.92,
+            0.9
+          ]
+        },
+        {
+          "offset": [
+            0,
+            0,
+            -15
+          ],
+          "scale": [
+            0.85,
+            0.88,
+            0.85
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "3.7-q+2.3*v",
+        "y": "2.7+1.0*sin(pi*v)-.7*v+.2*w*(1-s*s)",
+        "z": "1.05*w*s"
+      },
+      "roughness": 0.9,
+      "segments": [
+        12,
+        20
+      ]
+    },
+    {
+      "color": "#284D2D",
+      "color_high": "#E95230",
+      "color_mix": "max(0,sin(u*32)*sin(v*20))",
+      "emission": 0,
+      "id": "red_shrubs",
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            7.3
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -3.5,
+            0,
+            7.3
+          ],
+          "scale": [
+            0.8,
+            0.8,
+            0.8
+          ]
+        },
+        {
+          "offset": [
+            3.5,
+            0,
+            7.3
+          ],
+          "scale": [
+            0.8,
+            0.8,
+            0.8
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            7.3
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "metalness": 0,
+      "position": {
+        "x": "1.1*cos(u*2*pi)*sin(v*pi)",
+        "y": ".35+.5*cos(v*pi)",
+        "z": ".65*sin(u*2*pi)*sin(v*pi)"
+      },
+      "roughness": 1,
+      "segments": [
+        32,
+        16
+      ]
+    }
+  ],
+  "reason": "Rooted sunflower gateways chosen over a seed canal or migrating grove because the photographed aisle and opposing rows determine the spatial story. Final after frontal and temporary rear/side reviews: mirrored roots follow the bending stems, a fourth pair adds depth, planted beds replace a bare slab, smooth progression opens oblique heads toward the arriving viewer. Final camera retains the nearest flowers instead of cropping them. Canal and red shrubs mark entry; all forms generated, no source imagery drawn.",
+  "references": [
+    {
+      "asset_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created": "Eight giant rooted sunflower forms bend inward into a sequence of gates and turn their faces to welcome an approaching viewer. Thick scalloped corollas, seed relief and broad leaves are invented generated geometry.",
+      "observed": "Dirt aisle between tall sunflower rows, a close yellow corolla around a green-brown seed disk, broad green veined leaves, cloudy pale-blue sky."
+    },
+    {
+      "asset_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created": "Opaque rippling canal, ochre bank, rounded red-patched shrubs and green planting beds establish a garden threshold. People omitted; scale is deliberately monumental.",
+      "observed": "Sunflower rows above an earthen canal edge; rounded red-dotted green shrubs and visitors; pale blue sky. Text notes describe curated references, not a personal archive."
+    }
+  ],
+  "schema_version": 2,
+  "seed": 2081,
+  "title": "The Garden Makes a Door",
+  "width": 1280
+}
