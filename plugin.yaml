@@ -11,3 +11,4 @@ provides_tools:
   - rekindra_compose
   - rekindra_create_world
   - rekindra_preview
+  - rekindra_revise_world

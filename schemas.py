@@ -1,10 +1,23 @@
 """Public tool contracts for the foundation milestone."""
 from .rekindra_core.scenes import SCENE_SCHEMA
 from .rekindra_core.worlds import WORLD_SCHEMA
+from .rekindra_core.revisions import OBJECT_FIELDS, SCENE_FIELDS
 
 WORLD_ART_DIRECTION = '''Before geometry, compare three genuinely different source-led premises: change the action and spatial relationships, not just colors or object names. Choose one that depends on distinctive evidence in these files. A generic unfolding ornament with a rising sphere is not a default solution. Briefly record the chosen premise and why the alternatives are weaker in scene.reason. Plan the occupied space and camera composition across beginning, middle and end. A supporting environment must contribute scale, depth or meaning; an empty slab is not a world, but decorative clutter is not an improvement either. Use the object budget deliberately for the important relationships. Design material contrast: identify what should read as rough stone, wet surface, cloth, foliage or metal from shape, color variation, roughness and illumination together. Do not make everything metallic or add uniform ribs to simulate detail. Broad color_mix is interpolated across mesh vertices. Optional color_detail is per-pixel albedo modulation for subtle grain or weave: 128 characters, 32 math nodes each, 128 total across the world, only u/v/t/pi, no bindings; result clamps to -.35.. .35. It changes color only; subpixel frequencies can alias. Avoid promising transparency, physical water or features the renderer lacks. Review visual specificity, spatial depth, material readability and narrative progression separately. If the source files could be swapped without changing the concept, or the result still reads as an isolated generic ornament, reconsider the premise before polishing highlights. A creative interpretation may depart from literal appearance, but distinguish that invention from recovered facts.'''
 
 SCHEMAS = {
+    'rekindra_revise_world': {
+        'name': 'rekindra_revise_world',
+        'description': 'Revise selected fields in a saved world without resending unchanged geometry. Supply one to24 edits with field and value; add object_id for an existing surface. Replace an entire field, not nested paths; camera and environment must be complete valid values. Null removes optional bindings/caps/instances/color_detail/bump_detail only. No duplicate targets, ID/source changes or object insertion/removal. Validates the entire candidate including resource budgets before saving a NEW immutable plan. Original plan remains unchanged. Returns changed fields and new plan_id. Preview the new plan and inspect it yourself before retaining it; no model call or automatic visual approval. Use camera-only revisions for alternate-angle diagnostics without replacing the final plan.',
+        'parameters': {'type':'object', 'properties': {
+            'project_id': {'type':'string'}, 'plan_id': {'type':'string'},
+            'edits': {'type':'array', 'minItems':1, 'maxItems':24, 'items': {
+                'type':'object', 'properties': {'object_id':{'type':'string'},
+                    'field': {'type':'string','enum':sorted(OBJECT_FIELDS | SCENE_FIELDS)},
+                    'value': {'description':'Complete replacement field value, or null for optional surface removal.'}},
+                'required':['field','value'], 'additionalProperties':False}}},
+            'required':['project_id','plan_id','edits'], 'additionalProperties':False},
+    },
     'rekindra_inspect': {
         'name': 'rekindra_inspect',
         'description': 'Inspect a user-selected local folder and save bounded copies in a Rekindra project. Does not execute input files, call a model, or modify originals. Excludes common credential/development paths. Ask the user to select a folder if none was provided.',

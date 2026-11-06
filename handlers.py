@@ -24,7 +24,8 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 raise ToolInputError('Tool arguments must be an object')
             required = {'inspect': ('folder',), 'recover': ('project_id','asset_id'),
                         'plan': ('project_id','intent'), 'build': ('project_id','plan_id'), 'compose': ('project_id',), 'world': ('project_id',),
-                        'status': ('project_id',), 'preview': ('project_id','plan_id')}[operation]
+                        'status': ('project_id',), 'preview': ('project_id','plan_id'),
+                        'revise': ('project_id','plan_id')}[operation]
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in required):
                 raise ToolInputError('Provide nonempty string values for: ' + ', '.join(required))
             if operation == 'inspect' and not Path(args['folder']).is_absolute():
@@ -55,6 +56,17 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 saved = compositions.save_plan(args['project_id'], scene, args.get('asset_ids'),
                                                {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
                 result = compositions.build(args['project_id'], saved['plan_id'])
+            elif operation == 'revise':
+                from .rekindra_core.revisions import revise_world
+                compositions = CompositionStore(store)
+                parent = compositions.load_plan(args['project_id'], args['plan_id'])
+                scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
+                saved = compositions.save_plan(args['project_id'], scene, parent['source_ids'],
+                    {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
+                     'parent_plan_id': parent['plan_id'], 'changed_fields': changed})
+                result = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
+                          'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
+                          'next_step': 'Use rekindra_preview with this new plan_id; saving is not visual acceptance.'}
             elif operation == 'build':
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'])
             elif operation == 'preview':
@@ -94,6 +106,9 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
     def preview(args, **kwargs):
         return invoke('preview', args)
 
+    def revise(args, **kwargs):
+        return invoke('revise', args)
+
     return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status,
             'rekindra_plan': plan, 'rekindra_build': build, 'rekindra_compose': compose, 'rekindra_create_world':world,
-            'rekindra_preview':preview}
+            'rekindra_preview':preview, 'rekindra_revise_world':revise}
