@@ -1,0 +1,597 @@
+{
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        8.5,
+        6,
+        11
+      ],
+      "fov": 44,
+      "target": [
+        0,
+        0.9,
+        -1
+      ]
+    },
+    {
+      "at": 4,
+      "eye": [
+        8.2,
+        5.9,
+        11.5
+      ],
+      "fov": 44,
+      "target": [
+        0,
+        1,
+        -0.5
+      ]
+    },
+    {
+      "at": 8,
+      "eye": [
+        7.8,
+        5.7,
+        13
+      ],
+      "fov": 45,
+      "target": [
+        0,
+        1.4,
+        1.8
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        7,
+        5.6,
+        14.5
+      ],
+      "fov": 46,
+      "target": [
+        0,
+        1.4,
+        3.8
+      ]
+    }
+  ],
+  "duration": 12,
+  "environment": {
+    "exposure": 1.05,
+    "fill_color": "#C0D7E5",
+    "fill_direction": [
+      0.6,
+      0.6,
+      0.3
+    ],
+    "fill_strength": 0.6,
+    "fog_color": "#97ABB9",
+    "fog_density": 0.008,
+    "light_color": "#F4E6D6",
+    "light_direction": [
+      -0.45,
+      1.35,
+      -0.55
+    ],
+    "sky_bottom": "#AABAC6",
+    "sky_top": "#34485E",
+    "sun_size": 0.14,
+    "sun_strength": 1.4
+  },
+  "height": 720,
+  "mood": "Rain-crowns become a fleet in a sheltered wet harbor",
+  "objects": [
+    {
+      "color": "#34435D",
+      "color_detail": ".025*sin(u*341+sin(v*137))*sin(v*293-u*79)",
+      "color_high": "#736A8A",
+      "color_mix": ".44+.015*sin(u*31+v*19)",
+      "emission": 0,
+      "id": "quiet_violet_basin",
+      "metalness": 0.02,
+      "position": {
+        "x": "(u-.5)*54",
+        "y": "-.18+.009*sin(u*93+v*41+t*.9)*sin(v*61-u*23)+.006*cos(u*57+v*83-t*.6)",
+        "z": "(v-.5)*54"
+      },
+      "roughness": 0.22,
+      "segments": [
+        112,
+        88
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-.8)/3.7,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-5)/7,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "2*pi*v",
+          "name": "a"
+        },
+        {
+          "expression": "pow(max(0,sin(pi*u)),.9)",
+          "name": "w"
+        },
+        {
+          "expression": ".85*(1-p)*pow(.5+.5*cos(12*pi*u),4)*pow(abs(cos(a)),8)",
+          "name": "c"
+        },
+        {
+          "expression": ".025*sin(t*1.4)",
+          "name": "b"
+        },
+        {
+          "expression": "4.7*q",
+          "name": "cz"
+        },
+        {
+          "expression": "exp(-pow(abs((u-.52)*8),8)-pow(abs(cos(a)*2.1),8))*clamp(sin(a)*5,0,1)",
+          "name": "g"
+        }
+      ],
+      "color": "#873C3E",
+      "color_high": "#D0C5AA",
+      "color_mix": "clamp(.15+.85*max(0,sin(a))+.45*pow(abs(2*u-1),8)-.58*g,0,1)",
+      "emission": 0,
+      "id": "lead_closed_crown_boat",
+      "metalness": 0,
+      "position": {
+        "x": "1.45*w*cos(a)",
+        "y": ".36+b+.07*max(0,sin(a))-.84*pow(max(0,-sin(a)),.7)*w+.16*pow(abs(2*u-1),4)+c-.11*g*p",
+        "z": "cz+(u-.5)*(3.1+2.7*p)"
+      },
+      "roughness": 0.62,
+      "segments": [
+        72,
+        40
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-1.5)/3.7,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-5.7)/6.3,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "2*pi*v",
+          "name": "a"
+        },
+        {
+          "expression": "pow(max(0,sin(pi*u)),.9)",
+          "name": "w"
+        },
+        {
+          "expression": ".65*(1-p)*pow(.5+.5*cos(12*pi*u),4)*pow(abs(cos(a)),8)",
+          "name": "c"
+        },
+        {
+          "expression": ".025*sin(t*1.3+1)",
+          "name": "b"
+        },
+        {
+          "expression": "-4.8-.3*q",
+          "name": "cx"
+        },
+        {
+          "expression": "-3.4+4.6*q",
+          "name": "cz"
+        },
+        {
+          "expression": "exp(-pow(abs((u-.52)*8),8)-pow(abs(cos(a)*2.1),8))*clamp(sin(a)*5,0,1)",
+          "name": "g"
+        }
+      ],
+      "color": "#3D6473",
+      "color_high": "#C6D0C6",
+      "color_mix": "clamp(.15+.85*max(0,sin(a))+.45*pow(abs(2*u-1),8)-.6*g,0,1)",
+      "emission": 0,
+      "id": "west_closed_crown_boat",
+      "metalness": 0,
+      "position": {
+        "x": "cx+1.05*w*cos(a)",
+        "y": ".31+b+.06*max(0,sin(a))-.73*pow(max(0,-sin(a)),.7)*w+.12*pow(abs(2*u-1),4)+c-.09*g*p",
+        "z": "cz+(u-.5)*(2.5+1.9*p)"
+      },
+      "roughness": 0.64,
+      "segments": [
+        64,
+        36
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-.3)/3.7,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-4.8)/7.2,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "2*pi*v",
+          "name": "a"
+        },
+        {
+          "expression": "pow(max(0,sin(pi*u)),.9)",
+          "name": "w"
+        },
+        {
+          "expression": ".65*(1-p)*pow(.5+.5*cos(12*pi*u),4)*pow(abs(cos(a)),8)",
+          "name": "c"
+        },
+        {
+          "expression": ".025*sin(t*1.5+2)",
+          "name": "b"
+        },
+        {
+          "expression": "4.8+.3*q",
+          "name": "cx"
+        },
+        {
+          "expression": "-3.8+4.7*q",
+          "name": "cz"
+        },
+        {
+          "expression": "exp(-pow(abs((u-.52)*8),8)-pow(abs(cos(a)*2.1),8))*clamp(sin(a)*5,0,1)",
+          "name": "g"
+        }
+      ],
+      "color": "#A64B3C",
+      "color_high": "#E6C7A3",
+      "color_mix": "clamp(.15+.85*max(0,sin(a))+.45*pow(abs(2*u-1),8)-.6*g,0,1)",
+      "emission": 0,
+      "id": "east_closed_crown_boat",
+      "metalness": 0,
+      "position": {
+        "x": "cx+1.05*w*cos(a)",
+        "y": ".31+b+.06*max(0,sin(a))-.73*pow(max(0,-sin(a)),.7)*w+.12*pow(abs(2*u-1),4)+c-.09*g*p",
+        "z": "cz+(u-.5)*(2.5+1.9*p)"
+      },
+      "roughness": 0.62,
+      "segments": [
+        64,
+        36
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-3.2)/3.8,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-5)/7,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "clamp((u-.125)/.875,0,1)",
+          "name": "s"
+        },
+        {
+          "expression": "clamp(u/.125,0,1)",
+          "name": "m"
+        },
+        {
+          "expression": ".025*sin(t*1.4)",
+          "name": "b"
+        },
+        {
+          "expression": "4.7*q",
+          "name": "cz"
+        }
+      ],
+      "color": "#154D74",
+      "color_detail": ".035*sin(u*130)*sin(v*110)",
+      "color_high": "#A7C2C8",
+      "color_mix": "max(.18+.23*v,clamp((.125-u)*80,0,1))",
+      "emission": 0,
+      "id": "lead_spar_and_triangular_cloth",
+      "metalness": 0,
+      "position": {
+        "x": "-.7+.065*cos(2*pi*m)+2.1*s*(1-v)+p*(.3+.08*sin(v*9+t*1.7))*sin(pi*s)*sin(pi*v)",
+        "y": ".48+b+(.08+4.5*p)*v",
+        "z": "cz+.4+.065*sin(2*pi*m)-2*s*(1-v)+p*(.22+.05*cos(v*8-t*1.4))*sin(pi*s)*sin(pi*v)"
+      },
+      "roughness": 0.9,
+      "segments": [
+        64,
+        40
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-3.9)/3.8,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-5.7)/6.3,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "clamp((u-.125)/.875,0,1)",
+          "name": "s"
+        },
+        {
+          "expression": "clamp(u/.125,0,1)",
+          "name": "m"
+        },
+        {
+          "expression": ".025*sin(t*1.3+1)",
+          "name": "b"
+        },
+        {
+          "expression": "-4.8-.3*q",
+          "name": "cx"
+        },
+        {
+          "expression": "-3.4+4.6*q",
+          "name": "cz"
+        }
+      ],
+      "color": "#225E79",
+      "color_detail": ".035*sin(u*130)*sin(v*110)",
+      "color_high": "#BBCDD0",
+      "color_mix": "max(.17+.22*v,clamp((.125-u)*80,0,1))",
+      "emission": 0,
+      "id": "west_spar_and_triangular_cloth",
+      "metalness": 0,
+      "position": {
+        "x": "cx-.5+.055*cos(2*pi*m)+1.6*s*(1-v)+p*(.22+.06*sin(v*10+t*1.6+1))*sin(pi*s)*sin(pi*v)",
+        "y": ".43+b+(.07+3.5*p)*v",
+        "z": "cz+.3+.055*sin(2*pi*m)-1.5*s*(1-v)+.16*p*sin(pi*s)*sin(pi*v)"
+      },
+      "roughness": 0.92,
+      "segments": [
+        56,
+        32
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "clamp((t-2.7)/3.8,0,1)",
+          "name": "p"
+        },
+        {
+          "expression": "clamp((t-4.8)/7.2,0,1)",
+          "name": "q"
+        },
+        {
+          "expression": "clamp((u-.125)/.875,0,1)",
+          "name": "s"
+        },
+        {
+          "expression": "clamp(u/.125,0,1)",
+          "name": "m"
+        },
+        {
+          "expression": ".025*sin(t*1.5+2)",
+          "name": "b"
+        },
+        {
+          "expression": "4.8+.3*q",
+          "name": "cx"
+        },
+        {
+          "expression": "-3.8+4.7*q",
+          "name": "cz"
+        }
+      ],
+      "color": "#205A76",
+      "color_detail": ".035*sin(u*130)*sin(v*110)",
+      "color_high": "#BBCDD0",
+      "color_mix": "max(.17+.22*v,clamp((.125-u)*80,0,1))",
+      "emission": 0,
+      "id": "east_spar_and_triangular_cloth",
+      "metalness": 0,
+      "position": {
+        "x": "cx-.5+.055*cos(2*pi*m)+1.6*s*(1-v)+p*(.22+.06*sin(v*10+t*1.9+2))*sin(pi*s)*sin(pi*v)",
+        "y": ".43+b+(.07+3.4*p)*v",
+        "z": "cz+.3+.055*sin(2*pi*m)-1.5*s*(1-v)+.16*p*sin(pi*s)*sin(pi*v)"
+      },
+      "roughness": 0.92,
+      "segments": [
+        56,
+        32
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "max(abs(cos(a)),abs(sin(a)))",
+          "name": "d"
+        }
+      ],
+      "color": "#373B35",
+      "color_high": "#77796A",
+      "color_mix": ".2+.08*sin(v*17+u*4)",
+      "emission": 0,
+      "id": "west_berth_pier",
+      "metalness": 0,
+      "position": {
+        "x": "-2.65+.38*cos(a)/d",
+        "y": ".02+.28*sin(a)/d",
+        "z": "-8.8+10.8*v"
+      },
+      "roughness": 0.88,
+      "segments": [
+        16,
+        32
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "max(abs(cos(a)),abs(sin(a)))",
+          "name": "d"
+        }
+      ],
+      "color": "#373B35",
+      "color_high": "#77796A",
+      "color_mix": ".2+.08*sin(v*17+u*4)",
+      "emission": 0,
+      "id": "east_berth_pier",
+      "metalness": 0,
+      "position": {
+        "x": "2.65+.38*cos(a)/d",
+        "y": ".02+.28*sin(a)/d",
+        "z": "-8.8+10.8*v"
+      },
+      "roughness": 0.88,
+      "segments": [
+        16,
+        32
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "max(abs(cos(a)),abs(sin(a)))",
+          "name": "d"
+        }
+      ],
+      "color": "#555B56",
+      "color_detail": ".07*sin(u*91+v*173)*sin(v*111)-.12*pow(.5+.5*cos(v*20*pi),16)",
+      "color_high": "#969885",
+      "color_mix": ".18+.12*sin(v*17+u*9)*sin(v*29-u*4)",
+      "emission": 0,
+      "id": "connecting_stone_quay",
+      "metalness": 0,
+      "position": {
+        "x": "-10+20*v",
+        "y": ".02+.28*sin(a)/d",
+        "z": "-8.8+1.0*cos(a)/d"
+      },
+      "roughness": 0.95,
+      "segments": [
+        16,
+        48
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "2*pi*u",
+          "name": "a"
+        },
+        {
+          "expression": "max(abs(cos(a)),abs(sin(a)))",
+          "name": "d"
+        },
+        {
+          "expression": "min(1,min(4*v,4*(1-v)))",
+          "name": "r"
+        },
+        {
+          "expression": "clamp((.25-v)*100,0,1)",
+          "name": "roof"
+        },
+        {
+          "expression": "r*cos(a)/d",
+          "name": "xp"
+        },
+        {
+          "expression": "r*sin(a)/d",
+          "name": "zp"
+        },
+        {
+          "expression": "max(exp(-pow(abs((xp-.43)*8),8)-pow(abs((v-.44)*24),8)),exp(-pow(abs((xp+.43)*8),8)-pow(abs((v-.44)*24),8)))",
+          "name": "windows"
+        }
+      ],
+      "color": "#934A3C",
+      "color_detail": ".035*sin(u*81+v*17)*sin(v*93)",
+      "color_high": "#34434C",
+      "color_mix": "max(roof,.9*windows*clamp((zp-.9)*10,0,1))",
+      "emission": 0,
+      "id": "closed_red_hipped_boathouse",
+      "metalness": 0,
+      "position": {
+        "x": "6+2.4*xp",
+        "y": "3.7-1.25*clamp(4*v,0,1)-2.3*clamp((v-.25)*2,0,1)",
+        "z": "-10.5+1.7*zp"
+      },
+      "roughness": 0.88,
+      "segments": [
+        48,
+        48
+      ]
+    },
+    {
+      "bindings": [
+        {
+          "expression": "(u-.5)*62",
+          "name": "x"
+        },
+        {
+          "expression": "-11-24*v",
+          "name": "z"
+        },
+        {
+          "expression": "2.8*exp(-((x+13)*(x+13)/85+(z+18)*(z+18)/36))+5.5*exp(-((x-4)*(x-4)/140+(z+27)*(z+27)/62))+3.5*exp(-((x-21)*(x-21)/70+(z+24)*(z+24)/38))",
+          "name": "h"
+        }
+      ],
+      "color": "#2E4845",
+      "color_detail": ".08*sin(u*139+sin(v*91))*sin(v*117)",
+      "color_high": "#7C8877",
+      "color_mix": ".18+.3*v+.035*sin(u*43+v*29)*sin(v*41-u*13)",
+      "emission": 0,
+      "id": "irregular_sheltering_shore",
+      "metalness": 0,
+      "position": {
+        "x": "x",
+        "y": "-.25+h+.045*sin(u*91+sin(v*39))*sin(v*67-u*17)*min(1,h)",
+        "z": "z"
+      },
+      "roughness": 1,
+      "segments": [
+        88,
+        40
+      ]
+    }
+  ],
+  "reason": "Directed optical continuation of 33ee2bdd: retain source-led crown-to-fleet premise over paving locks or particle marina, all geometry, masks, timing and framing. Rev3 exact preview loses deck detail in glare with long shadows; rev2 reads cleaner. Raise and turn key, soften sun, reduce key strength, keep exposure fixed, make hulls satin and water smoother than hulls but less mirrorlike. Opening crowns, middle cloth deployment and ending departure unchanged. Source observations unchanged; these optical choices are invented.",
+  "references": [
+    {
+      "asset_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "created": "Three closed serrated rain-hulls settle into pointed boats on violet opaque water. Crown-to-fleet transformation, scale, motions and lighting are inventions. color_detail only modulates albedo.",
+      "observed": "Violet-tinted rain on rectangular paving, dark diagonal joints and bright small crown-shaped splashes. Actual natural material color is uncertain."
+    },
+    {
+      "asset_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "created": "A large lead boat and escorts with shallow closed cockpits, growing spars and broad blue cloth. Connected berths/quay, closed hipped red building with painted windows, and irregular shore provide invented departure space, not reconstructed site geometry.",
+      "observed": "Rainy marina with pale hulls, blue covers, red-lined foreground hull, narrow piers, red shore building with windows and wooded hills."
+    }
+  ],
+  "schema_version": 2,
+  "seed": 208,
+  "title": "The Rain Learns to Sail \u2014 Satin Decks, Wet Basin",
+  "width": 1280
+}
