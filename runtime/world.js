@@ -76,6 +76,30 @@ vec3 atmosphere(vec3 ray){
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
   function createRenderer(scene,programs){
+    const contactEnabled=(scene.environment.occlusion_strength??0)>0;
+    const contactShader=contactEnabled?`
+uniform highp sampler2D cameraDepth;uniform float occlusionStrength,occlusionRadius;
+float indirectVisibility(vec3 P,vec3 N){
+ vec3 axis=abs(N.y)<.9?vec3(0.,1.,0.):vec3(1.,0.,0.);
+ vec3 T=normalize(cross(axis,N)),B=cross(N,T);float obscured=0.;
+ for(int i=0;i<16;i++){
+  float f=(float(i)+.5)/16.,angle=float(i)*2.39996323;
+  vec3 direction=T*cos(angle)*sqrt(f)+B*sin(angle)*sqrt(f)+N*sqrt(1.-f);
+  vec3 Q=P+direction*occlusionRadius*(.25+.75*f),d=Q-eye;float z=dot(d,forward);
+  if(z<=.1)continue;
+  vec2 uv=vec2(dot(d,right)/(z*tanHalf*aspect),dot(d,up)/(z*tanHalf))*.5+.5;
+  if(any(lessThanEqual(uv,vec2(0.)))||any(greaterThanEqual(uv,vec2(1.))))continue;
+  float depth=texture(cameraDepth,uv).r;if(depth>=1.)continue;
+  float actualZ=${DEPTH_B}/(${DEPTH_A}-(depth*2.-1.));
+  if(actualZ>=z-.015*occlusionRadius)continue;
+  vec3 actual=eye+forward*actualZ+right*((uv.x*2.-1.)*tanHalf*aspect*actualZ)+up*((uv.y*2.-1.)*tanHalf*actualZ);
+  vec3 delta=actual-P;float distance=length(delta);
+  if(distance<.02*occlusionRadius)continue;
+  float horizon=max(dot(N,delta)/distance-.02,0.);
+  obscured+=horizon*(1.-smoothstep(occlusionRadius*.5,occlusionRadius*1.5,distance));
+ }
+ return 1.-occlusionStrength*clamp(obscured/8.,0.,.85);
+}`:'';
     const pointLights=scene.environment.point_lights??[];
     const pointUniforms=pointLights.map((_,i)=>`uniform vec3 pointPosition${i},pointColor${i};uniform float pointIntensity${i},pointRange${i};`).join('\n');
     const pointBRDF=pointLights.length?`
@@ -118,6 +142,7 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
         fillColor:rgb(e.fill_color??'#B8D1FF'),fillDir:unit(e.fill_direction??[-keyDirection[0],.5,-keyDirection[2]]),
         fillStrength:e.fill_strength??.25,exposure:e.exposure??1,
         ambientStrength:e.ambient_strength??1,groundStrength:e.ground_strength??0,groundColor:rgb(e.ground_color??'#342A20')};
+      if(contactEnabled){values.occlusionStrength=e.occlusion_strength;values.occlusionRadius=e.occlusion_radius??1;gl.uniform1i(gl.getUniformLocation(p.p,'cameraDepth'),1);}
       for(const [name,value] of Object.entries(values))uniform(p,name,value);
       pointLights.forEach((light,i)=>{uniform(p,'pointPosition'+i,light.position);uniform(p,'pointColor'+i,rgb(light.color));uniform(p,'pointIntensity'+i,light.intensity);uniform(p,'pointRange'+i,light.range)});
       uniform(p,'shadowCenter',shadow.center);uniform(p,'shadowRight',shadow.right);uniform(p,'shadowUp',shadow.up);
@@ -134,6 +159,17 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
     gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);
     if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('World shadow buffer unavailable');
     gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,null);
+    let cameraDepthTexture=null,cameraDepthBuffer=null;
+    if(contactEnabled){
+      cameraDepthTexture=gl.createTexture();cameraDepthBuffer=gl.createFramebuffer();gl.bindTexture(gl.TEXTURE_2D,cameraDepthTexture);
+      gl.texImage2D(gl.TEXTURE_2D,0,gl.DEPTH_COMPONENT24,canvas.width,canvas.height,0,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,null);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,cameraDepthBuffer);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,cameraDepthTexture,0);
+      gl.drawBuffers([gl.NONE]);gl.readBuffer(gl.NONE);
+      if(gl.checkFramebufferStatus(gl.FRAMEBUFFER)!==gl.FRAMEBUFFER_COMPLETE)throw Error('World contact depth buffer unavailable');
+      gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,null);
+    }
     const skyProgram=program(`#version 300 es
 precision highp float;out vec2 screen;void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);screen=p*2.-1.;gl_Position=vec4(screen,0.,1.);}`,
       `#version 300 es
@@ -173,7 +209,7 @@ gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;
-${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}
+${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}${contactShader}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
  // Neighboring texels lie at different depths on a sloped receiver. Compare
@@ -236,7 +272,7 @@ vec3 hemisphere=mix(skyBottom,skyTop,N.y*.5+.5);
 ${controlledAmbient?'vec3 diffuseHemisphere=mix(hemisphere,groundColor,(1.-clamp(N.y,-1.,1.))*.5*groundStrength);vec3 ambient=albedo*(1.-metalness)*(.055+diffuseHemisphere*.22)*ambientStrength;':'vec3 ambient=albedo*(1.-metalness)*(.055+hemisphere*.22);'}
 vec3 reflected=mix(atmosphere(reflect(-V,N)),hemisphere,roughness*roughness);
 vec3 envF=f0+(max(vec3(1.-roughness),f0)-f0)*pow(1.-nv,5.);
-lit+=ambient+reflected*envF*(1.-roughness*.45)+albedo*emission;
+${contactEnabled?'float indirect=indirectVisibility(worldPos,N);lit+=(ambient+reflected*envF*(1.-roughness*.45))*indirect+albedo*emission;':'lit+=ambient+reflected*envF*(1.-roughness*.45)+albedo*emission;'}
 float fog=1.-exp(-length(eye-worldPos)*fogDensity);lit=mix(lit,fogColor,fog);
 pixel=vec4(displayColor(lit),1.);}`);
       const depthProgram=program(`#version 300 es
@@ -244,11 +280,16 @@ precision highp float;layout(location=0)in vec3 uv;uniform float t;${math}${shad
 void main(){gl_Position=vec4(shadowPoint(${hasCaps?'point(uv)':'surface(uv.x,uv.y)'}),1.);}`,
         `#version 300 es
 precision highp float;void main(){}`);
+      const cameraDepthProgram=contactEnabled?program(`#version 300 es
+precision highp float;layout(location=0)in vec3 uv;${uniforms}${math}${position}${capPosition}
+void main(){vec3 d=${hasCaps?'point(uv)':'surface(uv.x,uv.y)'}-eye;float z=dot(d,forward);gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
+        `#version 300 es
+precision highp float;void main(){}`):null;
       const {vertices,indices}=surfaceMesh(o.segments,o.caps);
       const vao=gl.createVertexArray();gl.bindVertexArray(vao);
       const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
       const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);gl.bindVertexArray(null);
-      return {p,depthProgram,o,vao,vb,ib,count:indices.length,placements:o.instances??[null]};
+      return {p,depthProgram,cameraDepthProgram,o,vao,vb,ib,count:indices.length,placements:o.instances??[null]};
     });
     function drawSurface(s,p){
       gl.bindVertexArray(s.vao);
@@ -260,6 +301,12 @@ precision highp float;void main(){}`);
     function render(time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
       const frame=cameraFrame(scene.camera,time),c=frame.camera,b=frame.basis;
+      if(contactEnabled){
+        gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,cameraDepthBuffer);
+        gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.POLYGON_OFFSET_FILL);gl.clear(gl.DEPTH_BUFFER_BIT);
+        for(const s of surfaces){setup(s.cameraDepthProgram,c,b,time);drawSurface(s,s.cameraDepthProgram)}
+        gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,cameraDepthTexture);gl.activeTexture(gl.TEXTURE0);
+      }
       gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,shadowBuffer);
       gl.viewport(0,0,shadowSize,shadowSize);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.clear(gl.DEPTH_BUFFER_BIT);
@@ -272,7 +319,7 @@ precision highp float;void main(){}`);
         for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
       gl.bindVertexArray(null);if(gl.getError()!==gl.NO_ERROR)throw Error('World rendering failed');return canvas;
     }
-    return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer)}};
+    return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}}};
   }
   const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

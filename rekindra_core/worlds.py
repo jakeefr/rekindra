@@ -75,7 +75,7 @@ def validate_world(value,asset_ids):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
-    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights'}
+    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights','occlusion_strength','occlusion_radius'}
     if not isinstance(env,dict):raise SceneError('Invalid environment fields')
     fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
@@ -87,6 +87,8 @@ def validate_world(value,asset_ids):
     if 'ambient_strength' in env:_number(env['ambient_strength'],0,2,'ambient strength')
     if 'ground_strength' in env:_number(env['ground_strength'],0,1,'ground strength')
     if 'ground_color' in env:color(env['ground_color'])
+    if 'occlusion_strength' in env:_number(env['occlusion_strength'],0,1,'occlusion strength')
+    if 'occlusion_radius' in env:_number(env['occlusion_radius'],.05,4,'occlusion radius')
     if 'point_lights' in env:
         lights=env['point_lights']
         if not isinstance(lights,list) or len(lights)>4:raise SceneError('At most four point lights are allowed')
@@ -199,6 +201,8 @@ WORLD_SCHEMA=obj_schema({
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
 # Optional studio-light controls preserve all existing v2 plans.
 WORLD_SCHEMA['properties']['environment']['properties'].update({
+    'occlusion_strength':{'type':'number','minimum':0,'maximum':1,'description':'Optional screen-space indirect-light occlusion, default0. Does not shadow direct lights or emission; offscreen geometry is unavailable.'},
+    'occlusion_radius':{'type':'number','minimum':.05,'maximum':4,'description':'Indirect occlusion radius in world units, default1. Only used when strength>0.'},
     'point_lights':{'type':'array','maxItems':4,'description':'Optional static unshadowed local lights. Finite-range inverse-square illumination; not attached to emissive meshes.',
         'items':obj_schema({'position':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':200},'range':{'type':'number','minimum':.1,'maximum':80}})},
     'fill_color':{'type':'string','description':'Optional unshadowed fill light color; default #B8D1FF.'},
