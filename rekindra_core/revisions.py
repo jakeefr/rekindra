@@ -3,8 +3,8 @@ import copy
 from .scenes import SceneError
 from .worlds import validate_world, WORLD_SCHEMA
 
-SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment'))
-OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail'))
+SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies'))
+OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail','assembly'))
 OBJECT_FIELDS = frozenset(WORLD_SCHEMA['properties']['objects']['items']['properties']) - {'id'}
 
 
@@ -31,7 +31,7 @@ def revise_world(scene, edits, asset_ids):
             target, path = objects[identifier], f'objects/{identifier}/{field}'
         else:
             if field not in SCENE_FIELDS:
-                raise SceneError('Scene edits allow title, mood, reason, camera or environment only')
+                raise SceneError('Scene edits allow title, mood, reason, camera, environment or assemblies only')
             target, path = candidate, field
         if path in seen:
             raise SceneError('Duplicate edit target: ' + path)

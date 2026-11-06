@@ -165,3 +165,11 @@ and camera angles: short wavelengths can shimmer, UV seams can become visible,
 and strong periodic relief reads as carved ribs. This is not displacement,
 transparency, reflected objects, fluid simulation, or automatically good material
 design. Diagnose those separately instead of adding stronger noise.
+
+## Shared assembly frames and ambient controls
+
+Optional `assemblies` contains up to eight named frames. Each has `translation` and `rotation` x/y/z expressions using t/pi only, a fixed pivot, and positive xyz scale. Parent must appear earlier; depth is limited to four. Assign a surface with `assembly`. The order is surface → instance scale/offset → child frame → parent frames → final world clamp. Each frame subtracts pivot, scales, rotates X/Y/Z in radians, restores pivot and translates. Share frames across connected surfaces; this avoids duplicated joint motion but does not prevent collisions or fix inaccurate local attachment points. Transform work consumes existing budgets.
+
+Use `rekindra_revise_world` to replace the complete assemblies array and attach surfaces within one validated batch. Unchanged fields and original plan remain intact. Camera-only revision plans support alternate views. Optional surface `assembly` can be removed with null; removing a referenced group without detaching its surfaces is invalid.
+
+`ambient_strength` (0..2, default1) changes diffuse ambient only. `ground_color` (default #342A20) with `ground_strength` (0..1, default0) supplies an approximate lower hemisphere tint. Defaults preserve the old shader behavior. These are art-direction controls, not contact occlusion, sampled scene reflections or physical light bounce. Compare neutral and revised previews; darker is not automatically better.

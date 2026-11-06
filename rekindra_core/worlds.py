@@ -3,6 +3,7 @@ import copy
 import re
 from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
 from .expressions import compile_expression, FUNCTIONS
+from .assemblies import compile_assemblies
 
 
 def fields(value,names,label):
@@ -52,8 +53,10 @@ def compile_surface(obj):
 
 
 def validate_world(value,asset_ids):
-    fields(value,'schema_version title mood reason duration width height seed references environment camera objects','world')
+    if not isinstance(value,dict):raise SceneError('Invalid world fields')
+    fields({k:v for k,v in value.items() if k!='assemblies'},'schema_version title mood reason duration width height seed references environment camera objects','world')
     s=copy.deepcopy(value)
+    assemblies=compile_assemblies(s.get('assemblies',[]))
     if type(s['schema_version']) is not int or s['schema_version']!=2:raise SceneError('Unsupported world version')
     for name,limit in (('title',100),('mood',100),('reason',600)):_text(s[name],limit,name)
     _number(s['duration'],4,30,'duration');_number(s['width'],1280,1280,'width',True);_number(s['height'],720,720,'height',True)
@@ -68,7 +71,7 @@ def validate_world(value,asset_ids):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
-    optional={'fill_color','fill_direction','fill_strength','exposure'}
+    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength'}
     if not isinstance(env,dict):raise SceneError('Invalid environment fields')
     fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
@@ -77,6 +80,9 @@ def validate_world(value,asset_ids):
     if 'fill_color' in env:color(env['fill_color'])
     if 'fill_strength' in env:_number(env['fill_strength'],0,2,'fill strength')
     if 'exposure' in env:_number(env['exposure'],.25,4,'exposure')
+    if 'ambient_strength' in env:_number(env['ambient_strength'],0,2,'ambient strength')
+    if 'ground_strength' in env:_number(env['ground_strength'],0,1,'ground strength')
+    if 'ground_color' in env:color(env['ground_color'])
     if 'fill_direction' in env and sum(x*x for x in vector(env['fill_direction'],'fill direction'))<.0001:
         raise SceneError('Fill direction cannot be zero')
     camera=s['camera']
@@ -99,7 +105,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly')},'id position segments color color_high color_mix roughness metalness emission','surface')
         caps=obj.get('caps',[])
         if not isinstance(caps,list) or len(caps)>2 or any(not isinstance(c,str) or c not in ('v0','v1') for c in caps) or len(set(caps))!=len(caps):
             raise SceneError('Caps must be a unique list containing v0 and/or v1')
@@ -115,6 +121,10 @@ def validate_world(value,asset_ids):
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique, 1-40 characters, using only letters, digits, underscore or hyphen')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
         compiled=compile_surface(obj)
+        if 'assembly' in obj:
+            if not isinstance(obj['assembly'],str) or obj['assembly'] not in assemblies:
+                raise SceneError('Surface assembly must identify an existing assembly')
+            compiled['cost']+=assemblies[obj['assembly']]['cost']
         detail_work+=compiled.get('detail_cost',0)*copies
         segments=obj['segments']
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
@@ -141,7 +151,13 @@ def validate_world(value,asset_ids):
 
 
 def compile_world(scene):
-    return [{k:v for k,v in compile_surface(o).items() if k not in ('cost','detail_cost')} for o in scene['objects']]
+    assemblies=compile_assemblies(scene.get('assemblies',[]))
+    result=[]
+    for obj in scene['objects']:
+        compiled={k:v for k,v in compile_surface(obj).items() if k not in ('cost','detail_cost')}
+        if 'assembly' in obj:compiled['assembly']=assemblies[obj['assembly']]['glsl']
+        result.append(compiled)
+    return result
 
 
 def obj_schema(properties):return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
@@ -164,7 +180,10 @@ WORLD_SCHEMA['properties']['environment']['properties'].update({
     'fill_color':{'type':'string','description':'Optional unshadowed fill light color; default #B8D1FF.'},
     'fill_direction':VEC,
     'fill_strength':{'type':'number','minimum':0,'maximum':2,'description':'Optional fill intensity, default 0.25. Set 0 for no fill.'},
-    'exposure':{'type':'number','minimum':.25,'maximum':4,'description':'Optional scene exposure multiplier, default 1.'}})
+    'exposure':{'type':'number','minimum':.25,'maximum':4,'description':'Optional scene exposure multiplier, default 1.'},
+    'ambient_strength':{'type':'number','minimum':0,'maximum':2,'description':'Diffuse ambient intensity only, default1. Lower for stronger form contrast; does not change key/fill/emission or sky specular.'},
+    'ground_color':{'type':'string','description':'Approximate lower hemisphere diffuse color, default #342A20. Does not sample geometry or provide occlusion.'},
+    'ground_strength':{'type':'number','minimum':0,'maximum':1,'description':'Blend lower-facing diffuse illumination toward ground_color, default0 (legacy sky-only ambient). Not raytraced bounce or ambient occlusion.'}})
 WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
     'type':'array','maxItems':16,
     'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
@@ -183,3 +202,13 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']={
     'type':'array','minItems':1,'maxItems':16,
     'items':obj_schema({'offset':VEC,'scale':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':.05,'maximum':8}}}),
     'description':'Optional placements of this same animated surface/material: each offset is a world vector -80..80 and scale is positive xyz .05..8. Scale local geometry about its origin, then offset. Caps/normals/shadows follow. 1-16 placements per surface, <=64 total; EVERY copy consumes the existing geometry/work budgets. Omitted means one identity placement. Use low-resolution local parts for repeated windows, supports, roof clusters or foliage. No rotation, hierarchy, independent per-copy animation or color. Final world coordinates clamp to +/-100; avoid clipping. Fine material math is shared, not duplicated shader source.'}
+
+_ASSEMBLY_EXPR={'type':'string','minLength':1,'maxLength':128}
+_ASSEMBLY=obj_schema({'id':{'type':'string','pattern':_LAYER_ID.pattern},
+    'translation':obj_schema({axis:_ASSEMBLY_EXPR for axis in ('x','y','z')}),
+    'rotation':obj_schema({axis:_ASSEMBLY_EXPR for axis in ('x','y','z')}),
+    'pivot':VEC,'scale':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':.05,'maximum':8}}})
+_ASSEMBLY['properties']['parent']={'type':'string','description':'Optional earlier assembly ID; max4 hierarchy levels.'}
+WORLD_SCHEMA['properties']['assemblies']={'type':'array','maxItems':8,'items':_ASSEMBLY,
+    'description':'Shared animated frames. Each transform uses t/pi only, <=32 nodes per expression. Subtract pivot, scale, rotate Euler X then Y then Z (radians), add pivot and translation; then apply parent chain. Surface instance transforms run first. Share one frame across connected parts to preserve joints. No u/v or geometry bindings. All referenced chain work counts toward shader budgets. Optional and absent by default.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['assembly']={'type':'string','description':'Optional existing assembly ID. Geometry, cap positions, normals and shadows follow its complete transform chain.'}

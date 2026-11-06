@@ -76,6 +76,7 @@ vec3 atmosphere(vec3 ray){
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
   function createRenderer(scene,programs){
+    const controlledAmbient=(scene.environment.ambient_strength??1)!==1||(scene.environment.ground_strength??0)>0;
     const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;
     const gl=canvas.getContext('webgl2',{alpha:false,antialias:true,preserveDrawingBuffer:true});
     if(!gl)throw Error('This generated world needs WebGL2. Use a browser with graphics acceleration.');
@@ -95,7 +96,8 @@ vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec
         skyTop:rgb(e.sky_top),skyBottom:rgb(e.sky_bottom),fogColor:rgb(e.fog_color),lightColor:rgb(e.light_color),lightDir:keyDirection,
         fogDensity:e.fog_density,sunSize:e.sun_size,sunStrength:e.sun_strength,t:time,
         fillColor:rgb(e.fill_color??'#B8D1FF'),fillDir:unit(e.fill_direction??[-keyDirection[0],.5,-keyDirection[2]]),
-        fillStrength:e.fill_strength??.25,exposure:e.exposure??1};
+        fillStrength:e.fill_strength??.25,exposure:e.exposure??1,
+        ambientStrength:e.ambient_strength??1,groundStrength:e.ground_strength??0,groundColor:rgb(e.ground_color??'#342A20')};
       for(const [name,value] of Object.entries(values))uniform(p,name,value);
       uniform(p,'shadowCenter',shadow.center);uniform(p,'shadowRight',shadow.right);uniform(p,'shadowUp',shadow.up);
       uniform(p,'shadowForward',shadow.forward);uniform(p,'shadowExtent',shadow.extent);
@@ -123,9 +125,14 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
       const hasCaps=Boolean(o.caps?.length);
       const hasInstances=o.instances!==undefined;
       const definitions=source.definitions??'';
-      const position=hasInstances?`uniform vec3 instanceOffset,instanceScale;
+      let position=hasInstances?`uniform vec3 instanceOffset,instanceScale;
 vec3 surface(float u,float v){${definitions}vec3 local=clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));return clamp(local*instanceScale+instanceOffset,vec3(-100.),vec3(100.));}`:
         `vec3 surface(float u,float v){${definitions}return clamp(vec3(${source.position.join(',')}),vec3(-100.),vec3(100.));}`;
+      if(source.assembly!==undefined){
+        position=`${hasInstances?'uniform vec3 instanceOffset,instanceScale;':''}
+vec3 surface(float u,float v){${definitions}vec3 p=vec3(${source.position.join(',')});
+${hasInstances?'p=p*instanceScale+instanceOffset;':''}${source.assembly}return clamp(p,vec3(-100.),vec3(100.));}`;
+      }
       const capPosition=hasCaps?`vec3 point(vec3 uv){if(uv.z>.5&&uv.z<1.5){vec3 center=vec3(0.);for(int i=0;i<${o.segments[0]};i++)center+=surface(float(i)/${o.segments[0]}.,uv.y);return center/${o.segments[0]}.;}return surface(uv.x,uv.y);}`:'';
       const p=program(`#version 300 es
 precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
@@ -138,7 +145,8 @@ gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${
         `#version 300 es
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${shadowUniforms}uniform highp sampler2D shadowDepth;
-uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${sky}
+uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;
+${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
  // Neighboring texels lie at different depths on a sloped receiver. Compare
@@ -197,7 +205,7 @@ vec3 diffuse=(1.-f)*(1.-metalness)*albedo/3.14159265;
 vec3 lit=(diffuse+spec)*lightColor*(sunStrength*3.)*nl*visibility(worldPos,${hasBump?'geometricNl':'nl'});
 lit+=albedo*(1.-metalness)*fillColor*fillStrength*max(dot(N,fillDir),0.);
 vec3 hemisphere=mix(skyBottom,skyTop,N.y*.5+.5);
-vec3 ambient=albedo*(1.-metalness)*(.055+hemisphere*.22);
+${controlledAmbient?'vec3 diffuseHemisphere=mix(hemisphere,groundColor,(1.-clamp(N.y,-1.,1.))*.5*groundStrength);vec3 ambient=albedo*(1.-metalness)*(.055+diffuseHemisphere*.22)*ambientStrength;':'vec3 ambient=albedo*(1.-metalness)*(.055+hemisphere*.22);'}
 vec3 reflected=mix(atmosphere(reflect(-V,N)),hemisphere,roughness*roughness);
 vec3 envF=f0+(max(vec3(1.-roughness),f0)-f0)*pow(1.-nv,5.);
 lit+=ambient+reflected*envF*(1.-roughness*.45)+albedo*emission;
