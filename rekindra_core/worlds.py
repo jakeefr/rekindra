@@ -7,6 +7,7 @@ from .expressions import compile_expression, FUNCTIONS
 from .assemblies import compile_assemblies
 from .lofts import compile_loft
 
+MAX_SURFACES = 24
 
 def fields(value,names,label):
     if not isinstance(value,dict) or set(value)!=set(names.split()):raise SceneError(f'Invalid {label} fields')
@@ -128,7 +129,8 @@ def validate_world(value,asset_ids):
             if sum((a+u*b)**2 for a,b in zip(previous,step))<.01:raise SceneError('Camera crosses its target between states')
         previous=delta
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError('Camera must span the full duration')
-    if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=12:raise SceneError('World requires 1-12 surfaces')
+    if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=MAX_SURFACES:
+        raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
     ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
@@ -209,7 +211,7 @@ WORLD_SCHEMA=obj_schema({
         'observed':{'type':'string','maxLength':500},'created':{'type':'string','maxLength':500}})},
     'environment':obj_schema({'sky_top':TEXT,'sky_bottom':TEXT,'fog_color':TEXT,'fog_density':NUM,'light_color':TEXT,'light_direction':VEC,'sun_size':NUM,'sun_strength':NUM}),
     'camera':{'type':'array','minItems':2,'maxItems':12,'items':obj_schema({'at':NUM,'eye':VEC,'target':VEC,'fov':NUM})},
-    'objects':{'type':'array','minItems':1,'maxItems':12,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
+    'objects':{'type':'array','minItems':1,'maxItems':MAX_SURFACES,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
 # Optional studio-light controls preserve all existing v2 plans.
