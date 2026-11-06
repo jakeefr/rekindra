@@ -1,0 +1,672 @@
+{
+  "schema_version": 2,
+  "title": "The Forest Mends Its Path",
+  "mood": "Quiet damp woodland; a deliberate living-wood crossing",
+  "reason": "Compared a lowering root bridge, a closing fern canopy, and a walking grove. Bridge connects image01's rust-earth passage with image02's interlocking pale mossy limbs; canopy lacks a journey and walking trees weaken attachment credibility. Invent a hinged fallen-tree crossing: raised opening, slow descent, settled passage. Banks, foreground roots and layered trees establish a ravine rather than an isolated ornament.",
+  "duration": 12,
+  "width": 1280,
+  "height": 720,
+  "seed": 418,
+  "references": [
+    {
+      "asset_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "observed": "Dense green fern fronds surround a narrow rusty brown passage, with dark roots and rocks close to the foreground. Soft humid green light.",
+      "created": "A red-earth trail interrupted by a deep cleft, fern-lined banks and foreground root; not a recovered location."
+    },
+    {
+      "asset_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "observed": "Pale crooked woody limbs interlace through dense forest; moss hangs over forks and upper branches. Olive and muted green foliage behind gray-brown bark.",
+      "created": "An invented branching drawbridge with two rising fork rails and attached moss, all turning together on one root hinge."
+    }
+  ],
+  "environment": {
+    "sky_top": "#627F76",
+    "sky_bottom": "#B8C3A0",
+    "fog_color": "#84957A",
+    "fog_density": 0.018,
+    "light_color": "#F2E9C5",
+    "light_direction": [
+      -0.5,
+      0.85,
+      0.4
+    ],
+    "sun_size": 0.12,
+    "sun_strength": 1.25,
+    "fill_color": "#B3CFC5",
+    "fill_direction": [
+      0.8,
+      0.4,
+      0.3
+    ],
+    "fill_strength": 0.42,
+    "exposure": 1.05,
+    "ambient_strength": 0.7,
+    "ground_color": "#4B5430",
+    "ground_strength": 0.35
+  },
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        7,
+        5.5,
+        12
+      ],
+      "fov": 50,
+      "target": [
+        0,
+        3,
+        0
+      ]
+    },
+    {
+      "at": 5,
+      "eye": [
+        6.8,
+        5.2,
+        11.8
+      ],
+      "fov": 49,
+      "target": [
+        0,
+        2.5,
+        0
+      ]
+    },
+    {
+      "at": 9,
+      "eye": [
+        6.3,
+        4.8,
+        11.3
+      ],
+      "fov": 48,
+      "target": [
+        0,
+        1.2,
+        0
+      ]
+    },
+    {
+      "at": 12,
+      "eye": [
+        6,
+        4.8,
+        11
+      ],
+      "fov": 48,
+      "target": [
+        0,
+        1.1,
+        0
+      ]
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "root_hinge",
+      "translation": {
+        "x": "0",
+        "y": "0",
+        "z": "0"
+      },
+      "rotation": {
+        "x": "0",
+        "y": "0",
+        "z": "0.475*(1+cos(pi*clamp((t-2)/7,0,1)))"
+      },
+      "pivot": [
+        -4,
+        0.8,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "bridge_trunk",
+      "assembly": "root_hinge",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": "0.38-0.1*v+0.025*sin(6*pi*v)"
+        },
+        {
+          "name": "a",
+          "expression": "2*pi*u"
+        }
+      ],
+      "position": {
+        "x": "-4+8*v",
+        "y": "0.8+0.15*sin(pi*v)+r*cos(a)",
+        "z": "r*sin(a)"
+      },
+      "segments": [
+        24,
+        40
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#655544",
+      "color_high": "#B8AD88",
+      "color_mix": "0.4+0.25*cos(2*pi*u)+0.12*sin(17*pi*v)",
+      "roughness": 0.93,
+      "metalness": 0,
+      "emission": 0,
+      "bump_detail": "0.003*sin(34*pi*u+2*sin(8*pi*v))"
+    },
+    {
+      "id": "fork_near",
+      "assembly": "root_hinge",
+      "bindings": [
+        {
+          "name": "s",
+          "expression": "sin(pi*v)"
+        },
+        {
+          "name": "r",
+          "expression": "0.13+0.05*abs(2*v-1)"
+        }
+      ],
+      "position": {
+        "x": "-4+8*v",
+        "y": "0.8+1.2*s+r*cos(2*pi*u)",
+        "z": "0.95*s+r*sin(2*pi*u)"
+      },
+      "segments": [
+        12,
+        40
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#8E8571",
+      "color_high": "#C3BA9C",
+      "color_mix": "0.45+0.25*cos(2*pi*u)+0.1*sin(13*pi*v)",
+      "roughness": 0.9,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "fork_far",
+      "assembly": "root_hinge",
+      "bindings": [
+        {
+          "name": "s",
+          "expression": "sin(pi*v)"
+        },
+        {
+          "name": "r",
+          "expression": "0.13+0.05*abs(2*v-1)"
+        }
+      ],
+      "position": {
+        "x": "-4+8*v",
+        "y": "0.8+1.55*s+r*cos(2*pi*u)",
+        "z": "-0.9*s+r*sin(2*pi*u)"
+      },
+      "segments": [
+        12,
+        40
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#8E8571",
+      "color_high": "#C3BA9C",
+      "color_mix": "0.45+0.25*cos(2*pi*u)+0.1*sin(13*pi*v)",
+      "roughness": 0.9,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "attached_moss",
+      "assembly": "root_hinge",
+      "bindings": [
+        {
+          "name": "a",
+          "expression": "(u-0.5)*2"
+        },
+        {
+          "name": "r",
+          "expression": "0.405-0.1*v+0.025*sin(6*pi*v)"
+        }
+      ],
+      "position": {
+        "x": "-4+8*v",
+        "y": "0.8+0.15*sin(pi*v)+r*cos(a)+0.018*sin(18*pi*v)*sin(pi*u)",
+        "z": "r*sin(a)"
+      },
+      "segments": [
+        12,
+        48
+      ],
+      "color": "#465A25",
+      "color_high": "#899C43",
+      "color_mix": "0.45+0.25*sin(9*pi*v)*sin(3*pi*u)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0,
+      "bump_detail": "0.004*sin(18*pi*u)*sin(38*pi*v)"
+    },
+    {
+      "id": "banks",
+      "position": {
+        "x": "(u-0.5)*10",
+        "y": "0.4+0.1*sin(u*9)*sin(v*13)",
+        "z": "(v-0.5)*25"
+      },
+      "segments": [
+        24,
+        40
+      ],
+      "instances": [
+        {
+          "offset": [
+            -8.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            8.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "color": "#354326",
+      "color_high": "#687347",
+      "color_mix": "0.45+0.2*sin(u*14)*cos(v*17)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "cleft_walls",
+      "position": {
+        "x": "0.09*sin(v*20)*sin(pi*u)",
+        "y": "-5.5+5.9*u",
+        "z": "(v-0.5)*25"
+      },
+      "segments": [
+        12,
+        40
+      ],
+      "instances": [
+        {
+          "offset": [
+            -3.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            3.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "color": "#383B30",
+      "color_high": "#697054",
+      "color_mix": "0.2+0.5*u+0.1*sin(v*30)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "ravine_bottom",
+      "position": {
+        "x": "(u-0.5)*7.5",
+        "y": "-5.4+0.15*sin(v*20+u*14)",
+        "z": "(v-0.5)*25"
+      },
+      "segments": [
+        12,
+        32
+      ],
+      "color": "#26372F",
+      "color_high": "#485449",
+      "color_mix": "0.4+0.2*sin(u*12+v*10)",
+      "roughness": 0.95,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "red_trail",
+      "position": {
+        "x": "(v-0.5)*9.5",
+        "y": "0.535+0.015*sin(v*18)*sin(pi*u)",
+        "z": "(u-0.5)*(1.35+0.15*sin(v*19))"
+      },
+      "segments": [
+        8,
+        32
+      ],
+      "instances": [
+        {
+          "offset": [
+            -8.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            8.75,
+            0,
+            0
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "color": "#6E4130",
+      "color_high": "#A16B49",
+      "color_mix": "0.45+0.12*sin(v*39)*cos(u*12)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "crooked_trees",
+      "position": {
+        "x": "0.5*sin(v*5)+0.28*(1-0.55*v)*cos(2*pi*u)",
+        "y": "0.4+8*v",
+        "z": "0.45*sin(v*7)+0.28*(1-0.55*v)*sin(2*pi*u)"
+      },
+      "segments": [
+        12,
+        24
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "instances": [
+        {
+          "offset": [
+            -7,
+            0,
+            -6
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            -7
+          ],
+          "scale": [
+            1.2,
+            1.1,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -11,
+            0,
+            -2
+          ],
+          "scale": [
+            1.4,
+            1.3,
+            1.4
+          ]
+        },
+        {
+          "offset": [
+            10,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "color": "#635F4C",
+      "color_high": "#A8A68A",
+      "color_mix": "0.5+0.25*cos(2*pi*u)+0.12*sin(v*30)",
+      "roughness": 0.95,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "canopy",
+      "bindings": [
+        {
+          "name": "r",
+          "expression": "3.6*v*(1+0.09*sin(9*2*pi*u))"
+        }
+      ],
+      "position": {
+        "x": "r*cos(2*pi*u)+0.5*sin(5)",
+        "y": "8.5-1.7*v*v+0.12*sin(12*pi*u)*v",
+        "z": "r*sin(2*pi*u)+0.45*sin(7)"
+      },
+      "segments": [
+        48,
+        16
+      ],
+      "instances": [
+        {
+          "offset": [
+            -7,
+            0,
+            -6
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            6,
+            0,
+            -7
+          ],
+          "scale": [
+            1.2,
+            1.1,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            -11,
+            0,
+            -2
+          ],
+          "scale": [
+            1.4,
+            1.3,
+            1.4
+          ]
+        },
+        {
+          "offset": [
+            10,
+            0,
+            1
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ],
+      "color": "#354F35",
+      "color_high": "#7D8C51",
+      "color_mix": "0.35+0.25*sin(11*pi*u)*sin(6*pi*v)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "ferns",
+      "position": {
+        "x": "1.9*v",
+        "y": "0.5+1.1*sin(pi*v)+0.02*sin(t*0.7)*v",
+        "z": "(u-0.5)*1.4*sin(pi*v)*(0.18+0.82*abs(sin(10*pi*v)))"
+      },
+      "segments": [
+        4,
+        80
+      ],
+      "instances": [
+        {
+          "offset": [
+            -6,
+            0,
+            2
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -9,
+            0,
+            3
+          ],
+          "scale": [
+            1.3,
+            1.2,
+            1.3
+          ]
+        },
+        {
+          "offset": [
+            -5,
+            0,
+            -3
+          ],
+          "scale": [
+            0.8,
+            0.9,
+            0.8
+          ]
+        },
+        {
+          "offset": [
+            5,
+            0,
+            2
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            7,
+            0,
+            -2
+          ],
+          "scale": [
+            1.2,
+            1.2,
+            1.2
+          ]
+        },
+        {
+          "offset": [
+            9,
+            0,
+            4
+          ],
+          "scale": [
+            1.1,
+            1,
+            1.1
+          ]
+        }
+      ],
+      "color": "#416B33",
+      "color_high": "#90A952",
+      "color_mix": "0.35+0.4*v",
+      "roughness": 0.9,
+      "metalness": 0,
+      "emission": 0
+    },
+    {
+      "id": "foreground_root",
+      "position": {
+        "x": "-6.7+0.8*sin(pi*v)+0.28*cos(2*pi*u)",
+        "y": "0.5+0.38*sin(pi*v)+0.28*sin(2*pi*u)",
+        "z": "2+7*v"
+      },
+      "segments": [
+        16,
+        24
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "color": "#514638",
+      "color_high": "#8C8260",
+      "color_mix": "0.45+0.2*sin(v*24)+0.2*sin(2*pi*u)",
+      "roughness": 1,
+      "metalness": 0,
+      "emission": 0
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "python_tests": 63,
+  "node_tests": 7,
+  "python_exit": 0,
+  "node_exit": 0,
+  "source_hashes": {
+    "rekindra_core/assemblies.py": "2727f51f8b52e93072a7a18fa8b67ddaa620753f83f148b974f7dba319ba288f",
+    "rekindra_core/worlds.py": "6c5c92a00c47c00276c86c575a65f0c9aa723edec39d661f880133a843dea15b",
+    "rekindra_core/revisions.py": "ed2a28019a3f99ccea2a5c80abfc9d561831fc09bc73f965b1f91cc484a71ae4",
+    "runtime/world.js": "5e9836ec6ee3371f5331012a7370c99d7942e8731526041ebbf0c7025b23c015",
+    "schemas.py": "793fccc1ae7c36e516c4b5f37e9ec31ef513e2e8a02b924f9bb8858c7154bdeb",
+    "tests/test_assemblies.py": "5bf7c7731141879aabb371d18efe9b65979933a91cf8c93a74b6c40ef078b0a4",
+    "tests/test_lighting_controls.py": "fbb6c80d27edc4074822ef17b2447da93cce5c63b17c5eb57073efd751b5bff4"
+  },
+  "private_repo": true,
+  "project_store": "<local path>/home/plugin-data/rekindra/projects",
+  "native_retained": {
+    "project_id": "f2cd55de2c9c4074a04ab044646c1633",
+    "plan_id": "0a19dfd8e085487f870c93567a32a61b"
+  },
+  "reviewed_samples": 24,
+  "export_verdict": "FAILED strict repeatability:6channels,maxDelta1; diagnostic export/decode succeeded,6546111bytes,12s1280x720.",
+  "ci": "https://github.com/jakeefr/rekindra/actions/runs/42148271041",
+  "whole_gate": "FAILED; no tolerance relaxation or repeated rerun counted as a fix"
+}
