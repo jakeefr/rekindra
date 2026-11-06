@@ -9,4 +9,3 @@ def surface(id,pos):return dict(id=id,position=pos,segments=[4,4],color='#777777
 s['objects']=[surface('floor',dict(x='(u-.5)*14',y='0',z='(v-.5)*14')),surface('wall',dict(x='(u-.5)*8',y='v*3',z='0'))]
 (root/'.local/contact-depth').mkdir(exist_ok=True)
 (root/'.local/contact-depth/fixture.json').write_text(json.dumps({'scene':s,'programs':compile_world(s)}))
-
