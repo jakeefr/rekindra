@@ -32,6 +32,7 @@
   }
   function tick(now){try{if(playing&&!exporting)display(((now-start)/1000)%scene.duration)}catch(e){stop();$('status').textContent=e.message;$('export').disabled=true}requestAnimationFrame(tick)}
   async function exportVideo({download=true}={}){
+    if(data.inspection_only)throw Error('Inspection view only. Export from the saved presentation scene.');
     if(exporting)throw Error('An export is already running');
     if(!globalThis.VideoEncoder)throw Error('This browser does not provide WebCodecs. Use a supported Chromium browser.');
     // Preserve smooth gradients in opening keyframes; 3 Mbps produced visible blocks.
@@ -75,6 +76,7 @@
       for(const ref of scene.references){const p=document.createElement('p');p.textContent=`Agent interpretation — observed: ${ref.observed} Created: ${ref.created}`;$('sources').append(p)}
     }
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
+    if(data.inspection_only){$('status').textContent='Inspection view only. Saved scene and presentation camera are unchanged.';$('export').disabled=true;}
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};
     $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=()=>display(time);
     $('export').onclick=()=>exportVideo().catch(e=>$('status').textContent=e.message);

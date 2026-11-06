@@ -113,7 +113,7 @@ def _stop_process(process):
     process.wait(timeout=10)
 
 
-def preview_scene(store, project_id, plan_id):
+def preview_scene(store, project_id, plan_id, review_camera=None):
     if not _PREVIEW_LOCK.acquire(blocking=False):
         raise SceneError('Another local scene preview is running. Retry after it finishes.')
     working = None
@@ -124,7 +124,7 @@ def preview_scene(store, project_id, plan_id):
         browser = find_browser()
         # Never execute an existing potentially modified HTML file: regenerate it
         # from validated plan/source data and the bundled renderer immediately.
-        artifact = compositions.build(project_id, plan_id)
+        artifact = compositions.build(project_id, plan_id, review_camera=review_camera)
         project = store._project(project_id).resolve()
         working = Path(tempfile.mkdtemp(prefix='preview-work-', dir=project)).resolve()
         _no_links(working)
@@ -180,6 +180,7 @@ def preview_scene(store, project_id, plan_id):
         _no_links(target)
         _atomic(target, png)
         return {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
+                'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(),

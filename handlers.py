@@ -71,7 +71,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'])
             elif operation == 'preview':
                 from .rekindra_core.preview import preview_scene
-                result = preview_scene(store, args['project_id'], args['plan_id'])
+                result = preview_scene(store, args['project_id'], args['plan_id'], review_camera=args.get('review_camera'))
             else:
                 result = store.status(args['project_id'])
             return json.dumps({'ok': True, 'result': result}, ensure_ascii=False)

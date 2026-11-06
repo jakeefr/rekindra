@@ -124,12 +124,22 @@ class CompositionStore:
         except (OSError, json.JSONDecodeError) as exc:
             raise SceneError('Cannot load this scene plan') from exc
 
-    def build(self, project_id: str, plan_id: str) -> dict:
+    def build(self, project_id: str, plan_id: str, review_camera=None) -> dict:
         plan = self.load_plan(project_id, plan_id)
+        inspection=review_camera is not None
+        if inspection:
+            if (plan['scene']['schema_version']!=2 or not isinstance(review_camera,dict)
+                    or set(review_camera)!={'eye','target','fov'}):
+                raise SceneError('Inspection camera requires world v2 and exactly eye, target, fov')
+            # load_plan returns an independent record. Validate a stationary view
+            # without saving a revision or touching the presentation trajectory.
+            plan['scene']['camera']=[dict(review_camera,at=0),dict(review_camera,at=plan['scene']['duration'])]
+            plan['scene']=validate_scene(plan['scene'],set(plan['source_ids']))
         sources = self.sources(project_id, plan['source_ids'])
         embedded = [{**{k: v for k, v in s.items() if k != 'data'},
                      'url': f"data:{s['mime_type']};base64," + base64.b64encode(s['data']).decode('ascii')} for s in sources]
         content={'scene': plan['scene'], 'sources': embedded, 'model': plan.get('model', {})}
+        if inspection:content.update(inspection_only=True,inspection_of=plan_id)
         if plan['scene']['schema_version']==2:
             from .worlds import compile_world
             content['programs']=compile_world(plan['scene'])
@@ -143,9 +153,11 @@ class CompositionStore:
                         '/*PLAYER_RUNTIME*/': (RUNTIME / 'player.js').read_text(encoding='utf-8')}
         # One substitution pass: input can never become another template directive.
         document = re.sub('|'.join(map(re.escape, replacements)), lambda m: replacements[m[0]], template)
-        target = self.projects._project(project_id) / 'artifacts' / (plan_id + '.html')
+        filename=plan_id+('-inspection-'+uuid.uuid4().hex if inspection else '')+'.html'
+        target = self.projects._project(project_id) / 'artifacts' / filename
         _no_links(target); _atomic(target, document.encode('utf-8'))
         return {'kind': 'generated', 'plan_id': plan_id, 'project_id': project_id,
                 'plan_path': str(self.projects._project(project_id) / 'plans' / (plan_id + '.json')),
                 'path': str(target), 'format': 'html', 'source_ids': plan['source_ids'],
-                'sha256': hashlib.sha256(document.encode('utf-8')).hexdigest()}
+                'sha256': hashlib.sha256(document.encode('utf-8')).hexdigest(),
+                'inspection_only': inspection}

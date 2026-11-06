@@ -173,3 +173,7 @@ Optional `assemblies` contains up to eight named frames. Each has `translation` 
 Use `rekindra_revise_world` to replace the complete assemblies array and attach surfaces within one validated batch. Unchanged fields and original plan remain intact. Camera-only revision plans support alternate views. Optional surface `assembly` can be removed with null; removing a referenced group without detaching its surfaces is invalid.
 
 `ambient_strength` (0..2, default1) changes diffuse ambient only. `ground_color` (default #342A20) with `ground_strength` (0..1, default0) supplies an approximate lower hemisphere tint. Defaults preserve the old shader behavior. These are art-direction controls, not contact occlusion, sampled scene reflections or physical light bounce. Compare neutral and revised previews; darker is not automatically better.
+
+## Inspection-only cameras
+
+`rekindra_preview` accepts optional `review_camera: {eye:[x,y,z], target:[x,y,z], fov:57}` for a saved world. This uses one stationary pose for all six animation samples. It creates a separately labeled inspection HTML and PNG, leaving the saved plan and normal presentation HTML unchanged. The inspection HTML blocks video export through UI and API; use the normal saved scene for final export. Omit the override to review presentation framing. Use this for side, reverse and close attachment views rather than appending diagnostic travel to the final camera timeline.
