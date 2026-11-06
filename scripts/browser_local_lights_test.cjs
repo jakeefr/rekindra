@@ -25,7 +25,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.ok(result.on.near[0]>result.on.near[1]*2,'Light color must affect receiver');
   assert.deepEqual(result.on.outside,result.off.outside,'Outside range must remain unlit');
   assert.deepEqual(result.zero,result.off,'Zero intensity must match no lights');
-  assert.equal(result.center.near[3],255,'Coincident source must render finite opaque output');
+  assert.equal(result.center.near[3],255,'Coincident source must preserve opaque coverage');
   assert.ok(result.four.near[0]>100,'All four light uniforms must compile and illuminate');
   assert.deepEqual(result.four.near,result.combined.near,'Four lights must sum before tone mapping');
   assert.deepEqual(result.lastOnly.near,result.on.near,'Fourth light must illuminate independently');
