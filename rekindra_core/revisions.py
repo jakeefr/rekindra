@@ -4,7 +4,7 @@ from .scenes import SceneError
 from .worlds import validate_world, WORLD_SCHEMA
 
 SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies'))
-OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail','assembly','shading'))
+OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail','assembly','shading','loft'))
 OBJECT_FIELDS = frozenset(WORLD_SCHEMA['properties']['objects']['items']['properties']) - {'id'}
 
 

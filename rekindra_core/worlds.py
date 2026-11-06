@@ -5,6 +5,7 @@ import re
 from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
 from .expressions import compile_expression, FUNCTIONS
 from .assemblies import compile_assemblies
+from .lofts import compile_loft
 
 
 def fields(value,names,label):
@@ -25,6 +26,8 @@ def compile_surface(obj):
     bindings=obj.get('bindings',[])
     if not isinstance(bindings,list) or len(bindings)>16:raise SceneError('Surface allows at most 16 local bindings')
     names={};definitions=[];cost=0
+    if 'loft' in obj:
+        loft=compile_loft(obj['loft']);names.update(loft['names']);definitions.append(loft['definitions']);cost+=loft['cost']
     for binding in bindings:
         fields(binding,'name expression','local binding')
         name=binding['name']
@@ -106,7 +109,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly','shading')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly','shading','loft')},'id position segments color color_high color_mix roughness metalness emission','surface')
         if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
             raise SceneError('Surface shading must be smooth or flat')
         caps=obj.get('caps',[])
@@ -138,6 +141,8 @@ def validate_world(value,asset_ids):
         segments=obj['segments']
         if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
+        if 'loft' in obj and (segments[0]%len(obj['loft'][0]['points']) or segments[1]%(len(obj['loft'])-1)):
+            raise SceneError('Loft segments must align: u multiple of ring point count, v multiple of section intervals')
         count=segments[0]*segments[1];cells+=count*copies;work+=count*compiled['cost']*copies
         # Fan triangles and bounded boundary-average sampling consume the same
         # budgets as the side mesh. Do not make closure free or raise limits.
@@ -227,3 +232,5 @@ WORLD_SCHEMA['properties']['assemblies']={'type':'array','maxItems':8,'items':_A
 WORLD_SCHEMA['properties']['objects']['items']['properties']['assembly']={'type':'string','description':'Optional existing assembly ID. Geometry, cap positions, normals and shadows follow its complete transform chain.'}
 
 WORLD_SCHEMA['properties']['objects']['items']['properties']['shading']={'type':'string','enum':['smooth','flat'],'description':'Optional normal mode, smooth by default. Flat uses each rendered triangle normal for faceted rock, cut crystal or deliberately low-poly construction. Geometry and shadow silhouettes unchanged; caps remain flat. Bump detail may still perturb lighting normals. Choose segments to represent intentional planes; flat shading cannot create cracks or repair bad geometry.'}
+
+WORLD_SCHEMA['properties']['objects']['items']['properties']['loft']={'type':'array','minItems':2,'maxItems':8,'description':'Optional ordered convex cross-sections. Supplies loft_x/loft_y/loft_z to position and bindings. Equal3-16point counts, same winding, heights increasing >=0.0001. Points are x,z, no repeated closing vertex. Rings close automatically. u segments must be a multiple of point count; v segments a multiple of sections-1. Use position x:loft_x,y:loft_y,z:loft_z then optional bounded deformation. Static sections interpolate linearly in v; instance/assembly transforms still apply. Work charged per copy/cap. Convex source rings do not guarantee deformed geometry is collision-free.','items':obj_schema({'height':{'type':'number','minimum':-80,'maximum':80},'points':{'type':'array','minItems':3,'maxItems':16,'items':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':-80,'maximum':80}}}})}
