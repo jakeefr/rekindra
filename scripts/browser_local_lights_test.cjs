@@ -14,7 +14,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
     return {near:sample([0,0,0]),far:sample([3,0,0]),outside:sample([5,0,0]),png:c.toDataURL().split(',')[1]};
    }
    const light={position:[0,1,0],color:'#FF2000',intensity:10,range:4};
-   const result={off:capture([]),on:capture([light]),zero:capture([{...light,intensity:0}]),center:capture([{...light,position:[0,0,0]}]),four:capture(Array.from({length:4},()=>({...light,intensity:1})))};
+   const result={off:capture([]),on:capture([light]),zero:capture([{...light,intensity:0}]),center:capture([{...light,position:[0,0,0]}]),four:capture(Array.from({length:4},()=>({...light,intensity:1}))),combined:capture([{...light,intensity:4}]),lastOnly:capture(Array.from({length:4},(_,i)=>({...light,intensity:i===3?10:0})))};
    f.scene.objects[0].metalness=1;result.metal=capture([light]);return result;
   },fixture);
   fs.writeFileSync(path.join(out,'receiver.png'),Buffer.from(result.on.png,'base64'));
@@ -27,6 +27,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.deepEqual(result.zero,result.off,'Zero intensity must match no lights');
   assert.equal(result.center.near[3],255,'Coincident source must render finite opaque output');
   assert.ok(result.four.near[0]>100,'All four light uniforms must compile and illuminate');
+  assert.deepEqual(result.four.near,result.combined.near,'Four lights must sum before tone mapping');
+  assert.deepEqual(result.lastOnly.near,result.on.near,'Fourth light must illuminate independently');
   assert.ok(result.metal.near[0]>10,'Metallic receiver must receive a local specular response');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
