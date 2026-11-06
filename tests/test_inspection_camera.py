@@ -42,3 +42,15 @@ class InspectionCameraTests(unittest.TestCase):
             with self.subTest(camera=camera),self.assertRaises(SceneError):
                 self.store.build(self.pid,self.plan['plan_id'],review_camera=camera)
         self.assertEqual(set(directory.iterdir()),before)
+
+    def test_inspection_replaces_presentation_cuts_without_changing_plan(self):
+        scene=self.plan['scene'];scene['camera'][1]['cut']=True
+        aid=scene['references'][0]['asset_id']
+        plan=self.store.save_plan(self.pid,scene,[aid],{'origin':'cut-test'})
+        original=self.store.build(self.pid,plan['plan_id']);record=Path(original['plan_path']).read_bytes()
+        camera={'eye':[1,3,-7],'target':[0,.9,0],'fov':57}
+        view=self.store.build(self.pid,plan['plan_id'],review_camera=camera)
+        content=Path(view['path']).read_text()
+        payload=json.loads(re.search(r'<script id="payload" type="application/json">(.*?)</script>',content,re.S).group(1))
+        self.assertEqual(payload['scene']['camera'],[dict(camera,at=0),dict(camera,at=12)])
+        self.assertEqual(Path(original['plan_path']).read_bytes(),record)

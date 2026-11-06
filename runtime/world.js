@@ -6,6 +6,7 @@
   function cameraAt(keys,t){
     if(t<=keys[0].at)return keys[0];
     for(let i=1;i<keys.length;i++)if(t<=keys[i].at){
+      if(keys[i].cut)return t<keys[i].at?{...keys[i-1],at:t}:keys[i];
       const a=keys[i-1],b=keys[i],q=(t-a.at)/(b.at-a.at),s=q*q*(3-2*q);
       return {at:t,eye:a.eye.map((x,j)=>x+(b.eye[j]-x)*s),target:a.target.map((x,j)=>x+(b.target[j]-x)*s),fov:a.fov+(b.fov-a.fov)*s};
     }
@@ -22,12 +23,23 @@
     right=unit(sub(right,forward.map(x=>x*dot(right,forward))));
     return {forward,right,up:unit(cross(right,forward))};
   }
+  function cutBetween(keys,from,to){
+    let found=null;for(const key of keys)if(key.cut&&key.at>from&&key.at<=to)found=key;
+    return found;
+  }
   function cameraFrame(keys,t){
     let table=cameraTables.get(keys);
     if(!table){table=[basis(keys[0])];const frames=Math.ceil(keys[keys.length-1].at*30);
-      for(let i=1;i<=frames;i++){const c=cameraAt(keys,i/30);table.push(transport(table[i-1],unit(sub(c.target,c.eye))))}cameraTables.set(keys,table)}
-    const camera=cameraAt(keys,t),index=Math.max(0,Math.min(table.length-1,Math.floor(t*30)));
-    return {camera,basis:transport(table[index],unit(sub(camera.target,camera.eye)))};
+      for(let i=1;i<=frames;i++){
+        const c=cameraAt(keys,i/30),cut=cutBetween(keys,(i-1)/30,i/30);
+        table.push(transport(cut?basis(cut):table[i-1],unit(sub(c.target,c.eye))));
+      }cameraTables.set(keys,table)}
+    const camera=cameraAt(keys,t);let index=Math.max(0,Math.min(table.length-1,Math.floor(t*30)));
+    // Multiplication can round a time just before n/30 up to n. Never borrow
+    // an orientation from the future, especially across a discontinuous cut.
+    if(index>0&&index/30>t)index--;
+    const cut=cutBetween(keys,index/30,t);
+    return {camera,basis:transport(cut?basis(cut):table[index],unit(sub(camera.target,camera.eye)))};
   }
   function projectPoint(p,c,w,h){const b=basis(c),d=sub(p,c.eye),z=dot(d,b.forward),tan=Math.tan(c.fov*Math.PI/360);return [w/2+dot(d,b.right)/z/tan*h/2,h/2-dot(d,b.up)/z/tan*h/2,z]}
   const rgb=hex=>[1,3,5].map(i=>Math.pow(parseInt(hex.slice(i,i+2),16)/255,2.2));

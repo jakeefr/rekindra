@@ -117,13 +117,16 @@ def validate_world(value,asset_ids):
     if not isinstance(camera,list) or not 2<=len(camera)<=12:raise SceneError('Camera requires 2-12 states')
     last=-1;previous=None
     for key in camera:
-        fields(key,'at eye target fov','camera state')
+        if not isinstance(key,dict):raise SceneError('Invalid camera state fields')
+        fields({k:v for k,v in key.items() if k!='cut'},'at eye target fov','camera state')
+        if 'cut' in key and type(key['cut']) is not bool:raise SceneError('Camera cut must be a boolean')
+        if previous is None and key.get('cut',False):raise SceneError('The first camera state cannot be a cut')
         _number(key['at'],0,s['duration'],'camera time');_number(key['fov'],15,100,'field of view')
         if key['at']<=last:raise SceneError('Camera times must increase')
         last=key['at'];eye=vector(key['eye'],'camera eye');target=vector(key['target'],'camera target')
         delta=[a-b for a,b in zip(eye,target)]
         if sum(x*x for x in delta)<.01:raise SceneError('Camera eye and target must be distinct')
-        if previous is not None:
+        if previous is not None and not key.get('cut',False):
             step=[a-b for a,b in zip(delta,previous)];length=sum(x*x for x in step)
             u=max(0,min(1,-sum(a*b for a,b in zip(previous,step))/length)) if length else 0
             if sum((a+u*b)**2 for a,b in zip(previous,step))<.01:raise SceneError('Camera crosses its target between states')
@@ -229,6 +232,7 @@ WORLD_SCHEMA=obj_schema({
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
 # Optional studio-light controls preserve all existing v2 plans.
+WORLD_SCHEMA['properties']['camera']['items']['properties']['cut']={'type':'boolean','description':'Optional shot cut at this exact key time. Hold previous pose until this instant, then jump without resetting object time. First key cannot cut; absent/false interpolates normally.'}
 WORLD_SCHEMA['properties']['environment']['properties'].update({
     'occlusion_strength':{'type':'number','minimum':0,'maximum':1,'description':'Optional screen-space indirect-light occlusion, default0. Does not shadow direct lights or emission; offscreen geometry is unavailable.'},
     'occlusion_radius':{'type':'number','minimum':.05,'maximum':4,'description':'Indirect occlusion radius in world units, default1. Only used when strength>0.'},

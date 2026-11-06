@@ -251,6 +251,12 @@ Aim a desired highlight using the actual surface normal rather than only the obj
 
 Lighting cannot supply missing thickness or joinery. Inspect a close view of the main constructed object before spending the budget on supporting scenery. Give each surface a construction job (shell, interior, edge transition, fastening, support, moving joint), a material, and an attachment rule. Review silhouette and thickness without fine noise first. Keep repeating detail aligned to actual structural sections, and reserve distinct material boundaries for physically distinct parts. This is an authoring procedure, not a mandatory boat/studio template.
 
+## Camera shot cuts
+
+An optional `cut:true` on a camera key holds the preceding pose until that key's exact `at` time, then jumps to its eye/target/FOV. Ordinary later keys interpolate as before. The first key cannot cut; omitted or false keeps ordinary interpolation. Add a preceding movement-end key if the camera should travel before the cut instead of holding. Object equations keep global `t`; editing the camera never restarts an action.
+
+Use a close view to establish construction, then a wider reveal when the spatial relationship changes. Preserve screen direction where it helps readability. A cut cannot hide poor attachments: still inspect the whole action from a fixed oblique camera. Inspection previews replace all presentation camera keys, including cuts, and never change the saved scene. There are no dissolves, motion blur or multiple scene tracks implied by this field.
+
 ## Horizontal surface reflections
 
 One surface may opt into `reflection:{"strength":0.35,"blur":2}`. Its `position.y` must be a numeric constant string within +/-80; no assembly, instances, caps or loft on that surface. Use it for a polished horizontal floor or still water. Strength0..1 blends reflected scene radiance with the ordinary surface lighting; blur0..8 is a fixed pixel filter, not physical material roughness. Omit or set strength0 for the original rendering path; revise to null to remove it.
