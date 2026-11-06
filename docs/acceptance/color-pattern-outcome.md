@@ -1,0 +1,11 @@
+# Per-pixel color pattern outcome
+
+Root cause reproduced before renderer edits: periodic vertex color_mix on a4x4plane samples only cosine peaks, yielding207byte brightness at intended bright and dark sites. Optional color_pattern uses the same bounded original expression compiler in the fragment shader, leaving legacy vertex blend and caps intact. No renderer/library dependency added.
+
+Unit1 RED: new Python acceptance/revision and shared-budget checks failed unsupportedfield/invalidsurface. Compiler/schema/revision change made3focused tests pass. Invalid executable input, local binding use, long expressions, total128-node budget and immutable add/remove are covered.
+
+Unit2 RED: GPU assertion failed because intended dark troughs were bright207. First renderer implementation passed: peaks207, troughs0/0/6/6; coarse and64x64dense samples agree within2bytes. Exact0->3->0 PNG repeat, actual animated pattern change, clamp-to0/1, equivalent constant legacy output and unchanged cap color all pass. Root visually inspected pattern and cap captures. Four absent-pattern PNGs are byte-identical to pre-renderer-change outputs. Combined pattern/color_detail/bump_detail fixtures also pass, including caps. Evidence .local/color-pattern.
+
+Full regression:80Python tests and10Node tests pass. Fresh read-only review found no blockers; its schema-description and combined-field-test suggestions were implemented and checked. No macOS/Linux GPU run claimed.
+
+Limits: interpolated UVs still follow the surface parameterization; excessively fine patterns can shimmer. No texture sampling, glass, geometry or emission masks introduced. This resolves a material sampling limitation, not the failed courtyard composition. Native installed smoke and full export are pending before declaring this capability integrated.

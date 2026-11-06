@@ -1,0 +1,17 @@
+# Courtyard quality outcome
+
+This unit replaces the failed lantern silhouette with a source-informed architectural frontage. It is supervised native quality development, not a claim that Hermes autonomously chooses this exact direction without guidance.
+
+Candidate1: 8bef67af25964f7f889edd25b694ada6. One exposed create-world call, two preview calls, native vision and independent root review of both six-frame sheets. Full intended/saved equality verified; all four copied source files match original hashes. Rejected aesthetics: generic little houses, vacant oversized slab, blank end walls exposed by the rotation. A local body-scale failure preceded submission; original invalid scene retained.
+
+Candidate2: c4cc3434e17c453780d34ca7deeef1a2. Exposed revise-world, normal and stationary previews, native vision. Root reviewed both sheets: improved connected mass and source night contrast, still schematic and repetitive, motion modest, upper stair partly buried in terrace. Native full canonical intended/saved and source metadata equality passed. It is an unaccepted checkpoint, not finished quality.
+
+Candidate3: currently pending. The saved native author3 was executed by root after the native run reached its600second limit. Local validation rejected total material detail above128expression nodes. Error, scene and proposed edits are preserved in rejected-local-3a.json. No third submission was consumed. Continuing the same allowance with ONE remaining native submission; no reset or fourth candidate. Full retained default-browser export and independent decoded review remain pending.
+
+Evidence: .local/courtyard-quality and <local path>/home/cache/scratch/courtyard-quality-20261106-a. First two native runs ended normally at their runtime limit and explicitly rejected finished-quality claims. Logs are normalized from PowerShell UTF16 to UTF8 only after their writer exits; no running event file is rewritten. No public publishing or production renderer changes in this unit.
+
+Final closure: candidate3 saved as835d12994a51404186e062ca5a532ab5 through an exposed native revision. A second local detail-budget rejection was preserved before the simplified draft validated. Three total submissions, no fourth. Root verified all three intended/saved scenes, source IDs/metadata, original byte hashes, schema/budgets and four lights with code. Normal plus stationary six-frame sheets were independently viewed for all three. Full default browser/export gate for candidate3 recorded exit0:13seconds1280x720,4,867,414bytes. Decoded review exited0 and root inspected24frames. Exact repeat gate unchanged. Native run exited0. Configuration run budget restored120.
+
+Final art verdict: FAILED. Candidate3 adds roof edges and a visible stair, but patchy window patterns, generic schematic massing, weak reveal and empty context remain. Retain evidence only, not an accepted showcase. Candidate2 has cleaner panes; candidate3 adds detail but does not establish overall quality. No fourth aesthetic retry. Source intake and other-developer scope unchanged.
+
+Separate diagnostic hypothesis, not a fourth design attempt: current color_mix evaluates at mesh vertices and interpolates across triangles. Procedural pane patterns may be aliasing against tessellation. Reproduce with a controlled material fixture before changing renderer semantics. This cannot by itself repair composition or prove impressive output.

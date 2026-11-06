@@ -42,7 +42,7 @@ def compile_surface(obj):
     blend=compile_expression(obj['color_mix'],names)
     result={'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
             'definitions':'\n'.join(definitions),'cost':cost+sum(p['cost'] for p in pos)+blend['cost']}
-    for field in ('color_detail','bump_detail'):
+    for field in ('color_detail','bump_detail','color_pattern'):
         if field not in obj:continue
         detail=obj[field]
         if not isinstance(detail,str) or not 1<=len(detail)<=128:
@@ -119,7 +119,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly','shading','loft')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft')},'id position segments color color_high color_mix roughness metalness emission','surface')
         if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
             raise SceneError('Surface shading must be smooth or flat')
         caps=obj.get('caps',[])
@@ -217,12 +217,15 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['bindings']={
     'description':'Optional ordered local math definitions shared by position and color expressions. Each can reference u/v/t/pi and earlier bindings. Use for opening progress, local frames and reusable geometric terms; no cycles or code.',
     'items':obj_schema({'name':{'type':'string','pattern':'^[a-z][a-z0-9_]{0,23}$'},
                         'expression':{'type':'string','minLength':1,'maxLength':512}})}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['color_pattern']={
+    'type':'string','minLength':1,'maxLength':128,
+    'description':'Optional per-pixel color blend expression using u/v/t/pi and supported math, no geometry bindings. Result clamps to0..1 and replaces vertex color_mix on side surfaces, mixing color and color_high. Solid caps retain color_mix. At most32 expression nodes; shares128 total world nodes with color_detail and bump_detail. Omit for unchanged rendering. Use for resolved pane/tile/material color patterns independent of mesh density; does not change geometry, transparency or emission strength. Avoid subpixel frequencies and inspect motion for shimmer.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['color_detail']={
     'type':'string','minLength':1,'maxLength':128,
-    'description':'Optional per-pixel albedo detail expression using only u/v/t/pi and supported math, no local bindings. At most32 nodes per expression; color_detail and bump_detail share128 nodes across the world. Result clamps to -0.35..0.35 and multiplies base color by 1+detail. Use subtle grain/weave/material variation; does not change geometry, normals or roughness. Default absent preserves existing rendering. Avoid subpixel frequencies and animated noise unless intentional.'}
+    'description':'Optional per-pixel albedo detail expression using only u/v/t/pi and supported math, no local bindings. At most32 nodes per expression; color_pattern, color_detail and bump_detail share128 nodes across the world. Result clamps to -0.35..0.35 and multiplies base color by 1+detail. Use subtle grain/weave/material variation; does not change geometry, normals or roughness. Default absent preserves existing rendering. Avoid subpixel frequencies and animated noise unless intentional.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['bump_detail']={
     'type':'string','minLength':1,'maxLength':128,
-    'description':'Optional per-pixel relief HEIGHT in world units, using u/v/t/pi and math, no bindings. <=32 expression nodes; color_detail and bump_detail together share128 nodes across the world. Height clamps to +/-0.1, slope magnitude to0.6. Changes lighting normals only, not silhouettes, shadow geometry, or roughness. Start .002-.02 amplitude for stone/cloth or .01-.04 for water ripples; scale frequency to surface size. Avoid subpixel frequencies, seams and sharp masks; inspect motion for shimmer. Not physical water, transparency or scene reflections.'}
+    'description':'Optional per-pixel relief HEIGHT in world units, using u/v/t/pi and math, no bindings. <=32 expression nodes; color_pattern, color_detail and bump_detail together share128 nodes across the world. Height clamps to +/-0.1, slope magnitude to0.6. Changes lighting normals only, not silhouettes, shadow geometry, or roughness. Start .002-.02 amplitude for stone/cloth or .01-.04 for water ripples; scale frequency to surface size. Avoid subpixel frequencies, seams and sharp masks; inspect motion for shimmer. Not physical water, transparency or scene reflections.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['caps']={
     'type':'array','maxItems':2,'uniqueItems':True,'items':{'type':'string','enum':['v0','v1']},
     'description':'Optional solid end caps at v=0 and/or v=1. Use only when u wraps a closed planar convex or star-shaped ring, e.g. a beam or trunk cross-section. Generates a triangle fan to the average boundary position at current t, moving with the surface. Flat face normals; no bump/color_detail on caps. Counts toward existing geometry/work budgets. Not arbitrary concave hole repair or a guarantee against self-intersection. Omit on open cloth, terrain and water.'}

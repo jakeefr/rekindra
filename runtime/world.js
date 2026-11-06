@@ -178,7 +178,8 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
     const surfaces=scene.objects.map((o,index)=>{
       const source=programs[index];
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
-      const hasDetail=hasColorDetail||hasBump;
+      const hasColorPattern=source.color_pattern!==undefined;
+      const hasDetail=hasColorDetail||hasBump||hasColorPattern;
       const hasCaps=Boolean(o.caps?.length);
       const hasInstances=o.instances!==undefined;
       const hasInstanceRotation=o.instances?.some(p=>p.rotation!==undefined)??false;
@@ -244,8 +245,11 @@ void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);
 ${o.shading==='flat'?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(length(faceNormal)>1.e-10)N=normalize(faceNormal);':hasCaps?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(capFace>.5&&length(faceNormal)>1.e-10)N=normalize(faceNormal);':''}
 if(dot(N,V)<0.)N=-N;
 ${hasBump?`float geometricNl=max(dot(N,lightDir),0.);`:''}
-vec3 albedo=mix(baseColor,highColor,blend);
-${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}
+${hasColorPattern?`float u=detailUV.x,v=detailUV.y;
+float patternBlend=clamp(${source.color_pattern},0.,1.);
+vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'patternBlend'});`:
+`vec3 albedo=mix(baseColor,highColor,blend);
+${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
