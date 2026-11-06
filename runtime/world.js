@@ -184,7 +184,7 @@ float visibility(vec3 p,float nl){
  }return sum/32.;
 }
 void main(){vec3 V=normalize(eye-worldPos),N=normalize(worldNormal);
-${hasCaps?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(capFace>.5&&length(faceNormal)>1.e-10)N=normalize(faceNormal);':''}
+${o.shading==='flat'?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(length(faceNormal)>1.e-10)N=normalize(faceNormal);':hasCaps?'vec3 faceNormal=cross(dFdx(worldPos),dFdy(worldPos));if(capFace>.5&&length(faceNormal)>1.e-10)N=normalize(faceNormal);':''}
 if(dot(N,V)<0.)N=-N;
 ${hasBump?`float geometricNl=max(dot(N,lightDir),0.);`:''}
 vec3 albedo=mix(baseColor,highColor,blend);

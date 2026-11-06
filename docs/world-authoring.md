@@ -9,7 +9,8 @@ and shadows follow each placement. Omit the field for a single unchanged surface
 
 Limits:1–16 placements per surface,64 placements across the world; offsets -80..80,
 positive scales .05..8. Every copy consumes the unchanged geometry, expression-work
-and fragment-detail budgets. There is no rotation, parenting, independent copy
+and fragment-detail budgets. Optional static Euler rotation follows scale and precedes
+offset (see Per-copy orientation). There is no per-copy parenting, independent
 animation or per-copy material. Final coordinates still clamp to +/-100.
 
 Use low-resolution local meshes for repeated windows, supports, roof clusters or
@@ -187,3 +188,9 @@ Use varied orientations for repeated leaves, branches or stones when the sources
 ## Compact bounded assembly easing
 
 Expanded polynomials can exceed the assembly's32-node expression limit before geometry is even considered. For a smooth held opening from second3 to8, `0.5-0.5*cos(pi*clamp((t-3)/5,0,1))` compiles to15nodes and stays0before the interval and1after it, with zero endpoint velocity. Multiply by the desired displacement or angle within the same budget. This is a timing example, not a scene template. It was checked through both expression and assembly compilers; fixed assembly work and all attached copies still count toward the world's total.
+
+## Deliberate faceted surfaces
+
+Optional surface `shading:"flat"` uses the actual rendered triangle normal. Omitted or `"smooth"` keeps the previous derivative-of-surface normal behavior; caps retain their flat normals in either mode. Flat mode is useful for cut planes, fractured stone and intentionally low-poly solids. It changes lighting only, not vertices, silhouette or shadow geometry. Planar triangles have constant geometric normals; bump detail can still perturb them. Avoid strong bump when the purpose is a clean plane.
+
+Choose geometry and segment layout deliberately: flat shading exposes every triangle and cannot create fractures or repair intersections. Inspect silhouettes and attachment points before material polish. Use `rekindra_revise_world` to set shading on an existing surface, or null to remove the optional field and return to default.

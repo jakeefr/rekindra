@@ -106,7 +106,9 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','caps','instances','assembly','shading')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
+            raise SceneError('Surface shading must be smooth or flat')
         caps=obj.get('caps',[])
         if not isinstance(caps,list) or len(caps)>2 or any(not isinstance(c,str) or c not in ('v0','v1') for c in caps) or len(set(caps))!=len(caps):
             raise SceneError('Caps must be a unique list containing v0 and/or v1')
@@ -208,7 +210,7 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['caps']={
 WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']={
     'type':'array','minItems':1,'maxItems':16,
     'items':obj_schema({'offset':VEC,'scale':{'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':.05,'maximum':8}}}),
-    'description':'Optional placements of this same animated surface/material: each offset is a world vector -80..80 and scale is positive xyz .05..8. Scale local geometry about its origin, then offset. Caps/normals/shadows follow. 1-16 placements per surface, <=64 total; EVERY copy consumes the existing geometry/work budgets. Omitted means one identity placement. Use low-resolution local parts for repeated windows, supports, roof clusters or foliage. No rotation, hierarchy, independent per-copy animation or color. Final world coordinates clamp to +/-100; avoid clipping. Fine material math is shared, not duplicated shader source.'}
+    'description':'Optional placements of this same animated surface/material: each offset is a world vector -80..80 and scale is positive xyz .05..8. Scale local geometry about its origin, then offset. Caps/normals/shadows follow. 1-16 placements per surface, <=64 total; EVERY copy consumes the existing geometry/work budgets. Omitted means one identity placement. Use low-resolution local parts for repeated windows, supports, roof clusters or foliage. Optional static rotation follows scale and precedes offset; no per-copy hierarchy, independent animation or color. Final world coordinates clamp to +/-100; avoid clipping. Fine material math is shared, not duplicated shader source.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['instances']['items']['properties']['rotation']={
     'type':'array','minItems':3,'maxItems':3,'items':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi},
     'description':'Optional static Euler X,Y,Z radians: scale local geometry, rotate X then Y then Z about origin, add offset, then assembly chain. Omitted means no rotation. Vary leaf/branch orientations without new surface definitions; all transformed copies consume work budgets.'}
@@ -223,3 +225,5 @@ _ASSEMBLY['properties']['parent']={'type':'string','description':'Optional earli
 WORLD_SCHEMA['properties']['assemblies']={'type':'array','maxItems':8,'items':_ASSEMBLY,
     'description':'Shared animated frames. Each transform uses t/pi only, <=32 nodes per expression. Subtract pivot, scale, rotate Euler X then Y then Z (radians), add pivot and translation; then apply parent chain. Surface instance transforms run first. Share one frame across connected parts to preserve joints. No u/v or geometry bindings. All referenced chain work counts toward shader budgets. Optional and absent by default.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['assembly']={'type':'string','description':'Optional existing assembly ID. Geometry, cap positions, normals and shadows follow its complete transform chain.'}
+
+WORLD_SCHEMA['properties']['objects']['items']['properties']['shading']={'type':'string','enum':['smooth','flat'],'description':'Optional normal mode, smooth by default. Flat uses each rendered triangle normal for faceted rock, cut crystal or deliberately low-poly construction. Geometry and shadow silhouettes unchanged; caps remain flat. Bump detail may still perturb lighting normals. Choose segments to represent intentional planes; flat shading cannot create cracks or repair bad geometry.'}

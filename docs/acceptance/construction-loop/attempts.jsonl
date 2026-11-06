@@ -1,0 +1,4 @@
+{"unit":"F","attempt":1,"verdict":"pass","evidence":"New field rejected before implementation; then bounded enum and immutable set/remove tests pass.69Python/7Node pass."}
+{"unit":"G","attempt":1,"verdict":"expected-red","evidence":"Before renderer implementation, flat incorrectly matched smooth; both sampled delta53 vs fixed <=3flat condition."}
+{"unit":"G","attempt":2,"verdict":"rejected-harness","evidence":"Dark face coverage measurement conflated unlit geometry with background and huge array diff exhausted allocation. No production workaround."}
+{"unit":"G","attempt":3,"verdict":"pass","evidence":"Low uniform emission isolates silhouette coverage; compare mismatch count without giant assertion output. Exact default=smooth; same coverage; smooth delta44,flat0. Root viewed flat result."}
