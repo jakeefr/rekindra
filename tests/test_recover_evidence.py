@@ -176,6 +176,7 @@ class RecoverEvidenceTests(unittest.TestCase):
             before = Path(self.store.status(pid)['evidence']['path']).read_bytes()
             with self.assertRaisesRegex(ProjectError, 'too_many_records'):
                 self.store.recover(pid, ids[3], reader)
+            self.assertEqual(Path(self.store.status(pid)['evidence']['path']).read_bytes(), before)
             self.assertFalse((self.store.root / pid / 'artifacts' / (ids[3] + '.intake.json')).exists())
             self.store.recover(pid, ids[0], reader)  # re-recovery at the limit keeps the count
         finally:
@@ -200,24 +201,70 @@ class RecoverEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ProjectError, 'Saved intake is not readable'):
             self.store.recover(pid, self.ids['old.zip'], reader)
 
-    def test_failed_save_restores_files(self):
+    def _failing_write(self, asset, patch_target, make_failing, expect=OSError):
         reader = plugin.handlers.evidence_reader()
         pid = self.project['project_id']
         self.store.recover(pid, self.ids['notes.txt'], reader)
         artifacts = self.store.root / pid / 'artifacts'
         snapshot = {p.name: p.read_bytes() for p in artifacts.iterdir()}
         manifest_before = self.store.status(pid)
-        original = self.store._save
-        def failing_save(directory, project):
-            raise OSError('disk full')
-        self.store._save = failing_save
+        owner, name = patch_target
+        original = getattr(owner, name)
+        setattr(owner, name, make_failing(original))
         try:
-            with self.assertRaises(OSError):
-                self.store.recover(pid, self.ids['old.zip'], reader)
+            with self.assertRaises(expect) as caught:
+                self.store.recover(pid, self.ids[asset], reader)
         finally:
-            self.store._save = original
+            setattr(owner, name, original)
+        return artifacts, snapshot, manifest_before, caught.exception
+
+    def _assert_unchanged(self, artifacts, snapshot, manifest_before):
         self.assertEqual({p.name: p.read_bytes() for p in artifacts.iterdir()}, snapshot)
-        self.assertEqual(self.store.status(pid), manifest_before)
+        self.assertEqual(self.store.status(self.project['project_id']), manifest_before)
+
+    def test_failed_save_restores_files_for_new_source(self):
+        def failing(_):
+            def save(directory, project):
+                raise OSError('disk full')
+            return save
+        artifacts, snapshot, before, _ = self._failing_write('old.zip', (self.store, '_save'), failing)
+        self._assert_unchanged(artifacts, snapshot, before)
+
+    def test_failed_save_restores_existing_intake_on_rerecovery(self):
+        def failing(_):
+            def save(directory, project):
+                raise OSError('disk full')
+            return save
+        artifacts, snapshot, before, _ = self._failing_write('notes.txt', (self.store, '_save'), failing)
+        self._assert_unchanged(artifacts, snapshot, before)
+
+    def test_failed_dossier_promote_restores_files(self):
+        projects_os = sys.modules['rekindra_core.projects'].os
+        def failing(real):
+            def replace(src, dst):
+                if str(src).endswith('.new') and Path(dst).name == 'evidence.json':
+                    raise OSError('sharing violation')
+                return real(src, dst)
+            return replace
+        artifacts, snapshot, before, _ = self._failing_write('old.zip', (projects_os, 'replace'), failing)
+        self._assert_unchanged(artifacts, snapshot, before)
+
+    def test_failed_restore_is_reported(self):
+        projects_os = sys.modules['rekindra_core.projects'].os
+        def failing(real):
+            def replace(src, dst):
+                if str(src).endswith('.old') or (str(src).endswith('.new') and Path(dst).name == 'evidence.json'):
+                    raise OSError('locked')
+                return real(src, dst)
+            return replace
+        *_, error = self._failing_write('old.zip', (projects_os, 'replace'), failing, ProjectError)
+        self.assertIn('could not be restored', str(error))
+
+    def test_described_cap_matches_dossier_limit(self):
+        plugin.handlers.evidence_reader()
+        dossier_module = sys.modules[plugin.__name__ + '.rekindra_evidence._dossier']
+        description = plugin.schemas.SCHEMAS['rekindra_recover']['description']
+        self.assertIn(f'at most {dossier_module.MAX_RECORDS} text/ZIP', description)
 
     def test_non_dict_dossier_is_a_project_error(self):
         reader = plugin.handlers.evidence_reader()

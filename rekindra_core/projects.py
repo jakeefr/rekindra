@@ -310,26 +310,53 @@ class ProjectStore:
         dossier_path = artifacts_dir / 'evidence.json'
         _no_links(target)
         _no_links(dossier_path)
-        # Keep the previous bytes so a failed later write can put them back and the
-        # manifest's hashes keep matching what is on disk.
-        previous = {path: (path.read_bytes() if path.exists() else None) for path in (target, dossier_path)}
+        # Stage new bytes first, then swap by rename only. Rename needs no free space, so
+        # the rollback cannot fail the way the write did; after the manifest is saved,
+        # nothing is rolled back.
+        stamp = uuid.uuid4().hex
+        swaps = [(path, path.with_name(f'{path.name}.{stamp}.new'), path.with_name(f'{path.name}.{stamp}.old'), data)
+                 for path, data in ((target, blob), (dossier_path, dossier_blob))]
         updated = dict(project, artifacts=artifacts, stage='recovered',
                        evidence={'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
                                  'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]})
+        moved, promoted, committed = [], [], False
         try:
-            _atomic(target, blob)
-            _atomic(dossier_path, dossier_blob)
+            for _, staged, _, data in swaps:
+                with staged.open('xb') as out:
+                    out.write(data)
+                    out.flush()
+                    os.fsync(out.fileno())
+            for path, staged, aside, _ in swaps:
+                if path.exists():
+                    os.replace(path, aside)
+                    moved.append((path, aside))
+                os.replace(staged, path)
+                promoted.append(path)
             self._save(directory, updated)
-        except BaseException:
-            for path, old in previous.items():
-                try:
-                    if old is None:
-                        path.unlink(missing_ok=True)
-                    else:
-                        _atomic(path, old)
-                except OSError:
-                    pass
-            raise
+            committed = True
+        finally:
+            if not committed:
+                failed = []
+                for path in promoted:
+                    if not any(path == m for m, _ in moved):
+                        try:
+                            path.unlink(missing_ok=True)
+                        except OSError:
+                            failed.append(path.name)
+                for path, aside in moved:
+                    try:
+                        os.replace(aside, path)
+                    except OSError:
+                        failed.append(path.name)
+                if failed:
+                    raise ProjectError('Evidence files could not be restored after a failed write; '
+                                       're-run recovery for this asset (' + ', '.join(failed) + ')')
+            for _, staged, aside, _ in swaps:
+                for leftover in (staged, aside):
+                    try:
+                        leftover.unlink(missing_ok=True)
+                    except OSError:
+                        pass
         project.clear()
         project.update(updated)
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
