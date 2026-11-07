@@ -164,6 +164,11 @@ class CompositionStore:
         Recovering another source rebuilds evidence.json and may reshape or evict
         items, so a saved plan keeps its own quoted copy. Each copy must still hash
         to its cited evidence_id, and the interpretations must match the scene.
+
+        This is a consistency check, not tamper resistance: evidence IDs are
+        unkeyed hashes, so someone who can rewrite the plan file can also rewrite
+        a quote and its ID together. It catches stale or hand-edited plans that
+        no longer agree with themselves or with the project's assets.
         """
         if refs is None:
             if stored is not None:
@@ -179,12 +184,13 @@ class CompositionStore:
         for item, (aid, eid) in zip(stored['recovered_evidence'], wanted):
             if (not isinstance(item, dict) or set(item) != _RECOVERED_KEYS
                     or item['asset_id'] != aid or item['evidence_id'] != eid
-                    or item['source_path'] != paths.get(aid) or item['content'] != 'recovered'
+                    or aid not in paths or item['source_path'] != paths[aid] or item['content'] != 'recovered'
                     or item['untrusted'] is not True or not isinstance(item['text'], str)
                     or _evidence_id(aid, item['locator'], item['text']) != eid):
                 raise SceneError('Plan text evidence provenance has changed')
 
-    def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict) -> dict:
+    def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict,
+                  parent: dict | None = None) -> dict:
         sources = self.sources(project_id, selected_ids)
         normalized = validate_scene(scene, set(selected_ids))
         plan_id = uuid.uuid4().hex
@@ -194,7 +200,14 @@ class CompositionStore:
                   'scene': normalized, 'source_ids': selected_ids,
                   'sources': [{k: v for k, v in s.items() if k != 'data'} for s in sources],
                   'model': attribution}
-        text = self.text_provenance(project_id, normalized.get('text_references'))
+        refs = normalized.get('text_references')
+        if parent is not None and refs is not None and parent['scene'].get('text_references') == refs:
+            # Unchanged citations: carry the parent's checked copy forward. A later
+            # recovery may have rebuilt the dossier, which must not block other edits.
+            self.check_text_provenance(project_id, refs, parent.get('text_provenance'))
+            text = parent['text_provenance']
+        else:
+            text = self.text_provenance(project_id, refs)
         if text is not None:
             record['text_provenance'] = text
         encoded=json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode()

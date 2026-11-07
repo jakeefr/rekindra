@@ -146,6 +146,17 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         path.write_text(json.dumps(record), encoding='utf-8')
         with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
             self.compositions().load_plan(pid, saved['plan_id'])
+        # A self-consistent copy for an asset the project does not have is refused.
+        from rekindra_core.compositions import _evidence_id
+        ghost, item = 'f' * 32, dict(saved['text_provenance']['recovered_evidence'][0])
+        item.update(asset_id=ghost, source_path=None,
+                    evidence_id=_evidence_id(ghost, item['locator'], item['text']))
+        ghost_refs = [{'asset_id': ghost, 'evidence_ids': [item['evidence_id']], 'interpretation': 'x'}]
+        stored = {'recovered_evidence': [item],
+                  'interpretations': [dict(saved['text_provenance']['interpretations'][0],
+                                           asset_id=ghost, evidence_ids=[item['evidence_id']])]}
+        with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
+            self.compositions().check_text_provenance(pid, ghost_refs, stored)
 
     def test_plan_survives_later_recoveries_that_rebuild_the_dossier(self):
         ids = self.evidence_for('notes.txt')
@@ -169,6 +180,17 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         loaded = self.compositions().load_plan(pid, saved['plan_id'])
         self.assertEqual(loaded['text_provenance'], saved['text_provenance'])
         self.assertTrue(self.compositions().build(pid, saved['plan_id'])['path'])
+        # Edits that keep the citations carry the saved copy forward.
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'title', 'value': 'Kept'}]}))
+        self.assertTrue(out['ok'], out)
+        kept = self.compositions().load_plan(pid, out['result']['plan_id'])
+        self.assertEqual(kept['text_provenance'], saved['text_provenance'])
+        # Changing citations re-resolves against the live dossier, where they are gone.
+        changed = copy.deepcopy(refs); changed[0]['interpretation'] = 'y'
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': changed}]}))
+        self.assertFalse(out['ok'], out)
         out = json.loads(self.handlers['rekindra_revise_world'](
             {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': None}]}))
         self.assertTrue(out['ok'], out)

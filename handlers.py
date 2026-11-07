@@ -105,7 +105,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
                 saved = compositions.save_plan(args['project_id'], scene, parent['source_ids'],
                     {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
-                     'parent_plan_id': parent['plan_id'], 'changed_fields': changed})
+                     'parent_plan_id': parent['plan_id'], 'changed_fields': changed}, parent=parent)
                 result = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
                           'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
                           'next_step': 'Use rekindra_preview with this new plan_id; saving is not visual acceptance.'}
