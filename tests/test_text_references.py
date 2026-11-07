@@ -186,14 +186,46 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         self.assertTrue(out['ok'], out)
         kept = self.compositions().load_plan(pid, out['result']['plan_id'])
         self.assertEqual(kept['text_provenance'], saved['text_provenance'])
-        # Changing citations re-resolves against the live dossier, where they are gone.
+        # Rewording an interpretation reuses the saved quotes and rebuilds the interpretation.
         changed = copy.deepcopy(refs); changed[0]['interpretation'] = 'y'
         out = json.loads(self.handlers['rekindra_revise_world'](
             {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': changed}]}))
+        self.assertTrue(out['ok'], out)
+        reworded = self.compositions().load_plan(pid, out['result']['plan_id'])['text_provenance']
+        self.assertEqual(reworded['recovered_evidence'], saved['text_provenance']['recovered_evidence'])
+        self.assertEqual(reworded['interpretations'][0]['interpretation'], 'y')
+        # A newly cited evidence_id still needs the live dossier, where it is absent.
+        added = copy.deepcopy(refs); added[0]['evidence_ids'] = (added[0]['evidence_ids'] + [EV])[-4:]
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': added}]}))
         self.assertFalse(out['ok'], out)
+        self.assertIn('was not recovered from asset', json.dumps(out))
         out = json.loads(self.handlers['rekindra_revise_world'](
             {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': None}]}))
         self.assertTrue(out['ok'], out)
+
+    def test_carried_quotes_are_refused_once_intake_rejects_the_asset(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        store = self.compositions()
+        real = store.projects.status
+
+        def rejected(project_id):
+            project = real(project_id)
+            for a in project['artifacts']:
+                if a.get('kind') == 'evidence' and a.get('asset_id') == self.ids['notes.txt']:
+                    a['status'] = 'rejected'
+            return project
+        store.projects.status = rejected
+        with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
+            store.load_plan(pid, saved['plan_id'])
+        with self.assertRaises(SceneError):
+            store.save_plan(pid, self.world_with(refs), [tga], {}, parent=saved)
+        with self.assertRaisesRegex(SceneError, 'rejected'):
+            store.text_provenance(pid, refs, {(i['asset_id'], i['evidence_id']): i
+                                              for i in saved['text_provenance']['recovered_evidence']})
 
     def test_world_and_revise_handlers_carry_text_references(self):
         ids = self.evidence_for('notes.txt')
