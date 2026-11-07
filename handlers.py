@@ -46,15 +46,13 @@ def evidence_summary(recovered):
                'dossier_path': recovered['dossier_path'], 'warnings': artifact.get('warnings', []),
                'coverage': (source or {}).get('coverage'), 'evidence_count': len(items),
                'evidence': [{'evidence_id': e['evidence_id'], 'kind': e.get('kind'),
-                             'text': e.get('text', '')[:SUMMARY_CHARS],
-                             'clipped': bool(e.get('clipped')) or len(e.get('text', '')) > SUMMARY_CHARS}
+                             'text': (e.get('text') or '')[:SUMMARY_CHARS],
+                             'clipped': bool(e.get('clipped')) or len(e.get('text') or '') > SUMMARY_CHARS}
                             for e in items[:SUMMARY_ITEMS]],
                'evidence_omitted_from_summary': max(0, len(items) - SUMMARY_ITEMS),
                'notices': [n.get('code') for n in dossier.get('notices') or []],
                'untrusted_content': True, 'guidance': EVIDENCE_GUIDANCE}
-    if dossier.get('status') == 'rejected':
-        summary['errors'] = [e.get('code') for e in dossier.get('errors') or []]
-    return summary
+    return summary  # a rejected dossier never reaches here: the store refuses it
 
 
 def make_handlers(store_factory=host_store, llm=None, llm_factory=None):

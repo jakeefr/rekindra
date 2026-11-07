@@ -8,6 +8,7 @@ import unittest
 import zipfile
 
 from rekindra_core.projects import ProjectStore, ProjectError
+from test_tga import fixture
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('rekindra_plugin_evidence_test', ROOT / '__init__.py',
@@ -36,6 +37,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.source.mkdir()
         (self.source / 'notes.txt').write_bytes(NOTE)
         (self.source / 'old.zip').write_bytes(notes_zip())
+        (self.source / 'bad.json').write_bytes(b'{"x": NaN}')
+        (self.source / 'photo.tga').write_bytes(fixture())
         self.store = ProjectStore(temp / 'projects')
         self.handlers = {}
 
@@ -92,7 +95,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         status = json.loads(self.handlers['rekindra_status']({'project_id': self.project['project_id']}))
         self.assertTrue(status['ok'], status)
         self.assertEqual(status['result']['stage'], 'recovered')
-        self.assertEqual(sorted(status['result']['evidence']['source_ids']), sorted(self.ids.values()))
+        self.assertEqual(sorted(status['result']['evidence']['source_ids']),
+                         sorted(self.ids[n] for n in ('notes.txt', 'old.zip')))
 
     def test_recovery_is_idempotent_and_originals_untouched(self):
         first = self.recover('notes.txt')['result']
@@ -104,12 +108,79 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.recover('notes.txt')
         project = self.store.status(self.project['project_id'])
         Path(project['artifacts'][0]['path']).write_bytes(b'{}')
-        out = self.recover('old.zip')
-        self.assertFalse(out['ok'])
+        self.assertFalse(self.recover('old.zip')['ok'])
+        with self.assertRaisesRegex(ProjectError, 'Saved intake changed'):
+            self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
 
     def test_store_without_reader_keeps_tga_only_contract(self):
-        with self.assertRaises(ProjectError):
+        with self.assertRaisesRegex(ProjectError, 'documented TGA subset'):
             self.store.recover(self.project['project_id'], self.ids['notes.txt'])
+
+    def test_tga_still_recovers_through_handler(self):
+        r = self.recover('photo.tga')
+        self.assertTrue(r['ok'], r)
+        self.assertEqual((r['result']['kind'], r['result']['format']), ('recovered', 'png'))
+
+    def test_rejected_intake_is_reported(self):
+        r = self.recover('bad.json')
+        self.assertTrue(r['ok'], r)
+        self.assertEqual(r['result']['intake_status'], 'rejected')
+        self.assertIn('json_non_finite_number', r['result']['warnings'])
+
+    def test_stored_path_is_not_trusted(self):
+        self.recover('notes.txt')
+        pid = self.project['project_id']
+        manifest = self.store.root / pid / 'project.json'
+        data = json.loads(manifest.read_text(encoding='utf-8'))
+        decoy = Path(self._temp.name) / 'decoy.json'
+        decoy.write_bytes(b'{"decoy": true}')
+        data['artifacts'][0]['path'] = str(decoy)
+        manifest.write_text(json.dumps(data), encoding='utf-8')
+        r = self.recover('old.zip')
+        self.assertTrue(r['ok'], r)
+        dossier = Path(r['result']['dossier_path']).read_text(encoding='utf-8')
+        self.assertIn('green door', dossier)
+        self.assertNotIn('decoy', dossier)
+
+    def test_rejected_dossier_leaves_earlier_evidence_untouched(self):
+        self.recover('notes.txt')
+        pid = self.project['project_id']
+        before = self.store.status(pid)
+        dossier_path = Path(before['evidence']['path'])
+        dossier_before = dossier_path.read_bytes()
+        reader = plugin.handlers.evidence_reader()
+        refusing = {'intake': reader['intake'],
+                    'dossier': lambda records: {'status': 'rejected', 'errors': [{'code': 'invalid_relative_path'}]}}
+        with self.assertRaisesRegex(ProjectError, 'earlier evidence is unchanged.*invalid_relative_path'):
+            self.store.recover(pid, self.ids['old.zip'], refusing)
+        self.assertEqual(dossier_path.read_bytes(), dossier_before)
+        self.assertEqual(self.store.status(pid), before)
+        self.assertFalse((dossier_path.parent / (self.ids['old.zip'] + '.intake.json')).exists())
+
+    def test_dossier_record_limit_refuses_without_damage(self):
+        many = Path(self._temp.name) / 'many'
+        many.mkdir()
+        for i in range(4):
+            (many / f'n{i}.txt').write_bytes(b'note %d' % i)
+        project = self.store.inspect(many)
+        pid = project['project_id']
+        reader = plugin.handlers.evidence_reader()
+        ids = [a['asset_id'] for a in project['assets']]
+        dossier_module = sys.modules[plugin.__name__ + '.rekindra_evidence._dossier']
+        limit = dossier_module.MAX_RECORDS
+        dossier_module.MAX_RECORDS = 3  # stands in for the real 128; same code path
+        try:
+            for sid in ids[:3]:
+                self.store.recover(pid, sid, reader)
+            before = Path(self.store.status(pid)['evidence']['path']).read_bytes()
+            with self.assertRaisesRegex(ProjectError, 'too_many_records'):
+                self.store.recover(pid, ids[3], reader)
+        finally:
+            dossier_module.MAX_RECORDS = limit
+        status = self.store.status(pid)
+        self.assertEqual(status['evidence']['status'], 'ok')
+        self.assertEqual(len(status['evidence']['source_ids']), 3)
+        self.assertEqual(Path(status['evidence']['path']).read_bytes(), before)
 
 
 if __name__ == '__main__':

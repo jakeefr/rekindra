@@ -23,6 +23,7 @@ _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip')
+_MAX_INTAKE_BYTES = 16 * 1024 * 1024
 _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
 
 
@@ -263,40 +264,68 @@ class ProjectStore:
             return artifact
 
     def _recover_evidence(self, project: dict, directory: Path, asset: dict, data: bytes, reader) -> dict:
+        # Everything is built and checked in memory first; nothing is written unless the
+        # combined dossier is valid, so one bad source cannot replace a good evidence.json.
         asset_id = asset['asset_id']
+        artifacts_dir = directory / 'artifacts'
         envelope = reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         if not isinstance(envelope, dict):
             raise ProjectError('Evidence intake returned no result')
         blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')
-        target = directory / 'artifacts' / (asset_id + '.intake.json')
-        _no_links(target)
-        _atomic(target, blob)
         warnings = [w.get('code') for w in envelope.get('warnings') or [] if isinstance(w, dict)]
         artifact = {'asset_id': asset_id, 'kind': 'evidence', 'format': 'intake-json',
-                    'path': str(target), 'source_sha256': asset['sha256'],
+                    'path': str(artifacts_dir / (asset_id + '.intake.json')), 'source_sha256': asset['sha256'],
                     'sha256': hashlib.sha256(blob).hexdigest(), 'decoder': 'rekindra-intake-v1',
                     'intake_format': envelope.get('format'), 'status': envelope.get('status'),
                     'warnings': warnings}
-        project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
+        artifacts = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
         records = []
-        for item in project['artifacts']:
+        for item in artifacts:
             if item.get('kind') != 'evidence':
                 continue
-            path = Path(item['path'])
-            _no_links(path)
-            raw = path.read_bytes()
-            if hashlib.sha256(raw).hexdigest() != item['sha256']:
-                raise ProjectError('Saved intake changed; re-run recovery for that asset')
-            records.append({'source_id': item['asset_id'], 'relative_path': paths[item['asset_id']],
-                            'intake': json.loads(raw.decode('utf-8'))})
+            sid = item.get('asset_id')
+            if not isinstance(sid, str) or not _ID.fullmatch(sid) or sid not in paths:
+                raise ProjectError('Saved evidence refers to an unknown asset')
+            if sid == asset_id:
+                raw = blob
+            else:
+                # Never trust the stored path string: derive it from the asset id.
+                raw = self._read_intake(artifacts_dir / (sid + '.intake.json'))
+                if hashlib.sha256(raw).hexdigest() != item.get('sha256'):
+                    raise ProjectError('Saved intake changed; re-run recovery for that asset')
+            try:
+                intake = json.loads(raw.decode('utf-8'))
+            except (UnicodeDecodeError, ValueError) as exc:
+                raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
+            records.append({'source_id': sid, 'relative_path': paths[sid], 'intake': intake})
         dossier = reader['dossier'](records)
+        if not isinstance(dossier, dict) or dossier.get('status') == 'rejected':
+            codes = [e.get('code') for e in (dossier or {}).get('errors') or [] if isinstance(e, dict)]
+            raise ProjectError('Evidence dossier refused this source; earlier evidence is unchanged'
+                               + (' (' + ', '.join(c for c in codes if c) + ')' if codes else ''))
         dossier_blob = json.dumps(dossier, ensure_ascii=False, sort_keys=True).encode('utf-8')
-        dossier_path = directory / 'artifacts' / 'evidence.json'
+        target = artifacts_dir / (asset_id + '.intake.json')
+        dossier_path = artifacts_dir / 'evidence.json'
+        _no_links(target)
         _no_links(dossier_path)
+        _atomic(target, blob)
         _atomic(dossier_path, dossier_blob)
+        project['artifacts'] = artifacts
         project['evidence'] = {'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
                                'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]}
         project['stage'] = 'recovered'
         self._save(directory, project)
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
+
+    @staticmethod
+    def _read_intake(path: Path) -> bytes:
+        _no_links(path)
+        try:
+            with path.open('rb') as inp:
+                raw = inp.read(_MAX_INTAKE_BYTES + 1)
+        except OSError as exc:
+            raise ProjectError('Saved intake is missing; re-run recovery for that asset') from exc
+        if len(raw) > _MAX_INTAKE_BYTES:
+            raise ProjectError('Saved intake is too large')
+        return raw
