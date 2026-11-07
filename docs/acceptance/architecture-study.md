@@ -1,0 +1,25 @@
+# Independent B01 architecture study
+
+Scope: curated B01 folder, two sourced architectural photographs plus constructed collection notes and index. This is not a personal recovered archive. Native Hermes inspected both photographs and documents, chose its own concept and geometry, and did not read the previous rain/boat/forest scenes. Original renderer168e571, private local testing only.
+
+Fixed graph: source inspection -> brief -> immutable candidate -> original compiler and normal/stationary preview -> visual review -> native tool save/preview -> exact scene/source verification -> encoded export and decoded review. Maximum three complete payloads, including schema/work failures; stop after two consecutive non-improvements. No extra hidden scene attempts or weakened budgets. Artistic acceptance is a separate human/model judgment, not inferred from passing technical tests.
+
+Candidate01: “The Violet Hour Gate.” A copper-doored stone belvedere transforms the observed green roofs, amber vertical lamps, magenta accents and curved overlook into an invented opening mechanism. Native project c86e2eaa390c445a9da73d7bfa9367fa; native plan c3fc42dc341748098d2dc5a3129ec347. Native create once, both native previews viewed.23definitions,54placements,5060cells,1059804work,22detail nodes,2assemblies. Local normal/fixed rendering11.147/10.075seconds under45second limit; actual sampling2x per axis.
+
+Root verified complete saved scene equality, unchanged hashes of all four inputs and current world/player runtime embedded in actual native HTML. Unchanged browser integration checks pass, including exact repeat, motion, playback, seek, cancellation, integrity and no network. Export14seconds1280x720,3,568,647bytes. Root reviewed24decoded frames plus stationary preview and full-size open frame.
+
+Candidate01 visual verdict: technically functional, artistically not accepted as a polished result. Doors open visibly without relying on camera motion, but the gabled rear wall has a triangular opening, material contrast is weak, the interior is sparse, and the circular terrace reads as a model plinth. The first native run reached its900second runtime allowance after one candidate. Its own review recorded these flaws rather than claiming completion.
+
+Ruling: resume only the two unused candidate attempts in a fresh native context; retain the same study ledger, all originals and the maximum of three total payloads. This spends additional local/model time but does not reset an exhausted scene loop. Use one native revision of the existing plan, not another creation or direct store write. No repository/runtime modifications are delegated to Hermes.
+
+Candidate02 rejected before rendering: rationale exceeded the600character schema limit. Preserved as a consumed attempt. Candidate03 corrects that and the nested binary min expression; it is the last permitted complete payload. No fourth candidate or unseen final change.
+
+Candidate03 retained for measurable construction improvement, not artistic acceptance. The actual sampled rear-wall mesh now reaches the roof, with minimum sampled overlap .02 rather than a gap. Six hinge centers remain on their assembly axes across141times each; this is not a continuous collision proof. Doors gain bevel highlights; stone course divisions and seats give the interior more definition. Local normal preview13.453seconds;23definitions,55placements,5120cells,1309752work,122detail nodes,2assemblies. Normal, fixed and full-size join previews reviewed.
+
+Native revision2fe516038b5a4ed781441abb0a8d8d6a preserves the original plan as parent. Root independently checked exact entire scene equality, unchanged original hashes and embedded current runtime. Unchanged full browser export checks pass:14seconds1280x720,3,924,837bytes. Root reviewed24decoded frames as well as normal/fixed/full-size scene previews. No photo planes or external video engine.
+
+Remaining visual failures: conspicuous radial terrace stripes come directly from the authored color_pattern expression `.35+.25*cos(u*80*pi)`; they are not the highlight-AA defect. The bare horizon, dominant circular terrace, simplistic interior and flat stone still read as a miniature schematic. Some shadow edges remain angular. These limitations were recorded by both native agent and root. The new folder demonstrates independent source interpretation and functioning construction, but DOES NOT pass the intended impressive-output quality bar. The three-payload scene unit is closed; restarting the same scene under a new name would violate the loop.
+
+Next plan needs to separate cheap schema preflight from visual iteration and enforce restrained material frequency plus stronger site/composition decisions before spending the visual budget. That is a proposed plan change, not a secretly loosened check in this study.
+
+Evidence: .local/architecture-study and <local path>/home/cache/scratch/architecture-study-20261106. No intake-owned paths changed. This study cannot establish quality across arbitrary folders or operating systems.
