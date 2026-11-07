@@ -304,7 +304,9 @@ class RecoverEvidenceTests(unittest.TestCase):
         locked = artifacts / ('evidence.json.' + old + 'c' * 16 + '.old')
         stale_intake = artifacts / (self.ids['notes.txt'] + '.intake.json.' + old + 'd' * 16 + '.new')
         recent = artifacts / ('evidence.json.' + now + 'e' * 16 + '.old')
-        for path in unrelated + [stale, locked, stale_intake, recent]:
+        soon = artifacts / ('evidence.json.' + f'{time.time_ns() + 60 * 10 ** 9:016x}' + 'f' * 16 + '.old')
+        future = artifacts / ('evidence.json.' + f'{time.time_ns() + 600 * 10 ** 9:016x}' + '1' * 16 + '.old')
+        for path in unrelated + [stale, locked, stale_intake, recent, soon, future]:
             path.write_bytes(b'x')
         os.utime(recent, (0, 0))  # an aside keeps its source's old mtime; the stamp decides
         real_unlink = Path.unlink
@@ -319,6 +321,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.assertFalse(stale.exists())   # ...of the others
         self.assertFalse(stale_intake.exists())
         self.assertTrue(recent.exists())   # inside the grace period: may belong to another process
+        self.assertTrue(soon.exists())     # a clock slightly ahead is still inside it
+        self.assertFalse(future.exists())  # far in the future is outside it, not kept forever
 
     @staticmethod
     def _later():

@@ -374,7 +374,9 @@ class ProjectStore:
         # earlier failed attempt. It never fails a recovery that is already saved. recover()
         # holds _STORE_LOCK for in-process callers; another process sharing the store could
         # have an aside in flight, so other attempts' files are only removed once their stamp
-        # is more than _STAGED_GRACE_SECONDS from now, either way (clocks can disagree).
+        # is more than _STAGED_GRACE_SECONDS from now in either direction. That protects
+        # processes whose clocks agree within the grace period and whose staging (including
+        # fsync) plus commit finish inside it; anything beyond needs a cross-process lock.
         now = time.time_ns()
         try:
             leftovers = [path for path in artifacts_dir.iterdir() if _STAGED.fullmatch(path.name)]
