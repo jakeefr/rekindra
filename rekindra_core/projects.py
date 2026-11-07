@@ -301,7 +301,8 @@ class ProjectStore:
             records.append({'source_id': sid, 'relative_path': paths[sid], 'intake': intake})
         dossier = reader['dossier'](records)
         if not isinstance(dossier, dict) or dossier.get('status') == 'rejected':
-            codes = [e.get('code') for e in (dossier or {}).get('errors') or [] if isinstance(e, dict)]
+            errors = dossier.get('errors') if isinstance(dossier, dict) else None
+            codes = [e.get('code') for e in errors or [] if isinstance(e, dict)]
             raise ProjectError('Evidence dossier refused this source; earlier evidence is unchanged'
                                + (' (' + ', '.join(c for c in codes if c) + ')' if codes else ''))
         dossier_blob = json.dumps(dossier, ensure_ascii=False, sort_keys=True).encode('utf-8')
@@ -309,13 +310,28 @@ class ProjectStore:
         dossier_path = artifacts_dir / 'evidence.json'
         _no_links(target)
         _no_links(dossier_path)
-        _atomic(target, blob)
-        _atomic(dossier_path, dossier_blob)
-        project['artifacts'] = artifacts
-        project['evidence'] = {'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
-                               'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]}
-        project['stage'] = 'recovered'
-        self._save(directory, project)
+        # Keep the previous bytes so a failed later write can put them back and the
+        # manifest's hashes keep matching what is on disk.
+        previous = {path: (path.read_bytes() if path.exists() else None) for path in (target, dossier_path)}
+        updated = dict(project, artifacts=artifacts, stage='recovered',
+                       evidence={'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
+                                 'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]})
+        try:
+            _atomic(target, blob)
+            _atomic(dossier_path, dossier_blob)
+            self._save(directory, updated)
+        except BaseException:
+            for path, old in previous.items():
+                try:
+                    if old is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        _atomic(path, old)
+                except OSError:
+                    pass
+            raise
+        project.clear()
+        project.update(updated)
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
 
     @staticmethod

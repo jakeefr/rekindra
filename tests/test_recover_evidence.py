@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import io
 import json
@@ -175,12 +176,54 @@ class RecoverEvidenceTests(unittest.TestCase):
             before = Path(self.store.status(pid)['evidence']['path']).read_bytes()
             with self.assertRaisesRegex(ProjectError, 'too_many_records'):
                 self.store.recover(pid, ids[3], reader)
+            self.assertFalse((self.store.root / pid / 'artifacts' / (ids[3] + '.intake.json')).exists())
+            self.store.recover(pid, ids[0], reader)  # re-recovery at the limit keeps the count
         finally:
             dossier_module.MAX_RECORDS = limit
         status = self.store.status(pid)
         self.assertEqual(status['evidence']['status'], 'ok')
         self.assertEqual(len(status['evidence']['source_ids']), 3)
-        self.assertEqual(Path(status['evidence']['path']).read_bytes(), before)
+        self.assertEqual(json.loads(Path(status['evidence']['path']).read_bytes())['counts'],
+                         json.loads(before)['counts'])
+
+    def test_unreadable_sibling_intake_is_a_project_error(self):
+        reader = plugin.handlers.evidence_reader()
+        pid = self.project['project_id']
+        self.store.recover(pid, self.ids['notes.txt'], reader)
+        project = self.store.status(pid)
+        intake = self.store.root / pid / 'artifacts' / (self.ids['notes.txt'] + '.intake.json')
+        intake.write_bytes(bytes([255]) + b' not json')
+        manifest = self.store.root / pid / 'project.json'
+        data = json.loads(manifest.read_text(encoding='utf-8'))
+        data['artifacts'][0]['sha256'] = hashlib.sha256(bytes([255]) + b' not json').hexdigest()
+        manifest.write_text(json.dumps(data), encoding='utf-8')
+        with self.assertRaisesRegex(ProjectError, 'Saved intake is not readable'):
+            self.store.recover(pid, self.ids['old.zip'], reader)
+
+    def test_failed_save_restores_files(self):
+        reader = plugin.handlers.evidence_reader()
+        pid = self.project['project_id']
+        self.store.recover(pid, self.ids['notes.txt'], reader)
+        artifacts = self.store.root / pid / 'artifacts'
+        snapshot = {p.name: p.read_bytes() for p in artifacts.iterdir()}
+        manifest_before = self.store.status(pid)
+        original = self.store._save
+        def failing_save(directory, project):
+            raise OSError('disk full')
+        self.store._save = failing_save
+        try:
+            with self.assertRaises(OSError):
+                self.store.recover(pid, self.ids['old.zip'], reader)
+        finally:
+            self.store._save = original
+        self.assertEqual({p.name: p.read_bytes() for p in artifacts.iterdir()}, snapshot)
+        self.assertEqual(self.store.status(pid), manifest_before)
+
+    def test_non_dict_dossier_is_a_project_error(self):
+        reader = plugin.handlers.evidence_reader()
+        with self.assertRaisesRegex(ProjectError, 'earlier evidence is unchanged'):
+            self.store.recover(self.project['project_id'], self.ids['notes.txt'],
+                               {'intake': reader['intake'], 'dossier': lambda records: ['not', 'a', 'dict']})
 
 
 if __name__ == '__main__':
