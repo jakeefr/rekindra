@@ -222,9 +222,44 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         store.projects.status = rejected
         parent = store.load_plan(pid, saved['plan_id'])
         with self.assertRaisesRegex(SceneError, 'rejected'):
+            store.build(pid, saved['plan_id'])
+        with self.assertRaisesRegex(SceneError, 'rejected'):
             store.save_plan(pid, self.world_with(refs), [tga], {}, parent=parent)
         dropped = store.save_plan(pid, world(tga), [tga], {}, parent=parent)
         self.assertNotIn('text_provenance', dropped)
+        self.assertTrue(store.build(pid, dropped['plan_id'])['path'])
+
+    def test_revise_drops_rejected_source_and_keeps_valid_one(self):
+        from unittest import mock
+        note_ids, zip_ids = self.evidence_for('notes.txt'), self.evidence_for('old.zip')
+        pid, tga, note, zipped = self.project['project_id'], self.ids['photo.tga'], self.ids['notes.txt'], self.ids['old.zip']
+        refs = [{'asset_id': note, 'evidence_ids': note_ids[:1], 'interpretation': 'x'},
+                {'asset_id': zipped, 'evidence_ids': zip_ids[:1], 'interpretation': 'y'}]
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        real = type(self.store).status
+
+        def rejected(store, project_id):
+            project = real(store, project_id)
+            for a in project['artifacts']:
+                if a.get('kind') == 'evidence' and a.get('asset_id') == note:
+                    a['status'] = 'rejected'
+            return project
+        with mock.patch.object(type(self.store), 'status', rejected):
+            out = json.loads(self.handlers['rekindra_revise_world'](
+                {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': refs[1:]}]}))
+            self.assertTrue(out['ok'], out)
+            kept = self.compositions().load_plan(pid, out['result']['plan_id'])['text_provenance']
+        self.assertEqual({i['asset_id'] for i in kept['recovered_evidence']}, {zipped})
+        self.assertEqual(kept['recovered_evidence'], saved['text_provenance']['recovered_evidence'][1:])
+
+    def test_malformed_parent_quotes_are_ignored_not_crashed_on(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        parent = {'scene': self.world_with(refs), 'text_provenance': {'recovered_evidence': [
+            {'asset_id': ['not', 'hashable'], 'evidence_id': {}}, 'junk', None]}}
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {}, parent=parent)
+        self.assertEqual(saved['text_provenance']['recovered_evidence'][0]['evidence_id'], ids[0])
 
     def test_carried_quotes_do_not_need_the_live_dossier(self):
         ids = self.evidence_for('notes.txt')

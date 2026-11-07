@@ -117,27 +117,35 @@ class CompositionStore:
                            'kind': 'recovered' if asset['format'].startswith('tga') else 'original'})
         return result
 
-    def text_provenance(self, project_id: str, refs, carried: dict | None = None) -> dict | None:
+    def text_provenance(self, project_id: str, refs, parent: dict | None = None) -> dict | None:
         """Resolve text_references against the saved dossier.
 
         Recovered evidence text and the agent's interpretation are kept in separate
         lists: the interpretation is never labeled or stored as recovered content.
-        carried maps (asset_id, evidence_id) to a quote already checked in a parent
-        plan; those quotes are reused, so a later recovery that rebuilt the dossier
-        does not block edits. Only newly cited pairs need the live dossier. Intake
-        status is checked for every cited asset either way.
+        parent is a parent plan's text_provenance. Its quotes for pairs the new refs
+        still cite are rechecked and reused, so a later recovery that rebuilt the
+        dossier does not block edits; pairs being dropped are ignored. Only newly
+        cited pairs need the live dossier. Intake status is checked for every
+        cited asset either way.
         """
         if refs is None:
             return None
-        carried = carried or {}
         project = self.projects.status(project_id)
         manifest = project.get('evidence')
         if not isinstance(manifest, dict):
             raise SceneError('text_references need recovered evidence; run rekindra_recover on the text or ZIP asset first')
-        live = any((ref['asset_id'], eid) not in carried for ref in refs for eid in ref['evidence_ids'])
-        items = self._dossier_items(project_id, manifest) if live else {}
-        artifacts = {a.get('asset_id'): a for a in project['artifacts'] if a.get('kind') == 'evidence'}
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
+        wanted = {(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']}
+        carried = {}
+        for item in (parent.get('recovered_evidence') if isinstance(parent, dict) else None) or []:
+            if not isinstance(item, dict) or not isinstance(item.get('asset_id'), str) \
+                    or not isinstance(item.get('evidence_id'), str):
+                continue
+            key = (item['asset_id'], item['evidence_id'])
+            if key in wanted and _quote_ok(item, *key, paths):
+                carried[key] = item
+        items = self._dossier_items(project_id, manifest) if wanted - set(carried) else {}
+        artifacts = {a.get('asset_id'): a for a in project['artifacts'] if a.get('kind') == 'evidence'}
         cited = set(manifest.get('source_ids') or [])
         recovered, interpretations = [], []
         for ref in refs:
@@ -220,19 +228,8 @@ class CompositionStore:
                   'scene': normalized, 'source_ids': selected_ids,
                   'sources': [{k: v for k, v in s.items() if k != 'data'} for s in sources],
                   'model': attribution}
-        refs = normalized.get('text_references')
-        carried = {}
-        if parent is not None and refs is not None and isinstance(parent.get('text_provenance'), dict):
-            # Reuse the parent's quotes per (asset, evidence) pair the new plan still
-            # cites. A later recovery may have rebuilt the dossier, which must not
-            # block edits. Each reused quote is rechecked; pairs being dropped are not.
-            wanted = {(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']}
-            paths = {a['asset_id']: a['source_path'] for a in self.projects.status(project_id)['assets']}
-            for item in parent['text_provenance'].get('recovered_evidence') or []:
-                key = (item.get('asset_id'), item.get('evidence_id')) if isinstance(item, dict) else None
-                if key in wanted and _quote_ok(item, *key, paths):
-                    carried[key] = item
-        text = self.text_provenance(project_id, refs, carried)
+        text = self.text_provenance(project_id, normalized.get('text_references'),
+                                    parent.get('text_provenance') if parent is not None else None)
         if text is not None:
             record['text_provenance'] = text
         encoded=json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode()
@@ -261,6 +258,15 @@ class CompositionStore:
 
     def build(self, project_id: str, plan_id: str, review_camera=None) -> dict:
         plan = self.load_plan(project_id, plan_id)
+        if plan['scene'].get('text_references'):
+            # load_plan stays lenient so a revise can drop the citation, but nothing
+            # is built from a plan that cites a source intake now refuses.
+            refused = {a.get('asset_id'): a.get('status') for a in self.projects.status(project_id)['artifacts']
+                       if a.get('kind') == 'evidence' and a.get('status') in ('rejected', 'unsupported')}
+            for ref in plan['scene']['text_references']:
+                if ref['asset_id'] in refused:
+                    raise SceneError(f"text_references asset {ref['asset_id']} was {refused[ref['asset_id']]} "
+                                     'by intake; revise the plan to drop it before building')
         inspection=review_camera is not None
         if inspection:
             if (plan['scene']['schema_version']!=2 or not isinstance(review_camera,dict)
