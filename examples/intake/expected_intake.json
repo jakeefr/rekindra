@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "pack_sha256": "17107448e9599c83c8005bfa71020e1bca0bee36b81d95a4586c3eef4684bed7",
+  "files": [
+    {
+      "path": "archive/old-drafts.zip",
+      "size_bytes": 426,
+      "sha256": "632fa3238b8d8c775c79e71623c29b4085c3e37f5a05e6c330c04bee0dd6a469",
+      "inspector": "inspect_archive",
+      "format": "zip",
+      "status": "ok",
+      "warning_codes": [],
+      "facts": {
+        "entries_inspected": 3,
+        "flagged_entry_count": 0,
+        "total_claimed_uncompressed_bytes": 86,
+        "entry_names": [
+          "drafts/",
+          "drafts/palette.json",
+          "drafts/scene-01.txt"
+        ]
+      }
+    },
+    {
+      "path": "data/cues.csv",
+      "size_bytes": 137,
+      "sha256": "f3b152836bb1af4418b56e4f5e0e209a92152d119ff724b2fa67ea2879f8c7f0",
+      "inspector": "inspect_text",
+      "format": "csv",
+      "status": "ok",
+      "warning_codes": [
+        "csv_formula_like_cells"
+      ],
+      "facts": {
+        "encoding": "utf-8",
+        "bom": false,
+        "line_count": 6,
+        "row_count": 5,
+        "column_count": 4,
+        "first_row": [
+          "cue",
+          "time",
+          "description",
+          "cost"
+        ],
+        "formula_like_cell_count": 1
+      }
+    },
+    {
+      "path": "data/project.json",
+      "size_bytes": 184,
+      "sha256": "17110c387b9fc050a244c0bf146d8f56a1d3985dfb9a642d1166c0dbf29fc3aa",
+      "inspector": "inspect_text",
+      "format": "json",
+      "status": "ok",
+      "warning_codes": [],
+      "facts": {
+        "encoding": "utf-8",
+        "bom": false,
+        "line_count": 12,
+        "valid": true,
+        "root_type": "object",
+        "top_level_keys": [
+          "title",
+          "schema",
+          "revision",
+          "cues",
+          "palette",
+          "collaborators"
+        ],
+        "top_level_key_count": 6,
+        "max_depth": 2
+      }
+    },
+    {
+      "path": "notes/README.md",
+      "size_bytes": 316,
+      "sha256": "194bcbe7ecccd65d873ec589bed8bbdb08e5b1ca458ea2a1b17dcbc70062ca88",
+      "inspector": "inspect_text",
+      "format": "markdown",
+      "status": "ok",
+      "warning_codes": [],
+      "facts": {
+        "encoding": "utf-8",
+        "bom": false,
+        "line_count": 16,
+        "word_count": 59,
+        "heading_count": 3,
+        "headings": [
+          {
+            "level": 1,
+            "line": 1,
+            "text": "The Lantern Tide"
+          },
+          {
+            "level": 2,
+            "line": 5,
+            "text": "Premise"
+          },
+          {
+            "level": 2,
+            "line": 9,
+            "text": "Open questions"
+          }
+        ],
+        "fenced_code_block_count": 1
+      }
+    },
+    {
+      "path": "notes/session-log.txt",
+      "size_bytes": 446,
+      "sha256": "b1ed6deee192bf3c1fb15d517f5d607121c849bbb66bad2670384affaa69ee01",
+      "inspector": "inspect_text",
+      "format": "text",
+      "status": "ok",
+      "warning_codes": [],
+      "facts": {
+        "encoding": "utf-16-le",
+        "bom": true,
+        "line_count": 5,
+        "word_count": 36,
+        "heading_count": 0
+      }
+    },
+    {
+      "path": "textures/ember.tga",
+      "size_bytes": 30,
+      "sha256": "37a4b90d8709c1a65f82310e9d8459658863c2b6f3bec69b80d648cc19234213",
+      "inspector": null,
+      "note": "Optional whole-product image. Not handled by rekindra_intake."
+    }
+  ]
+}

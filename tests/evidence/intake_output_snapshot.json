@@ -1,0 +1,346 @@
+{
+ "synthetic": true,
+ "note": "Invented inputs run once through the rekindra_intake code at a0a83ed. Saved output only; nothing here imports intake.",
+ "records": [
+  {
+   "source_id": "text",
+   "relative_path": "notes/log.txt",
+   "intake": {
+    "schema_version": 1,
+    "format": "text",
+    "status": "ok",
+    "source": {
+     "name": "log.txt",
+     "size_bytes": 17,
+     "sha256": "9726819fcdf6f977bb9f39364c6dabc4db08dfc83dd44a0ef1571a756bb9856d"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 1,
+     "blank_line_count": 0,
+     "char_count": 17,
+     "word_count": 3,
+     "longest_line_chars": 16,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "headings": [],
+     "heading_count": 0,
+     "headings_truncated": false,
+     "fenced_code_block_count": 0,
+     "excerpt": "the harbour bell\n",
+     "excerpt_truncated": false
+    },
+    "warnings": []
+   }
+  },
+  {
+   "source_id": "copy",
+   "relative_path": "backup/old.txt",
+   "intake": {
+    "schema_version": 1,
+    "format": "text",
+    "status": "ok",
+    "source": {
+     "name": "old.txt",
+     "size_bytes": 17,
+     "sha256": "9726819fcdf6f977bb9f39364c6dabc4db08dfc83dd44a0ef1571a756bb9856d"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 1,
+     "blank_line_count": 0,
+     "char_count": 17,
+     "word_count": 3,
+     "longest_line_chars": 16,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "headings": [],
+     "heading_count": 0,
+     "headings_truncated": false,
+     "fenced_code_block_count": 0,
+     "excerpt": "the harbour bell\n",
+     "excerpt_truncated": false
+    },
+    "warnings": []
+   }
+  },
+  {
+   "source_id": "md",
+   "relative_path": "notes/plan.md",
+   "intake": {
+    "schema_version": 1,
+    "format": "markdown",
+    "status": "ok",
+    "source": {
+     "name": "plan.md",
+     "size_bytes": 21,
+     "sha256": "d234cfa8eca4f853ca0bd2fe7e382f1d368a650ddf219fe1f46acb5cb5909470"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 3,
+     "blank_line_count": 1,
+     "char_count": 21,
+     "word_count": 4,
+     "longest_line_chars": 14,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "headings": [
+      {
+       "level": 1,
+       "line": 1,
+       "text": "Harbour plan"
+      }
+     ],
+     "heading_count": 1,
+     "headings_truncated": false,
+     "fenced_code_block_count": 0,
+     "excerpt": "# Harbour plan\n\nbody\n",
+     "excerpt_truncated": false
+    },
+    "warnings": []
+   }
+  },
+  {
+   "source_id": "json",
+   "relative_path": "data/p.json",
+   "intake": {
+    "schema_version": 1,
+    "format": "json",
+    "status": "ok",
+    "source": {
+     "name": "p.json",
+     "size_bytes": 22,
+     "sha256": "de4dc1911ff633e24eeb1223f3504c42619169cea605c45c5a2e5f088097e0e8"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 1,
+     "blank_line_count": 0,
+     "char_count": 22,
+     "word_count": 4,
+     "longest_line_chars": 22,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "valid": true,
+     "root_type": "object",
+     "max_depth": 1,
+     "top_level_keys": [
+      "title",
+      "n"
+     ],
+     "top_level_key_count": 2,
+     "top_level_keys_truncated": false,
+     "excerpt": "{\"title\": \"x\", \"n\": 1}",
+     "excerpt_truncated": false
+    },
+    "warnings": []
+   }
+  },
+  {
+   "source_id": "csv",
+   "relative_path": "data/c.csv",
+   "intake": {
+    "schema_version": 1,
+    "format": "csv",
+    "status": "ok",
+    "source": {
+     "name": "c.csv",
+     "size_bytes": 20,
+     "sha256": "f80bf8b6de1bc5f1c61124b685b0e01f76e9fcddaee9d1d28c2c883f898e97aa"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 2,
+     "blank_line_count": 0,
+     "char_count": 20,
+     "word_count": 2,
+     "longest_line_chars": 10,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "row_count": 2,
+     "column_count": 2,
+     "min_column_count": 2,
+     "blank_row_count": 0,
+     "first_row": [
+      "cue",
+      "cost"
+     ],
+     "next_rows": [
+      [
+       "1",
+       "=SUM(A1)"
+      ]
+     ],
+     "preview_rows_truncated": false,
+     "preview_columns_truncated": false,
+     "preview_cells_truncated": false,
+     "formula_like_cell_count": 1,
+     "excerpt": "cue,cost\n1,=SUM(A1)\n",
+     "excerpt_truncated": false
+    },
+    "warnings": [
+     {
+      "code": "csv_formula_like_cells",
+      "message": "Some cells look like spreadsheet formulas. They are inert text here."
+     }
+    ]
+   }
+  },
+  {
+   "source_id": "bad",
+   "relative_path": "data/bad.json",
+   "intake": {
+    "schema_version": 1,
+    "format": "json",
+    "status": "rejected",
+    "source": {
+     "name": "bad.json",
+     "size_bytes": 10,
+     "sha256": "13ef7bbcda554c8b199abec178787dcc66021c7746aac5b2af8770a3709d9970"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 1,
+     "blank_line_count": 0,
+     "char_count": 10,
+     "word_count": 2,
+     "longest_line_chars": 10,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "valid": false,
+     "root_type": null,
+     "excerpt": "{\"a\": NaN}",
+     "excerpt_truncated": false
+    },
+    "warnings": [
+     {
+      "code": "json_non_finite_number",
+      "message": "NaN, Infinity or an out-of-range number is not valid finite JSON."
+     }
+    ]
+   }
+  },
+  {
+   "source_id": "png",
+   "relative_path": "img/a.png",
+   "intake": {
+    "schema_version": 1,
+    "format": "unknown",
+    "status": "unsupported",
+    "source": {
+     "name": "a.png",
+     "size_bytes": 10,
+     "sha256": "3d5ccb0cef4d3fd8b2474faf2038fbbb654c5c4e992aef8df4a48e8a3372d362"
+    },
+    "facts": {
+     "extension": ".png"
+    },
+    "warnings": [
+     {
+      "code": "unsupported_extension",
+      "message": "This file extension is not handled by the text inspector."
+     }
+    ]
+   }
+  },
+  {
+   "source_id": "cut",
+   "relative_path": "notes/cut.txt",
+   "intake": {
+    "schema_version": 1,
+    "format": "text",
+    "status": "partial",
+    "source": {
+     "name": "cut.txt",
+     "size_bytes": 5,
+     "sha256": "cdf874123a3461ca95eba4d0231f4ee1db2a8248f6b9c40b259ff51b0bda2dbd"
+    },
+    "facts": {
+     "encoding": "utf-8",
+     "bom": false,
+     "line_count": 1,
+     "blank_line_count": 0,
+     "char_count": 3,
+     "word_count": 1,
+     "longest_line_chars": 3,
+     "control_character_count": 0,
+     "untrusted_content": true,
+     "decoded_bytes": 3,
+     "undecoded_bytes": 2,
+     "first_invalid_offset": 3,
+     "headings": [],
+     "heading_count": 0,
+     "headings_truncated": false,
+     "fenced_code_block_count": 0,
+     "excerpt": "ok ",
+     "excerpt_truncated": false
+    },
+    "warnings": [
+     {
+      "code": "encoding_truncated",
+      "message": "Decoding stopped at the first invalid byte; only the valid prefix is described."
+     }
+    ]
+   }
+  },
+  {
+   "source_id": "zip",
+   "relative_path": "a/b.zip",
+   "intake": {
+    "schema_version": 1,
+    "format": "zip",
+    "status": "ok",
+    "source": {
+     "name": "b.zip",
+     "size_bytes": 121,
+     "sha256": "de41572814f9fcd3f477b9fa2a10e6940f567fb01c37c87a78c810a67b82d575"
+    },
+    "facts": {
+     "archive_type": "zip",
+     "entry_count_declared": 1,
+     "entries_inspected": 1,
+     "entries_truncated": false,
+     "flagged_entry_count": 1,
+     "total_compressed_bytes": 1,
+     "total_claimed_uncompressed_bytes": 1,
+     "comment_bytes": 0,
+     "payloads_read": false,
+     "extraction_performed": false,
+     "claimed_sizes_verified": false,
+     "untrusted_content": true,
+     "entries": [
+      {
+       "name": "../evil.txt",
+       "name_encoding": "utf-8",
+       "name_bytes": 11,
+       "name_truncated": false,
+       "is_directory": false,
+       "compressed_size_bytes": 1,
+       "claimed_uncompressed_size_bytes": 1,
+       "compression_method": 0,
+       "compression_method_name": "stored",
+       "claimed_crc32": "8cdc1683",
+       "encrypted": false,
+       "safety_warnings": [
+        "path_traversal"
+       ]
+      }
+     ]
+    },
+    "warnings": [
+     {
+      "code": "path_traversal",
+      "message": "An entry name climbs out of its directory with parent-directory segments."
+     }
+    ]
+   }
+  }
+ ]
+}
