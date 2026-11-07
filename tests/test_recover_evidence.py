@@ -275,9 +275,14 @@ class RecoverEvidenceTests(unittest.TestCase):
         intake_name = self.ids['notes.txt'] + '.intake.json'
         kept = list(artifacts.glob(intake_name + '.*.old'))
         self.assertEqual([k.read_bytes() for k in kept], [snapshot[intake_name]])
+        self.assertIn(kept[0].name, str(error))
+        self.assertEqual(len(list(artifacts.glob('evidence.json.*.old'))), 1)
+        self.assertFalse((artifacts / 'evidence.json').exists())
         with self.assertRaisesRegex(ProjectError, 'Saved intake changed'):
             self.store.recover(self.project['project_id'], self.ids['old.zip'], base)
         self.assertTrue(all(k.exists() for k in kept))
+        self.store.recover(self.project['project_id'], self.ids['notes.txt'], base)  # documented way out
+        self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
 
     def test_sweep_leaves_unrelated_files(self):
         pid = self.project['project_id']
@@ -285,10 +290,12 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.store.recover(pid, self.ids['notes.txt'], reader)
         artifacts = self.store.root / pid / 'artifacts'
         unrelated = [artifacts / 'keep.tmp', artifacts / ('foo.json.' + 'a' * 32 + '.old')]
-        for path in unrelated:
+        stale = artifacts / ('evidence.json.' + 'b' * 32 + '.old')
+        for path in unrelated + [stale]:
             path.write_bytes(b'x')
         self.store.recover(pid, self.ids['old.zip'], reader)
         self.assertTrue(all(path.exists() for path in unrelated))
+        self.assertFalse(stale.exists())
 
     def test_described_cap_matches_dossier_limit(self):
         plugin.handlers.evidence_reader()

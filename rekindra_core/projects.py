@@ -367,13 +367,17 @@ class ProjectStore:
         project.clear()
         project.update(updated)
         # Committed: best-effort removal of this attempt's aside copies and any left by an
-        # earlier failed attempt. It never fails a recovery that is already saved.
+        # earlier failed attempt. It never fails a recovery that is already saved. recover()
+        # holds _STORE_LOCK, so no other in-process recovery has an aside in flight here.
         try:
-            for leftover in artifacts_dir.iterdir():
-                if _STAGED.fullmatch(leftover.name):
-                    leftover.unlink(missing_ok=True)
+            leftovers = [path for path in artifacts_dir.iterdir() if _STAGED.fullmatch(path.name)]
         except OSError:
-            pass
+            leftovers = []
+        for leftover in leftovers:
+            try:
+                leftover.unlink(missing_ok=True)
+            except OSError:
+                continue
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
 
     @staticmethod
