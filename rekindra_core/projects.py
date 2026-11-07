@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 import re
 import stat
@@ -24,6 +25,7 @@ _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip')
 _MAX_INTAKE_BYTES = 16 * 1024 * 1024
+_STAGED = re.compile(r'^(?:[0-9a-f]{32}\.intake|evidence)\.json\.[0-9a-f]{32}\.(?:new|old)$')
 _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
 
 
@@ -336,27 +338,36 @@ class ProjectStore:
             committed = True
         finally:
             if not committed:
-                failed = []
+                kept = []
                 for path in promoted:
                     if not any(path == m for m, _ in moved):
                         try:
                             path.unlink(missing_ok=True)
                         except OSError:
-                            failed.append(path.name)
+                            pass
                 for path, aside in moved:
                     try:
                         os.replace(aside, path)
                     except OSError:
-                        failed.append(path.name)
-                if failed:
-                    raise ProjectError('Evidence files could not be restored after a failed write; '
-                                       're-run recovery for this asset (' + ', '.join(failed) + ')')
-            for _, staged, aside, _ in swaps:
-                for leftover in (staged, aside):
+                        kept.append(aside.name)
+                for _, staged, _, _ in swaps:
                     try:
-                        leftover.unlink(missing_ok=True)
+                        staged.unlink(missing_ok=True)
                     except OSError:
                         pass
+                pending = sys.exc_info()[1]
+                if kept and (pending is None or isinstance(pending, Exception)):
+                    # The set-aside files are now the only copy of the previous bytes: keep them.
+                    raise ProjectError('Evidence files could not be restored after a failed write; previous bytes '
+                                       'are kept in artifacts as ' + ', '.join(kept)
+                                       + '. Re-run recovery for this asset to rebuild them.')
+        # Committed: drop this attempt's aside copies and any left by an earlier failed attempt.
+        for leftover in artifacts_dir.iterdir():
+            if _STAGED.fullmatch(leftover.name):
+                try:
+                    leftover.unlink()
+                except OSError:
+                    pass
         project.clear()
         project.update(updated)
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}

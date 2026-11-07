@@ -2,10 +2,12 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import zipfile
 
 from rekindra_core.projects import ProjectStore, ProjectError
@@ -201,64 +203,63 @@ class RecoverEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ProjectError, 'Saved intake is not readable'):
             self.store.recover(pid, self.ids['old.zip'], reader)
 
-    def _failing_write(self, asset, patch_target, make_failing, expect=OSError):
-        reader = plugin.handlers.evidence_reader()
+    def _failing_write(self, asset, patcher, expect=OSError, reader=None):
         pid = self.project['project_id']
-        self.store.recover(pid, self.ids['notes.txt'], reader)
+        self.store.recover(pid, self.ids['notes.txt'], plugin.handlers.evidence_reader())
         artifacts = self.store.root / pid / 'artifacts'
         snapshot = {p.name: p.read_bytes() for p in artifacts.iterdir()}
         manifest_before = self.store.status(pid)
-        owner, name = patch_target
-        original = getattr(owner, name)
-        setattr(owner, name, make_failing(original))
-        try:
-            with self.assertRaises(expect) as caught:
-                self.store.recover(pid, self.ids[asset], reader)
-        finally:
-            setattr(owner, name, original)
+        with patcher, self.assertRaises(expect) as caught:
+            self.store.recover(pid, self.ids[asset], reader or plugin.handlers.evidence_reader())
         return artifacts, snapshot, manifest_before, caught.exception
 
     def _assert_unchanged(self, artifacts, snapshot, manifest_before):
         self.assertEqual({p.name: p.read_bytes() for p in artifacts.iterdir()}, snapshot)
         self.assertEqual(self.store.status(self.project['project_id']), manifest_before)
 
+    @staticmethod
+    def _replace_failing_on(predicate, message):
+        real = os.replace
+        def replace(src, dst):
+            if predicate(str(src), Path(dst).name):
+                raise OSError(message)
+            return real(src, dst)
+        return mock.patch.object(os, 'replace', replace)  # process-wide os.replace, scoped to the with block
+
     def test_failed_save_restores_files_for_new_source(self):
-        def failing(_):
-            def save(directory, project):
-                raise OSError('disk full')
-            return save
-        artifacts, snapshot, before, _ = self._failing_write('old.zip', (self.store, '_save'), failing)
-        self._assert_unchanged(artifacts, snapshot, before)
+        patcher = mock.patch.object(self.store, '_save', side_effect=OSError('disk full'))
+        self._assert_unchanged(*self._failing_write('old.zip', patcher)[:3])
 
     def test_failed_save_restores_existing_intake_on_rerecovery(self):
-        def failing(_):
-            def save(directory, project):
-                raise OSError('disk full')
-            return save
-        artifacts, snapshot, before, _ = self._failing_write('notes.txt', (self.store, '_save'), failing)
-        self._assert_unchanged(artifacts, snapshot, before)
+        base = plugin.handlers.evidence_reader()
+        def changed_intake(fmt, data, name):
+            return dict(base['intake'](fmt, data, name), changed_on_rerun=True)  # forces different bytes
+        reader = {'intake': changed_intake, 'dossier': base['dossier']}
+        patcher = mock.patch.object(self.store, '_save', side_effect=OSError('disk full'))
+        self._assert_unchanged(*self._failing_write('notes.txt', patcher, reader=reader)[:3])
 
     def test_failed_dossier_promote_restores_files(self):
-        projects_os = sys.modules['rekindra_core.projects'].os
-        def failing(real):
-            def replace(src, dst):
-                if str(src).endswith('.new') and Path(dst).name == 'evidence.json':
-                    raise OSError('sharing violation')
-                return real(src, dst)
-            return replace
-        artifacts, snapshot, before, _ = self._failing_write('old.zip', (projects_os, 'replace'), failing)
-        self._assert_unchanged(artifacts, snapshot, before)
+        patcher = self._replace_failing_on(lambda src, dst: src.endswith('.new') and dst == 'evidence.json',
+                                           'sharing violation')
+        self._assert_unchanged(*self._failing_write('old.zip', patcher)[:3])
 
-    def test_failed_restore_is_reported(self):
-        projects_os = sys.modules['rekindra_core.projects'].os
-        def failing(real):
-            def replace(src, dst):
-                if str(src).endswith('.old') or (str(src).endswith('.new') and Path(dst).name == 'evidence.json'):
-                    raise OSError('locked')
-                return real(src, dst)
-            return replace
-        *_, error = self._failing_write('old.zip', (projects_os, 'replace'), failing, ProjectError)
-        self.assertIn('could not be restored', str(error))
+    def test_failed_restore_keeps_and_names_previous_bytes(self):
+        patcher = self._replace_failing_on(
+            lambda src, dst: src.endswith('.old') or (src.endswith('.new') and dst == 'evidence.json'), 'locked')
+        artifacts, snapshot, _, error = self._failing_write('old.zip', patcher, ProjectError)
+        asides = list(artifacts.glob('evidence.json.*.old'))
+        self.assertEqual(len(asides), 1)
+        self.assertEqual(asides[0].read_bytes(), snapshot['evidence.json'])
+        self.assertIn(asides[0].name, str(error))
+        self.assertFalse(list(artifacts.glob('*.new')))
+        # The next successful recovery sweeps the kept copy.
+        self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
+        self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
+
+    def test_interrupt_is_not_replaced_by_restore_error(self):
+        patcher = mock.patch.object(self.store, '_save', side_effect=KeyboardInterrupt)
+        with self._replace_failing_on(lambda src, dst: src.endswith('.old'), 'locked'):
+            self._failing_write('notes.txt', patcher, KeyboardInterrupt)
 
     def test_described_cap_matches_dossier_limit(self):
         plugin.handlers.evidence_reader()
