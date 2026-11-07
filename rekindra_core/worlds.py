@@ -76,6 +76,7 @@ def _text_references(refs):
                 or any(not isinstance(e,str) or not _EVIDENCE_ID.fullmatch(e) for e in ids) or len(set(ids))!=len(ids)):
             raise SceneError('Each text reference needs 1-4 unique evidence_id values from rekindra_recover')
         _text(ref['interpretation'],300,'text reference interpretation')
+        if not ref['interpretation'].strip():raise SceneError('Text reference interpretation cannot be blank')
 
 
 def validate_world(value,asset_ids):
@@ -258,7 +259,7 @@ WORLD_SCHEMA['properties']['text_references']={'type':'array','minItems':1,'maxI
     'description':'Optional. Cite recovered text evidence that shaped this world. asset_id is a text/ZIP asset you ran rekindra_recover on; evidence_ids are its evidence_id values; interpretation is YOUR reading of that evidence (stored as agent interpretation, never as recovered content).',
     'items':obj_schema({'asset_id':TEXT,
         'evidence_ids':{'type':'array','minItems':1,'maxItems':4,'uniqueItems':True,'items':{'type':'string','pattern':_EVIDENCE_ID.pattern}},
-        'interpretation':{'type':'string','maxLength':300}})}
+        'interpretation':{'type':'string','minLength':1,'maxLength':300}})}
 # Optional studio-light controls preserve all existing v2 plans.
 WORLD_SCHEMA['properties']['camera']['items']['properties']['cut']={'type':'boolean','description':'Optional shot cut at this exact key time. Hold previous pose until this instant, then jump without resetting object time. First key cannot cut; absent/false interpolates normally.'}
 WORLD_SCHEMA['properties']['environment']['properties'].update({

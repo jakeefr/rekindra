@@ -32,7 +32,7 @@ class TextReferenceShapeTests(unittest.TestCase):
     def test_rejects_bad_shapes(self):
         bad = [[], [self.ref()] * 2, [self.ref()] + [self.ref(asset_id=c * 32) for c in 'cdef'],
                [self.ref(evidence_ids=[])], [self.ref(evidence_ids=[EV, EV])], [self.ref(evidence_ids=['ev-xyz'])],
-               [self.ref(evidence_ids=[EV] * 5)], [self.ref(interpretation='x' * 301)], [self.ref(interpretation=3)],
+               [self.ref(evidence_ids=[EV] * 5)], [self.ref(interpretation='x' * 301)], [self.ref(interpretation=3)], [self.ref(interpretation='  ')],
                [dict(self.ref(), text='smuggled recovered text')], [{'asset_id': 'b' * 32}], 'nope']
         for refs in bad:
             scene = world(); scene['text_references'] = refs
@@ -47,6 +47,8 @@ class TextReferenceShapeTests(unittest.TestCase):
         self.assertNotIn('text_references', removed)
         with self.assertRaises(SceneError):
             revise_world(scene, [{'field': 'title', 'value': None}], {'a' * 32})
+        with self.assertRaises(SceneError):
+            revise_world(scene, [{'field': 'assemblies', 'value': None}], {'a' * 32})
 
 
 class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
@@ -139,12 +141,37 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         path.write_text(json.dumps(record), encoding='utf-8')
         with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
             self.compositions().load_plan(pid, saved['plan_id'])
-        evidence = self.store._project(pid) / 'artifacts' / 'evidence.json'
-        evidence.write_bytes(evidence.read_bytes() + b' ')
         record['text_provenance']['interpretations'][0]['recovered'] = False
+        record['text_provenance']['recovered_evidence'][0]['text'] += ' forged'
         path.write_text(json.dumps(record), encoding='utf-8')
-        with self.assertRaisesRegex(SceneError, 'evidence changed'):
+        with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
             self.compositions().load_plan(pid, saved['plan_id'])
+
+    def test_plan_survives_later_recoveries_that_rebuild_the_dossier(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids, 'interpretation': 'x'}]
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        evidence = self.store._project(pid) / 'artifacts' / 'evidence.json'
+        before = evidence.read_bytes()
+        self.evidence_for('old.zip'); self.recover('bad.json')
+        # Simulate a rebuild that reshapes or evicts the cited items entirely.
+        dossier = json.loads(evidence.read_text(encoding='utf-8'))
+        self.assertNotEqual(evidence.read_bytes(), before)
+        dossier['evidence'] = [e for e in dossier['evidence'] if e['source_id'] != self.ids['notes.txt']]
+        blob = json.dumps(dossier, ensure_ascii=False, sort_keys=True).encode('utf-8')
+        evidence.write_bytes(blob)
+        manifest = self.store._project(pid) / 'project.json'
+        project = json.loads(manifest.read_text(encoding='utf-8'))
+        import hashlib
+        project['evidence']['sha256'] = hashlib.sha256(blob).hexdigest()
+        manifest.write_text(json.dumps(project), encoding='utf-8')
+        loaded = self.compositions().load_plan(pid, saved['plan_id'])
+        self.assertEqual(loaded['text_provenance'], saved['text_provenance'])
+        self.assertTrue(self.compositions().build(pid, saved['plan_id'])['path'])
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': None}]}))
+        self.assertTrue(out['ok'], out)
 
     def test_world_and_revise_handlers_carry_text_references(self):
         ids = self.evidence_for('notes.txt')

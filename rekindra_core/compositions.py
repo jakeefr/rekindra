@@ -43,6 +43,23 @@ def jpeg_dimensions(data: bytes) -> tuple[int, int]:
     raise SceneError('Missing or truncated JPEG frame header')
 
 
+_RECOVERED_KEYS = frozenset(('asset_id', 'source_path', 'evidence_id', 'kind', 'locator', 'text',
+                             'clipped', 'content', 'untrusted'))
+
+
+def _interpretation(ref: dict) -> dict:
+    return {'asset_id': ref['asset_id'], 'evidence_ids': list(ref['evidence_ids']),
+            'interpretation': ref['interpretation'],
+            'content': 'interpretation', 'origin': 'agent', 'recovered': False}
+
+
+def _evidence_id(source_id: str, locator, text: str) -> str:
+    # Same derivation as rekindra_evidence._dossier._evidence: the ID commits to
+    # the source, the locator and the exact quoted text.
+    digest = hashlib.sha256(json.dumps([source_id, locator, text], sort_keys=True).encode('utf-8')).hexdigest()
+    return f'ev-{digest[:24]}'
+
+
 class CompositionStore:
     def __init__(self, projects: ProjectStore):
         self.projects = projects
@@ -135,13 +152,37 @@ class CompositionStore:
                 if item is None or item.get('source_id') != aid:
                     raise SceneError(f'Evidence {eid} was not recovered from asset {aid}')
                 recovered.append({'asset_id': aid, 'source_path': paths[aid], 'evidence_id': eid,
-                                  'kind': item.get('kind'), 'text': item.get('text'),
+                                  'kind': item.get('kind'), 'locator': item.get('locator'), 'text': item.get('text'),
                                   'clipped': bool(item.get('clipped')),
                                   'content': 'recovered', 'untrusted': True})
-            interpretations.append({'asset_id': aid, 'evidence_ids': list(ref['evidence_ids']),
-                                    'interpretation': ref['interpretation'],
-                                    'content': 'interpretation', 'origin': 'agent', 'recovered': False})
+            interpretations.append(_interpretation(ref))
         return {'recovered_evidence': recovered, 'interpretations': interpretations}
+
+    def check_text_provenance(self, project_id: str, refs, stored) -> None:
+        """Check a saved plan's text provenance without the live dossier.
+
+        Recovering another source rebuilds evidence.json and may reshape or evict
+        items, so a saved plan keeps its own quoted copy. Each copy must still hash
+        to its cited evidence_id, and the interpretations must match the scene.
+        """
+        if refs is None:
+            if stored is not None:
+                raise SceneError('Plan text evidence provenance has changed')
+            return
+        paths = {a['asset_id']: a['source_path'] for a in self.projects.status(project_id)['assets']}
+        wanted = [(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']]
+        if (not isinstance(stored, dict) or set(stored) != {'recovered_evidence', 'interpretations'}
+                or stored['interpretations'] != [_interpretation(ref) for ref in refs]
+                or not isinstance(stored['recovered_evidence'], list)
+                or len(stored['recovered_evidence']) != len(wanted)):
+            raise SceneError('Plan text evidence provenance has changed')
+        for item, (aid, eid) in zip(stored['recovered_evidence'], wanted):
+            if (not isinstance(item, dict) or set(item) != _RECOVERED_KEYS
+                    or item['asset_id'] != aid or item['evidence_id'] != eid
+                    or item['source_path'] != paths.get(aid) or item['content'] != 'recovered'
+                    or item['untrusted'] is not True or not isinstance(item['text'], str)
+                    or _evidence_id(aid, item['locator'], item['text']) != eid):
+                raise SceneError('Plan text evidence provenance has changed')
 
     def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict) -> dict:
         sources = self.sources(project_id, selected_ids)
@@ -175,8 +216,7 @@ class CompositionStore:
             expected = record.get('sources')
             actual = [{k: v for k, v in s.items() if k != 'data'} for s in sources]
             if expected != actual: raise SceneError('Plan source provenance has changed')
-            if record.get('text_provenance') != self.text_provenance(project_id, record['scene'].get('text_references')):
-                raise SceneError('Plan text evidence provenance has changed')
+            self.check_text_provenance(project_id, record['scene'].get('text_references'), record.get('text_provenance'))
             return record
         except (OSError, json.JSONDecodeError) as exc:
             raise SceneError('Cannot load this scene plan') from exc
