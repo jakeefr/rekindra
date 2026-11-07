@@ -57,11 +57,33 @@ def compile_surface(obj):
     return result
 
 
+_EVIDENCE_ID=re.compile(r'ev-[0-9a-f]{24}')
+
+
+def _text_references(refs):
+    # Shape only. Whether each cited asset and evidence_id really exists in the
+    # project's recovered dossier is checked where the project is known
+    # (CompositionStore), because world validation sees image IDs only.
+    if not isinstance(refs,list) or not 1<=len(refs)<=4:raise SceneError('text_references needs 1-4 entries')
+    seen=set()
+    for ref in refs:
+        fields(ref,'asset_id evidence_ids interpretation','text reference')
+        aid=ref['asset_id']
+        if not isinstance(aid,str) or not 1<=len(aid)<=64 or aid in seen:raise SceneError('Invalid or repeated text reference asset_id')
+        seen.add(aid)
+        ids=ref['evidence_ids']
+        if (not isinstance(ids,list) or not 1<=len(ids)<=4
+                or any(not isinstance(e,str) or not _EVIDENCE_ID.fullmatch(e) for e in ids) or len(set(ids))!=len(ids)):
+            raise SceneError('Each text reference needs 1-4 unique evidence_id values from rekindra_recover')
+        _text(ref['interpretation'],300,'text reference interpretation')
+
+
 def validate_world(value,asset_ids):
     if not isinstance(value,dict):raise SceneError('Invalid world fields')
-    fields({k:v for k,v in value.items() if k!='assemblies'},'schema_version title mood reason duration width height seed references environment camera objects','world')
+    fields({k:v for k,v in value.items() if k not in ('assemblies','text_references')},'schema_version title mood reason duration width height seed references environment camera objects','world')
     s=copy.deepcopy(value)
     assemblies=compile_assemblies(s.get('assemblies',[]))
+    if 'text_references' in s:_text_references(s['text_references'])
     if type(s['schema_version']) is not int or s['schema_version']!=2:raise SceneError('Unsupported world version')
     for name,limit in (('title',100),('mood',100),('reason',600)):_text(s[name],limit,name)
     _number(s['duration'],4,30,'duration');_number(s['width'],1280,1280,'width',True);_number(s['height'],720,720,'height',True)
@@ -231,6 +253,12 @@ WORLD_SCHEMA=obj_schema({
     'objects':{'type':'array','minItems':1,'maxItems':MAX_SURFACES,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
+# Optional: absent in older plans, so it stays out of the required list.
+WORLD_SCHEMA['properties']['text_references']={'type':'array','minItems':1,'maxItems':4,
+    'description':'Optional. Cite recovered text evidence that shaped this world. asset_id is a text/ZIP asset you ran rekindra_recover on; evidence_ids are its evidence_id values; interpretation is YOUR reading of that evidence (stored as agent interpretation, never as recovered content).',
+    'items':obj_schema({'asset_id':TEXT,
+        'evidence_ids':{'type':'array','minItems':1,'maxItems':4,'uniqueItems':True,'items':{'type':'string','pattern':_EVIDENCE_ID.pattern}},
+        'interpretation':{'type':'string','maxLength':300}})}
 # Optional studio-light controls preserve all existing v2 plans.
 WORLD_SCHEMA['properties']['camera']['items']['properties']['cut']={'type':'boolean','description':'Optional shot cut at this exact key time. Hold previous pose until this instant, then jump without resetting object time. First key cannot cut; absent/false interpolates normally.'}
 WORLD_SCHEMA['properties']['environment']['properties'].update({

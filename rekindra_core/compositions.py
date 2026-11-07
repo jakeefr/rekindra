@@ -8,7 +8,7 @@ from pathlib import Path
 import struct
 import uuid
 
-from .projects import ProjectStore, ProjectError, _no_links, _atomic, _ID
+from .projects import ProjectStore, ProjectError, _no_links, _atomic, _ID, _MAX_INTAKE_BYTES
 from .scenes import validate_scene, SceneError
 
 RUNTIME = Path(__file__).resolve().parents[1] / 'runtime'
@@ -91,6 +91,58 @@ class CompositionStore:
                            'kind': 'recovered' if asset['format'].startswith('tga') else 'original'})
         return result
 
+    def text_provenance(self, project_id: str, refs) -> dict | None:
+        """Resolve text_references against the saved dossier.
+
+        Recovered evidence text and the agent's interpretation are kept in separate
+        lists: the interpretation is never labeled or stored as recovered content.
+        """
+        if refs is None:
+            return None
+        project = self.projects.status(project_id)
+        manifest = project.get('evidence')
+        if not isinstance(manifest, dict):
+            raise SceneError('text_references need recovered evidence; run rekindra_recover on the text or ZIP asset first')
+        path = self.projects._project(project_id) / 'artifacts' / 'evidence.json'
+        _no_links(path)
+        try:
+            with path.open('rb') as inp:
+                raw = inp.read(_MAX_INTAKE_BYTES + 1)
+        except OSError as exc:
+            raise SceneError('Saved evidence is missing; re-run rekindra_recover') from exc
+        if len(raw) > _MAX_INTAKE_BYTES or hashlib.sha256(raw).hexdigest() != manifest.get('sha256'):
+            raise SceneError('Saved evidence changed; re-run rekindra_recover')
+        try:
+            dossier = json.loads(raw.decode('utf-8'))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise SceneError('Saved evidence is not readable; re-run rekindra_recover') from exc
+        if not isinstance(dossier, dict):
+            raise SceneError('Saved evidence is not readable; re-run rekindra_recover')
+        artifacts = {a.get('asset_id'): a for a in project['artifacts'] if a.get('kind') == 'evidence'}
+        paths = {a['asset_id']: a['source_path'] for a in project['assets']}
+        items = {e.get('evidence_id'): e for e in dossier.get('evidence') or [] if isinstance(e, dict)}
+        cited = set(manifest.get('source_ids') or [])
+        recovered, interpretations = [], []
+        for ref in refs:
+            aid = ref['asset_id']
+            artifact = artifacts.get(aid)
+            if artifact is None or aid not in cited or aid not in paths:
+                raise SceneError(f'text_references asset {aid} has no recovered evidence; run rekindra_recover on it first')
+            if artifact.get('status') in ('rejected', 'unsupported'):
+                raise SceneError(f'text_references asset {aid} was {artifact.get("status")} by intake and cannot be cited')
+            for eid in ref['evidence_ids']:
+                item = items.get(eid)
+                if item is None or item.get('source_id') != aid:
+                    raise SceneError(f'Evidence {eid} was not recovered from asset {aid}')
+                recovered.append({'asset_id': aid, 'source_path': paths[aid], 'evidence_id': eid,
+                                  'kind': item.get('kind'), 'text': item.get('text'),
+                                  'clipped': bool(item.get('clipped')),
+                                  'content': 'recovered', 'untrusted': True})
+            interpretations.append({'asset_id': aid, 'evidence_ids': list(ref['evidence_ids']),
+                                    'interpretation': ref['interpretation'],
+                                    'content': 'interpretation', 'origin': 'agent', 'recovered': False})
+        return {'recovered_evidence': recovered, 'interpretations': interpretations}
+
     def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict) -> dict:
         sources = self.sources(project_id, selected_ids)
         normalized = validate_scene(scene, set(selected_ids))
@@ -101,6 +153,9 @@ class CompositionStore:
                   'scene': normalized, 'source_ids': selected_ids,
                   'sources': [{k: v for k, v in s.items() if k != 'data'} for s in sources],
                   'model': attribution}
+        text = self.text_provenance(project_id, normalized.get('text_references'))
+        if text is not None:
+            record['text_provenance'] = text
         encoded=json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode()
         if len(encoded)>MAX_PLAN_BYTES:raise SceneError('Plan exceeds size limit')
         _atomic(directory / (plan_id + '.json'), encoded)
@@ -120,6 +175,8 @@ class CompositionStore:
             expected = record.get('sources')
             actual = [{k: v for k, v in s.items() if k != 'data'} for s in sources]
             if expected != actual: raise SceneError('Plan source provenance has changed')
+            if record.get('text_provenance') != self.text_provenance(project_id, record['scene'].get('text_references')):
+                raise SceneError('Plan text evidence provenance has changed')
             return record
         except (OSError, json.JSONDecodeError) as exc:
             raise SceneError('Cannot load this scene plan') from exc

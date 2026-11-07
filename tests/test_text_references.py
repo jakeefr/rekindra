@@ -1,0 +1,175 @@
+import copy
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+from test_worlds import world
+import test_recover_evidence as recover_tests
+from test_recover_evidence import NOTE
+from rekindra_core.compositions import CompositionStore
+from rekindra_core.revisions import revise_world
+from rekindra_core.scenes import SceneError
+from rekindra_core.worlds import validate_world, WORLD_SCHEMA
+
+
+EV = 'ev-' + '0' * 24
+
+
+class TextReferenceShapeTests(unittest.TestCase):
+    def ref(self, **kw):
+        base = {'asset_id': 'b' * 32, 'evidence_ids': [EV], 'interpretation': 'A green door frames the arrival.'}
+        base.update(kw)
+        return base
+
+    def test_optional_and_old_worlds_still_validate(self):
+        scene = world()
+        self.assertNotIn('text_references', validate_world(scene, {'a' * 32}))
+        self.assertNotIn('text_references', WORLD_SCHEMA['required'])
+        scene['text_references'] = [self.ref()]
+        self.assertEqual(validate_world(scene, {'a' * 32})['text_references'], [self.ref()])
+
+    def test_rejects_bad_shapes(self):
+        bad = [[], [self.ref()] * 2, [self.ref()] + [self.ref(asset_id=c * 32) for c in 'cdef'],
+               [self.ref(evidence_ids=[])], [self.ref(evidence_ids=[EV, EV])], [self.ref(evidence_ids=['ev-xyz'])],
+               [self.ref(evidence_ids=[EV] * 5)], [self.ref(interpretation='x' * 301)], [self.ref(interpretation=3)],
+               [dict(self.ref(), text='smuggled recovered text')], [{'asset_id': 'b' * 32}], 'nope']
+        for refs in bad:
+            scene = world(); scene['text_references'] = refs
+            with self.subTest(refs=refs), self.assertRaises(SceneError):
+                validate_world(scene, {'a' * 32})
+
+    def test_revise_can_set_and_remove(self):
+        scene = world()
+        revised, changed = revise_world(scene, [{'field': 'text_references', 'value': [self.ref()]}], {'a' * 32})
+        self.assertEqual(changed, ['text_references'])
+        removed, changed = revise_world(revised, [{'field': 'text_references', 'value': None}], {'a' * 32})
+        self.assertNotIn('text_references', removed)
+        with self.assertRaises(SceneError):
+            revise_world(scene, [{'field': 'title', 'value': None}], {'a' * 32})
+
+
+class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
+    """Runs against a real project with recovered text, ZIP, rejected JSON and TGA."""
+
+    def world_with(self, refs):
+        scene = world(self.ids['photo.tga'])
+        scene['text_references'] = refs
+        return scene
+
+    def evidence_for(self, name):
+        out = self.recover(name)
+        self.assertTrue(out['ok'], out)
+        return [e['evidence_id'] for e in out['result']['evidence']]
+
+    def compositions(self):
+        return CompositionStore(self.store)
+
+    def test_saved_plan_separates_recovered_text_from_interpretation(self):
+        ids = self.evidence_for('notes.txt')
+        self.assertTrue(ids)
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1],
+                 'interpretation': 'Summer light behind a green door.'}]
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {'origin': 'test'})
+        prov = saved['text_provenance']
+        self.assertEqual(set(prov), {'recovered_evidence', 'interpretations'})
+        [rec] = prov['recovered_evidence']
+        self.assertEqual((rec['asset_id'], rec['evidence_id'], rec['content'], rec['source_path']),
+                         (self.ids['notes.txt'], ids[0], 'recovered', 'notes.txt'))
+        self.assertIn(rec['text'], NOTE.decode())
+        self.assertNotIn('interpretation', rec)
+        [interp] = prov['interpretations']
+        self.assertEqual((interp['content'], interp['origin'], interp['recovered']), ('interpretation', 'agent', False))
+        self.assertEqual(interp['interpretation'], 'Summer light behind a green door.')
+        self.assertNotIn('text', interp)
+        self.assertNotIn(interp['interpretation'], json.dumps(prov['recovered_evidence']))
+        loaded = self.compositions().load_plan(pid, saved['plan_id'])
+        self.assertEqual(loaded['text_provenance'], prov)
+
+    def test_refuses_unrecovered_foreign_and_unknown_evidence(self):
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        note = self.ids['notes.txt']
+        with self.assertRaisesRegex(SceneError, 'recovered evidence'):
+            self.compositions().save_plan(pid, self.world_with(
+                [{'asset_id': note, 'evidence_ids': [EV], 'interpretation': 'x'}]), [tga], {})
+        note_ids = self.evidence_for('notes.txt')
+        self.evidence_for('old.zip')
+        cases = [[{'asset_id': note, 'evidence_ids': [EV], 'interpretation': 'x'}],
+                 [{'asset_id': self.ids['old.zip'], 'evidence_ids': note_ids[:1], 'interpretation': 'x'}],
+                 [{'asset_id': tga, 'evidence_ids': note_ids[:1], 'interpretation': 'x'}],
+                 [{'asset_id': 'f' * 32, 'evidence_ids': note_ids[:1], 'interpretation': 'x'}]]
+        plans = self.store._project(pid) / 'plans'
+        for refs in cases:
+            with self.subTest(refs=refs), self.assertRaises(SceneError):
+                self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        self.assertFalse(plans.exists() and any(plans.iterdir()))
+
+    def test_rejected_source_has_no_evidence_and_cannot_be_cited(self):
+        # Regression: bad.json is rejected by intake (non-finite number). Its excerpt
+        # must not come back as recovered evidence, alone or beside other sources.
+        self.evidence_for('notes.txt')
+        out = self.recover('bad.json')
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(out['result']['intake_status'], 'rejected')
+        self.assertEqual((out['result']['evidence_count'], out['result']['evidence']), (0, []))
+        path = Path(out['result']['dossier_path'])
+        dossier = json.loads(path.read_text(encoding='utf-8'))
+        bad = self.ids['bad.json']
+        self.assertEqual([e for e in dossier['evidence'] if e.get('source_id') == bad], [])
+        self.assertIn(bad, {s.get('source_id') for s in dossier['sources']})
+        self.assertTrue(any(e.get('source_id') == self.ids['notes.txt'] for e in dossier['evidence']))
+        self.assertNotIn('NaN', json.dumps(dossier['evidence']))
+        # Re-recovering another source re-reads bad.json's saved intake: still dropped.
+        self.evidence_for('old.zip')
+        dossier = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual([e for e in dossier['evidence'] if e.get('source_id') == bad], [])
+        with self.assertRaisesRegex(SceneError, 'rejected'):
+            self.compositions().save_plan(self.project['project_id'], self.world_with(
+                [{'asset_id': bad, 'evidence_ids': [EV], 'interpretation': 'x'}]), [self.ids['photo.tga']], {})
+
+    def test_changed_evidence_invalidates_plan(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        path = self.store._project(pid) / 'plans' / (saved['plan_id'] + '.json')
+        record = json.loads(path.read_text(encoding='utf-8'))
+        record['text_provenance']['interpretations'][0]['recovered'] = True
+        path.write_text(json.dumps(record), encoding='utf-8')
+        with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
+            self.compositions().load_plan(pid, saved['plan_id'])
+        evidence = self.store._project(pid) / 'artifacts' / 'evidence.json'
+        evidence.write_bytes(evidence.read_bytes() + b' ')
+        record['text_provenance']['interpretations'][0]['recovered'] = False
+        path.write_text(json.dumps(record), encoding='utf-8')
+        with self.assertRaisesRegex(SceneError, 'evidence changed'):
+            self.compositions().load_plan(pid, saved['plan_id'])
+
+    def test_world_and_revise_handlers_carry_text_references(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        out = json.loads(self.handlers['rekindra_create_world'](
+            {'project_id': pid, 'asset_ids': [tga], 'scene': self.world_with(refs)}))
+        self.assertTrue(out['ok'], out)
+        plan_id = out['result']['plan_id']
+        bad = copy.deepcopy(refs); bad[0]['evidence_ids'] = [EV]
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': plan_id, 'edits': [{'field': 'text_references', 'value': bad}]}))
+        self.assertFalse(out['ok'], out)
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': plan_id, 'edits': [{'field': 'text_references', 'value': None}]}))
+        self.assertTrue(out['ok'], out)
+        revised = self.compositions().load_plan(pid, out['result']['plan_id'])
+        self.assertNotIn('text_provenance', revised)
+
+
+# Only the tests defined above run for the subclass; inherited recovery tests already run once.
+for _name in [n for n in dir(recover_tests.RecoverEvidenceTests) if n.startswith('test_')]:
+    if _name not in TextReferenceProvenanceTests.__dict__:
+        setattr(TextReferenceProvenanceTests, _name, None)
+
+
+if __name__ == '__main__':
+    unittest.main()

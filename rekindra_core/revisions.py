@@ -3,7 +3,8 @@ import copy
 from .scenes import SceneError
 from .worlds import validate_world, WORLD_SCHEMA
 
-SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies'))
+SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies', 'text_references'))
+OPTIONAL_SCENE_FIELDS = frozenset(('assemblies', 'text_references'))
 OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail', 'color_pattern','assembly','shading','loft','reflection'))
 OBJECT_FIELDS = frozenset(WORLD_SCHEMA['properties']['objects']['items']['properties']) - {'id'}
 
@@ -31,15 +32,15 @@ def revise_world(scene, edits, asset_ids):
             target, path = objects[identifier], f'objects/{identifier}/{field}'
         else:
             if field not in SCENE_FIELDS:
-                raise SceneError('Scene edits allow title, mood, reason, camera, environment or assemblies only')
+                raise SceneError('Scene edits allow title, mood, reason, camera, environment, assemblies or text_references only')
             target, path = candidate, field
         if path in seen:
             raise SceneError('Duplicate edit target: ' + path)
         seen.add(path)
         value = edit['value']
         if value is None:
-            if 'object_id' not in edit or field not in OPTIONAL_FIELDS:
-                raise SceneError('Only optional surface fields may be removed')
+            if field not in (OPTIONAL_FIELDS if 'object_id' in edit else OPTIONAL_SCENE_FIELDS):
+                raise SceneError('Only optional fields may be removed')
             if field in target:
                 del target[field]; changed.append(path)
         else:

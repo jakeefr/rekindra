@@ -302,6 +302,10 @@ class ProjectStore:
                 intake = json.loads(raw.decode('utf-8'))
             except (UnicodeDecodeError, ValueError) as exc:
                 raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
+            if isinstance(intake, dict) and intake.get('status') == 'rejected':
+                # Intake refused this source, so nothing from it may surface as recovered
+                # evidence. Its row and rejection stay; its facts are dropped.
+                intake = dict(intake, facts={})
             records.append({'source_id': sid, 'relative_path': paths[sid], 'intake': intake})
         dossier = reader['dossier'](records)
         if not isinstance(dossier, dict) or dossier.get('status') == 'rejected':
