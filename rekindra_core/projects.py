@@ -317,7 +317,9 @@ class ProjectStore:
         # Stage new bytes first, then swap by rename only. Rename needs no free space, so
         # the rollback cannot fail the way the write did; after the manifest is saved,
         # nothing is rolled back.
-        stamp = uuid.uuid4().hex
+        # The stamp leads with its staging time: a rename keeps the source file's mtime, so
+        # an aside's age can only be read from its name.
+        stamp = f'{time.time_ns():016x}{uuid.uuid4().hex[:16]}'
         swaps = [(path, path.with_name(f'{path.name}.{stamp}.new'), path.with_name(f'{path.name}.{stamp}.old'), data)
                  for path, data in ((target, blob), (dossier_path, dossier_blob))]
         updated = dict(project, artifacts=artifacts, stage='recovered',
@@ -371,17 +373,18 @@ class ProjectStore:
         # Committed: best-effort removal of this attempt's aside copies and any left by an
         # earlier failed attempt. It never fails a recovery that is already saved. recover()
         # holds _STORE_LOCK for in-process callers; another process sharing the store could
-        # have an aside in flight, so other attempts' files are only removed once they are
-        # older than _STAGED_GRACE_SECONDS.
-        now = time.time()
+        # have an aside in flight, so other attempts' files are only removed once their stamp
+        # is more than _STAGED_GRACE_SECONDS from now, either way (clocks can disagree).
+        now = time.time_ns()
         try:
             leftovers = [path for path in artifacts_dir.iterdir() if _STAGED.fullmatch(path.name)]
         except OSError:
             leftovers = []
         for leftover in leftovers:
             try:
+                staged = int(leftover.name.rsplit('.', 2)[1][:16], 16)
                 if (f'.{stamp}.' not in leftover.name
-                        and now - leftover.stat().st_mtime < _STAGED_GRACE_SECONDS):
+                        and abs(now - staged) < _STAGED_GRACE_SECONDS * 1_000_000_000):
                     continue
                 leftover.unlink(missing_ok=True)
             except OSError:

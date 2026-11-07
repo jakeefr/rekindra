@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 import zipfile
@@ -203,10 +204,13 @@ class RecoverEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ProjectError, 'Saved intake is not readable'):
             self.store.recover(pid, self.ids['old.zip'], reader)
 
-    def _failing_write(self, asset, patcher, expect=OSError, reader=None):
+    def _failing_write(self, asset, patcher, expect=OSError, reader=None, backdate=False):
         pid = self.project['project_id']
         self.store.recover(pid, self.ids['notes.txt'], plugin.handlers.evidence_reader())
         artifacts = self.store.root / pid / 'artifacts'
+        if backdate:  # asides inherit these old mtimes; their grace period must not
+            for path in artifacts.iterdir():
+                os.utime(path, (0, 0))
         snapshot = {p.name: p.read_bytes() for p in artifacts.iterdir()}
         manifest_before = self.store.status(pid)
         with patcher, self.assertRaises(expect) as caught:
@@ -246,7 +250,7 @@ class RecoverEvidenceTests(unittest.TestCase):
     def test_failed_restore_keeps_and_names_previous_bytes(self):
         patcher = self._replace_failing_on(
             lambda src, dst: src.endswith('.old') or (src.endswith('.new') and dst == 'evidence.json'), 'locked')
-        artifacts, snapshot, _, error = self._failing_write('old.zip', patcher, ProjectError)
+        artifacts, snapshot, _, error = self._failing_write('old.zip', patcher, ProjectError, backdate=True)
         asides = list(artifacts.glob('evidence.json.*.old'))
         self.assertEqual(len(asides), 1)
         self.assertEqual(asides[0].read_bytes(), snapshot['evidence.json'])
@@ -256,8 +260,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
         self.assertTrue(asides[0].exists())
         # ...and sweeps it once it is past the grace period.
-        os.utime(asides[0], (0, 0))
-        self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
+        with self._later():
+            self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
         self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
 
     def test_interrupt_is_not_replaced_by_restore_error(self):
@@ -285,9 +289,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ProjectError, 'Saved intake changed'):
             self.store.recover(self.project['project_id'], self.ids['old.zip'], base)
         self.assertTrue(all(k.exists() for k in kept))
-        for leftover in artifacts.glob('*.old'):
-            os.utime(leftover, (0, 0))  # past the grace period another process might still need
-        self.store.recover(self.project['project_id'], self.ids['notes.txt'], base)  # documented way out
+        with self._later():  # past the grace period another process might still need
+            self.store.recover(self.project['project_id'], self.ids['notes.txt'], base)  # documented way out
         self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
 
     def test_sweep_leaves_unrelated_files(self):
@@ -296,14 +299,14 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.store.recover(pid, self.ids['notes.txt'], reader)
         artifacts = self.store.root / pid / 'artifacts'
         unrelated = [artifacts / 'keep.tmp', artifacts / ('foo.json.' + 'a' * 32 + '.old')]
-        stale = artifacts / ('evidence.json.' + 'b' * 32 + '.old')
-        locked = artifacts / ('evidence.json.' + 'c' * 32 + '.old')
-        stale_intake = artifacts / (self.ids['notes.txt'] + '.intake.json.' + 'd' * 32 + '.new')
-        recent = artifacts / ('evidence.json.' + 'e' * 32 + '.old')
+        old, now = '0' * 16, f'{time.time_ns():016x}'
+        stale = artifacts / ('evidence.json.' + old + 'b' * 16 + '.old')
+        locked = artifacts / ('evidence.json.' + old + 'c' * 16 + '.old')
+        stale_intake = artifacts / (self.ids['notes.txt'] + '.intake.json.' + old + 'd' * 16 + '.new')
+        recent = artifacts / ('evidence.json.' + now + 'e' * 16 + '.old')
         for path in unrelated + [stale, locked, stale_intake, recent]:
             path.write_bytes(b'x')
-        for path in (stale, locked, stale_intake):
-            os.utime(path, (0, 0))
+        os.utime(recent, (0, 0))  # an aside keeps its source's old mtime; the stamp decides
         real_unlink = Path.unlink
         def unlink(path, missing_ok=False):
             if path.name == locked.name:
@@ -316,6 +319,10 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.assertFalse(stale.exists())   # ...of the others
         self.assertFalse(stale_intake.exists())
         self.assertTrue(recent.exists())   # inside the grace period: may belong to another process
+
+    @staticmethod
+    def _later():
+        return mock.patch('time.time_ns', return_value=time.time_ns() + 10 ** 12)  # +1000 s
 
     def test_described_cap_matches_dossier_limit(self):
         plugin.handlers.evidence_reader()
