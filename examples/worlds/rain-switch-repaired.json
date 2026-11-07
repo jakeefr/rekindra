@@ -1,0 +1,1372 @@
+{
+  "schema_version": 2,
+  "title": "Rain Switch / Final",
+  "mood": "Crafted edges, a loaded hinge, one connected descent",
+  "reason": "Rain Switch retained over a bead zipper screen or inside-out color ornament: unequal source1 beads gather beside a persistent axle, a recessed trough docks across an aperture, then source2 long streaks become a directed descent. Final U shells and solid inset liners close their end thickness, the warm support is chamfered, and a trimmed saddle seats the receiver. Macro gathering, closer docking and descent lead to a complete reveal. The gathered weight emerges beyond the collar rather than intersecting its face. Authored opaque geometry, not fluid simulation.",
+  "duration": 16,
+  "width": 1280,
+  "height": 720,
+  "seed": 6112,
+  "references": [
+    {
+      "asset_id": "00000000000000000000000000000000",
+      "observed": "Unequal isolated bright beads, occasional joined tracks and narrow intervening gaps; blurred pale, cyan and amber-red distant areas with darker lower silhouettes.",
+      "created": "Opaque uneven bead weights gather in a dark recessed trough; warm curved metal edges contrast with cool beads. The switch mechanism and timing are inventions, not photographed evidence."
+    },
+    {
+      "asset_id": "11111111111111111111111111111111",
+      "observed": "Dense fine near-vertical/slanted elongated rain streaks of unequal lengths; cool slate sky, light horizontal bands and dark foliage below.",
+      "created": "A docked diagonal bridge directs the gathered opaque form into a longer narrow lower outlet. No landscape reconstruction, source-photo drawing, transmission, refraction or fluid simulation."
+    }
+  ],
+  "environment": {
+    "sky_top": "#3C3535",
+    "sky_bottom": "#3E606F",
+    "fog_color": "#314C57",
+    "fog_density": 0,
+    "light_color": "#FFE5BE",
+    "light_direction": [
+      -3,
+      4,
+      7
+    ],
+    "sun_size": 0.09,
+    "sun_strength": 1.75,
+    "fill_color": "#A8D6E4",
+    "fill_direction": [
+      3,
+      1,
+      4
+    ],
+    "fill_strength": 0.31,
+    "ambient_strength": 0.36,
+    "ground_color": "#2E3637",
+    "ground_strength": 0.3,
+    "exposure": 1,
+    "occlusion_strength": 0.32,
+    "occlusion_radius": 0.35,
+    "environment_panels": [
+      {
+        "direction": [
+          -2,
+          1,
+          4
+        ],
+        "color": "#FFE1B4",
+        "intensity": 4.2,
+        "size": [
+          0.16,
+          0.72
+        ],
+        "rotation": -0.2
+      },
+      {
+        "direction": [
+          3,
+          1,
+          3
+        ],
+        "color": "#B7DFEE",
+        "intensity": 2.4,
+        "size": [
+          0.21,
+          0.62
+        ],
+        "rotation": 0.15
+      },
+      {
+        "direction": [
+          -1,
+          -2,
+          3
+        ],
+        "color": "#A9CFD4",
+        "intensity": 1.1,
+        "size": [
+          0.28,
+          0.12
+        ],
+        "rotation": -0.1
+      }
+    ]
+  },
+  "camera": [
+    {
+      "at": 0,
+      "eye": [
+        0.2,
+        2.6,
+        5.4
+      ],
+      "target": [
+        -2.05,
+        1.65,
+        -0.05
+      ],
+      "fov": 40
+    },
+    {
+      "at": 4.25,
+      "eye": [
+        0.35,
+        2,
+        5.6
+      ],
+      "target": [
+        -1.55,
+        1.05,
+        -0.05
+      ],
+      "fov": 41
+    },
+    {
+      "at": 4.6,
+      "eye": [
+        2.1,
+        1.3,
+        6.7
+      ],
+      "target": [
+        0.05,
+        -0.5,
+        -0.08
+      ],
+      "fov": 41,
+      "cut": true
+    },
+    {
+      "at": 10.5,
+      "eye": [
+        1.7,
+        0.8,
+        6.5
+      ],
+      "target": [
+        0.1,
+        -0.55,
+        -0.08
+      ],
+      "fov": 41
+    },
+    {
+      "at": 10.8,
+      "eye": [
+        3.65,
+        -0.05,
+        4.3
+      ],
+      "target": [
+        1.9,
+        -1.8,
+        -0.08
+      ],
+      "fov": 39,
+      "cut": true
+    },
+    {
+      "at": 13.5,
+      "eye": [
+        3.4,
+        -0.8,
+        4.5
+      ],
+      "target": [
+        2.1,
+        -2.6,
+        -0.08
+      ],
+      "fov": 40
+    },
+    {
+      "at": 15.4,
+      "eye": [
+        2.5,
+        1.4,
+        11.0
+      ],
+      "target": [
+        -0.25,
+        -0.5,
+        -0.08
+      ],
+      "fov": 39
+    },
+    {
+      "at": 16,
+      "eye": [
+        2.5,
+        1.4,
+        11.0
+      ],
+      "target": [
+        -0.25,
+        -0.5,
+        -0.08
+      ],
+      "fov": 39
+    }
+  ],
+  "assemblies": [
+    {
+      "id": "switch",
+      "translation": {
+        "x": "0",
+        "y": "0",
+        "z": "0"
+      },
+      "rotation": {
+        "x": "0",
+        "y": "0",
+        "z": ".95-1.37*(.5-.5*cos(pi*clamp((t-4.6)/3.2,0,1)))"
+      },
+      "pivot": [
+        -1,
+        0.2,
+        0
+      ],
+      "scale": [
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "objects": [
+    {
+      "id": "intake_shell",
+      "position": {
+        "x": "cx+(w+th)*cos(theta)*nx",
+        "y": "cy+(w+th)*cos(theta)*ny",
+        "z": "-(.24+th)*sin(theta)"
+      },
+      "segments": [
+        64,
+        64
+      ],
+      "color": "#173B40",
+      "color_high": "#B3A17C",
+      "color_mix": ".3",
+      "roughness": 0.37,
+      "metalness": 0.6,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "s",
+          "expression": "clamp((v-.025)/.95,0,1)"
+        },
+        {
+          "name": "cx",
+          "expression": "((-1.05*s+7.05)*s+-4.95)*s+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*s+-2.85)*s+-2.85)*s+3.05"
+        },
+        {
+          "name": "dx",
+          "expression": "(-3.15*s+14.1)*s+-4.95"
+        },
+        {
+          "name": "dy",
+          "expression": "(8.55*s+-5.7)*s+-2.85"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".28+.13*sin(pi*s)"
+        },
+        {
+          "name": "theta",
+          "expression": "pi*(.5-.5*cos(2*pi*u))"
+        },
+        {
+          "name": "th",
+          "expression": ".025*sin(2*pi*u)"
+        }
+      ],
+      "color_pattern": "clamp(.5+2*sin(2*pi*u),0,1)"
+    },
+    {
+      "id": "intake_left_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "((-1.05*v+7.05)*v+-4.95)*v+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*v+-2.85)*v+-2.85)*v+3.05"
+        },
+        {
+          "name": "dx",
+          "expression": "(-3.15*v+14.1)*v+-4.95"
+        },
+        {
+          "name": "dy",
+          "expression": "(8.55*v+-5.7)*v+-2.85"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".28+.13*sin(pi*v)"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "-1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "intake_right_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "((-1.05*v+7.05)*v+-4.95)*v+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*v+-2.85)*v+-2.85)*v+3.05"
+        },
+        {
+          "name": "dx",
+          "expression": "(-3.15*v+14.1)*v+-4.95"
+        },
+        {
+          "name": "dy",
+          "expression": "(8.55*v+-5.7)*v+-2.85"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".28+.13*sin(pi*v)"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "switch_shell",
+      "position": {
+        "x": "cx+(w+th)*cos(theta)*nx",
+        "y": "cy+(w+th)*cos(theta)*ny",
+        "z": "-(.24+th)*sin(theta)"
+      },
+      "segments": [
+        64,
+        64
+      ],
+      "color": "#173B40",
+      "color_high": "#B3A17C",
+      "color_mix": ".3",
+      "roughness": 0.37,
+      "metalness": 0.6,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "s",
+          "expression": "clamp((v-.025)/.95,0,1)"
+        },
+        {
+          "name": "cx",
+          "expression": "-1+2.9*s"
+        },
+        {
+          "name": "cy",
+          "expression": ".2"
+        },
+        {
+          "name": "nx",
+          "expression": "0"
+        },
+        {
+          "name": "ny",
+          "expression": "1"
+        },
+        {
+          "name": "w",
+          "expression": ".28-.045*s"
+        },
+        {
+          "name": "theta",
+          "expression": "pi*(.5-.5*cos(2*pi*u))"
+        },
+        {
+          "name": "th",
+          "expression": ".025*sin(2*pi*u)"
+        }
+      ],
+      "assembly": "switch",
+      "color_pattern": "clamp(.5+2*sin(2*pi*u),0,1)"
+    },
+    {
+      "id": "switch_left_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "-1+2.9*v"
+        },
+        {
+          "name": "cy",
+          "expression": ".2"
+        },
+        {
+          "name": "nx",
+          "expression": "0"
+        },
+        {
+          "name": "ny",
+          "expression": "1"
+        },
+        {
+          "name": "w",
+          "expression": ".28-.045*v"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "-1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "assembly": "switch",
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "switch_right_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "-1+2.9*v"
+        },
+        {
+          "name": "cy",
+          "expression": ".2"
+        },
+        {
+          "name": "nx",
+          "expression": "0"
+        },
+        {
+          "name": "ny",
+          "expression": "1"
+        },
+        {
+          "name": "w",
+          "expression": ".28-.045*v"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "assembly": "switch",
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "outlet_shell",
+      "position": {
+        "x": "cx+(w+th)*cos(theta)*nx",
+        "y": "cy+(w+th)*cos(theta)*ny",
+        "z": "-(.24+th)*sin(theta)"
+      },
+      "segments": [
+        64,
+        64
+      ],
+      "color": "#173B40",
+      "color_high": "#B3A17C",
+      "color_mix": ".3",
+      "roughness": 0.37,
+      "metalness": 0.6,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "s",
+          "expression": "clamp((v-.025)/.95,0,1)"
+        },
+        {
+          "name": "cx",
+          "expression": "((-0.786597372*s+-0.52884733)*s+1.91748677)*s+1.64795793"
+        },
+        {
+          "name": "cy",
+          "expression": "((1.42869242*s+-3.73989016)*s+-0.856296951)*s+-0.982505314"
+        },
+        {
+          "name": "dx",
+          "expression": "(-2.35979211*s+-1.05769466)*s+1.91748677"
+        },
+        {
+          "name": "dy",
+          "expression": "(4.28607726*s+-7.47978031)*s+-0.856296951"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".235-.11*s"
+        },
+        {
+          "name": "theta",
+          "expression": "pi*(.5-.5*cos(2*pi*u))"
+        },
+        {
+          "name": "th",
+          "expression": ".025*sin(2*pi*u)"
+        }
+      ],
+      "color_pattern": "clamp(.5+2*sin(2*pi*u),0,1)"
+    },
+    {
+      "id": "outlet_left_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "((-0.786597372*v+-0.52884733)*v+1.91748677)*v+1.64795793"
+        },
+        {
+          "name": "cy",
+          "expression": "((1.42869242*v+-3.73989016)*v+-0.856296951)*v+-0.982505314"
+        },
+        {
+          "name": "dx",
+          "expression": "(-2.35979211*v+-1.05769466)*v+1.91748677"
+        },
+        {
+          "name": "dy",
+          "expression": "(4.28607726*v+-7.47978031)*v+-0.856296951"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".235-.11*v"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "-1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "outlet_right_rolled_edge",
+      "position": {
+        "x": "cx+cross*nx",
+        "y": "cy+cross*ny",
+        "z": ".006+rr*sin(2*pi*u)"
+      },
+      "segments": [
+        16,
+        40
+      ],
+      "color": "#BEB9A4",
+      "color_high": "#EADBB8",
+      "color_mix": ".3",
+      "roughness": 0.19,
+      "metalness": 0.9,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "((-0.786597372*v+-0.52884733)*v+1.91748677)*v+1.64795793"
+        },
+        {
+          "name": "cy",
+          "expression": "((1.42869242*v+-3.73989016)*v+-0.856296951)*v+-0.982505314"
+        },
+        {
+          "name": "dx",
+          "expression": "(-2.35979211*v+-1.05769466)*v+1.91748677"
+        },
+        {
+          "name": "dy",
+          "expression": "(4.28607726*v+-7.47978031)*v+-0.856296951"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".235-.11*v"
+        },
+        {
+          "name": "rr",
+          "expression": ".047"
+        },
+        {
+          "name": "cross",
+          "expression": "1*w+rr*cos(2*pi*u)"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "matte_crescent_spine",
+      "position": {
+        "x": "cx+w*clamp(1.08*cos(2*pi*u),-1,1)*nx",
+        "y": "cy+w*clamp(1.08*cos(2*pi*u),-1,1)*ny",
+        "z": "-.48+.12*clamp(2*sin(2*pi*u),-1,1)-.025*exp(-70*cos(2*pi*u)*cos(2*pi*u))"
+      },
+      "segments": [
+        48,
+        72
+      ],
+      "color": "#744C32",
+      "color_high": "#AF8E60",
+      "color_mix": ".15+.32*v",
+      "roughness": 0.82,
+      "metalness": 0.08,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "s",
+          "expression": ".955*v"
+        },
+        {
+          "name": "cx",
+          "expression": "((-7.65*s+18.75)*s+-6.75)*s+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((-0.3*s+13.2)*s+-17.55)*s+3.05"
+        },
+        {
+          "name": "dx",
+          "expression": "(-22.95*s+37.5)*s+-6.75"
+        },
+        {
+          "name": "dy",
+          "expression": "(-0.9*s+26.4)*s+-17.55"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".22+.12*sin(pi*s)"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "axle_bracket",
+      "position": {
+        "x": "-2.88+1.88*v",
+        "y": ".2+.14*cos(2*pi*u)",
+        "z": "-.4+.16*sin(2*pi*u)"
+      },
+      "segments": [
+        12,
+        8
+      ],
+      "color": "#30444A",
+      "color_high": "#5B6A69",
+      "color_mix": ".3",
+      "roughness": 0.76,
+      "metalness": 0.35,
+      "emission": 0,
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "receiving_well",
+      "position": {
+        "x": "-1+.39*sin(v*pi/2)*cos(2*pi*u)",
+        "y": ".2+.39*sin(v*pi/2)*sin(2*pi*u)",
+        "z": "-.28+.26*v"
+      },
+      "segments": [
+        32,
+        12
+      ],
+      "color": "#1D3B40",
+      "color_high": "#526362",
+      "color_mix": ".3",
+      "roughness": 0.5,
+      "metalness": 0.35,
+      "emission": 0
+    },
+    {
+      "id": "pivot_bronze_collar",
+      "position": {
+        "x": "-1+(.21+.065*cos(2*pi*u))*cos(2*pi*v)",
+        "y": ".2+(.21+.065*cos(2*pi*u))*sin(2*pi*v)",
+        "z": ".10+.065*sin(2*pi*u)"
+      },
+      "segments": [
+        12,
+        32
+      ],
+      "color": "#A07948",
+      "color_high": "#DFCAA1",
+      "color_mix": ".3",
+      "roughness": 0.3,
+      "metalness": 0.75,
+      "emission": 0
+    },
+    {
+      "id": "pivot_dark_pin",
+      "position": {
+        "x": "-1+.11*cos(2*pi*u)",
+        "y": ".2+.11*sin(2*pi*u)",
+        "z": ".10+.07*v"
+      },
+      "segments": [
+        24,
+        4
+      ],
+      "color": "#152B31",
+      "color_high": "#405155",
+      "color_mix": ".3",
+      "roughness": 0.44,
+      "metalness": 0.65,
+      "emission": 0,
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "incoming_bead_1",
+      "position": {
+        "x": "cx+r*cos(2*pi*u)*sin(pi*v)",
+        "y": "cy+1.18*r*cos(pi*v)",
+        "z": "-.035+.7*r*sin(2*pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        24,
+        16
+      ],
+      "color": "#6BA8AF",
+      "color_high": "#C1E0D9",
+      "color_mix": ".25+.22*v",
+      "roughness": 0.18,
+      "metalness": 0.12,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "0.12+0.850*(.5-.5*cos(pi*clamp((t-0.7)/3.000,0,1)))"
+        },
+        {
+          "name": "cx",
+          "expression": "((-1.05*p+7.05)*p+-4.95)*p+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*p+-2.85)*p+-2.85)*p+3.05"
+        },
+        {
+          "name": "r",
+          "expression": "0.23*(1-.96*clamp((t-3.55)/.65,0,1))"
+        }
+      ]
+    },
+    {
+      "id": "incoming_bead_2",
+      "position": {
+        "x": "cx+r*cos(2*pi*u)*sin(pi*v)",
+        "y": "cy+1.18*r*cos(pi*v)",
+        "z": "-.035+.7*r*sin(2*pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        24,
+        16
+      ],
+      "color": "#6BA8AF",
+      "color_high": "#C1E0D9",
+      "color_mix": ".25+.22*v",
+      "roughness": 0.18,
+      "metalness": 0.12,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "0.43+0.540*(.5-.5*cos(pi*clamp((t-1.05)/2.650,0,1)))"
+        },
+        {
+          "name": "cx",
+          "expression": "((-1.05*p+7.05)*p+-4.95)*p+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*p+-2.85)*p+-2.85)*p+3.05"
+        },
+        {
+          "name": "r",
+          "expression": "0.145*(1-.96*clamp((t-3.55)/.65,0,1))"
+        }
+      ]
+    },
+    {
+      "id": "incoming_bead_3",
+      "position": {
+        "x": "cx+r*cos(2*pi*u)*sin(pi*v)",
+        "y": "cy+1.18*r*cos(pi*v)",
+        "z": "-.035+.7*r*sin(2*pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        24,
+        16
+      ],
+      "color": "#6BA8AF",
+      "color_high": "#C1E0D9",
+      "color_mix": ".25+.22*v",
+      "roughness": 0.18,
+      "metalness": 0.12,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "p",
+          "expression": "0.7+0.270*(.5-.5*cos(pi*clamp((t-1.4)/2.300,0,1)))"
+        },
+        {
+          "name": "cx",
+          "expression": "((-1.05*p+7.05)*p+-4.95)*p+-2.05"
+        },
+        {
+          "name": "cy",
+          "expression": "((2.85*p+-2.85)*p+-2.85)*p+3.05"
+        },
+        {
+          "name": "r",
+          "expression": "0.11*(1-.96*clamp((t-3.55)/.65,0,1))"
+        }
+      ]
+    },
+    {
+      "id": "gathered_weight",
+      "position": {
+        "x": "cx+1.25*r*cos(pi*v)",
+        "y": ".2+r*cos(2*pi*u)*sin(pi*v)",
+        "z": "-.025+.75*r*sin(2*pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        24,
+        20
+      ],
+      "color": "#69A7AF",
+      "color_high": "#C6E3DB",
+      "color_mix": ".25+.2*v",
+      "roughness": 0.17,
+      "metalness": 0.12,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "g",
+          "expression": ".5-.5*cos(pi*clamp((t-3.4)/.8,0,1))"
+        },
+        {
+          "name": "p",
+          "expression": ".5-.5*cos(pi*clamp((t-8)/2.9,0,1))"
+        },
+        {
+          "name": "r",
+          "expression": "(.018+.235*g)*(1-.95*clamp((t-10.65)/.5,0,1))"
+        },
+        {
+          "name": "cx",
+          "expression": "-1+.65*g+2.21*p"
+        }
+      ],
+      "assembly": "switch"
+    },
+    {
+      "id": "received_long_streak",
+      "position": {
+        "x": "cx+r*cos(2*pi*u)*nx",
+        "y": "cy+r*cos(2*pi*u)*ny",
+        "z": "-.055+.8*r*sin(2*pi*u)"
+      },
+      "segments": [
+        20,
+        48
+      ],
+      "color": "#669FA8",
+      "color_high": "#BDDED8",
+      "color_mix": ".25+.2*v",
+      "roughness": 0.2,
+      "metalness": 0.08,
+      "emission": 0,
+      "bindings": [
+        {
+          "name": "cx",
+          "expression": "((-0.786597372*v+-0.52884733)*v+1.91748677)*v+1.64795793"
+        },
+        {
+          "name": "cy",
+          "expression": "((1.42869242*v+-3.73989016)*v+-0.856296951)*v+-0.982505314"
+        },
+        {
+          "name": "dx",
+          "expression": "(-2.35979211*v+-1.05769466)*v+1.91748677"
+        },
+        {
+          "name": "dy",
+          "expression": "(4.28607726*v+-7.47978031)*v+-0.856296951"
+        },
+        {
+          "name": "ll",
+          "expression": "sqrt(dx*dx+dy*dy)"
+        },
+        {
+          "name": "nx",
+          "expression": "-dy/ll"
+        },
+        {
+          "name": "ny",
+          "expression": "dx/ll"
+        },
+        {
+          "name": "w",
+          "expression": ".10"
+        },
+        {
+          "name": "q",
+          "expression": ".5-.5*cos(pi*clamp((t-10.7)/4,0,1))"
+        },
+        {
+          "name": "r",
+          "expression": ".11*clamp((q-v)*8,0,1)*sin(pi*(.06+.88*v))"
+        }
+      ],
+      "caps": [
+        "v0",
+        "v1"
+      ]
+    },
+    {
+      "id": "spine_fasteners",
+      "position": {
+        "x": ".065*cos(2*pi*u)*sin(pi*v)",
+        "y": ".065*cos(pi*v)",
+        "z": ".045*sin(2*pi*u)*sin(pi*v)"
+      },
+      "segments": [
+        12,
+        8
+      ],
+      "color": "#B09C7B",
+      "color_high": "#D6C7A5",
+      "color_mix": ".3",
+      "roughness": 0.43,
+      "metalness": 0.7,
+      "emission": 0,
+      "instances": [
+        {
+          "offset": [
+            -2.6032192,
+            1.1335615999999997,
+            -0.35
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            -2.2396,
+            -1.8772000000000002,
+            -0.35
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            0.03839494999999987,
+            -2.8439251,
+            -0.35
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "offset": [
+            1.5695568500000001,
+            -2.2156512999999998,
+            -0.35
+          ],
+          "scale": [
+            1,
+            1,
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "id": "receiver_dock_shoe",
+      "position": {
+        "x": "loft_x",
+        "y": "loft_y",
+        "z": "loft_z"
+      },
+      "segments": [
+        16,
+        12
+      ],
+      "color": "#67543D",
+      "color_high": "#A88F67",
+      "color_mix": ".3",
+      "roughness": 0.6,
+      "metalness": 0.38,
+      "shading": "flat",
+      "caps": [
+        "v0",
+        "v1"
+      ],
+      "emission": 0,
+      "loft": [
+        {
+          "height": -1.53740981836,
+          "points": [
+            [
+              1.973074572256,
+              -0.485
+            ],
+            [
+              2.0956645722559997,
+              -0.485
+            ],
+            [
+              2.1143195722559995,
+              -0.45
+            ],
+            [
+              2.1143195722559995,
+              -0.285
+            ],
+            [
+              2.0956645722559997,
+              -0.25
+            ],
+            [
+              1.973074572256,
+              -0.25
+            ],
+            [
+              1.954419572256,
+              -0.285
+            ],
+            [
+              1.954419572256,
+              -0.45
+            ]
+          ]
+        },
+        {
+          "height": -1.27041236815722,
+          "points": [
+            [
+              1.798503756312452,
+              -0.485
+            ],
+            [
+              1.937083756312452,
+              -0.485
+            ],
+            [
+              1.955738756312452,
+              -0.45
+            ],
+            [
+              1.955738756312452,
+              -0.285
+            ],
+            [
+              1.937083756312452,
+              -0.25
+            ],
+            [
+              1.798503756312452,
+              -0.25
+            ],
+            [
+              1.779848756312452,
+              -0.285
+            ],
+            [
+              1.779848756312452,
+              -0.45
+            ]
+          ]
+        },
+        {
+          "height": -1.0671617378603124,
+          "points": [
+            [
+              1.5965078257524374,
+              -0.485
+            ],
+            [
+              1.7404178257524374,
+              -0.485
+            ],
+            [
+              1.7590728257524377,
+              -0.45
+            ],
+            [
+              1.7590728257524377,
+              -0.285
+            ],
+            [
+              1.7404178257524374,
+              -0.25
+            ],
+            [
+              1.5965078257524374,
+              -0.25
+            ],
+            [
+              1.5778528257524376,
+              -0.285
+            ],
+            [
+              1.5778528257524376,
+              -0.45
+            ]
+          ]
+        },
+        {
+          "height": -0.982505314,
+          "points": [
+            [
+              1.46666293,
+              -0.485
+            ],
+            [
+              1.5892529300000002,
+              -0.485
+            ],
+            [
+              1.60790793,
+              -0.45
+            ],
+            [
+              1.60790793,
+              -0.285
+            ],
+            [
+              1.5892529300000002,
+              -0.25
+            ],
+            [
+              1.46666293,
+              -0.25
+            ],
+            [
+              1.4480079300000002,
+              -0.285
+            ],
+            [
+              1.4480079300000002,
+              -0.45
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
