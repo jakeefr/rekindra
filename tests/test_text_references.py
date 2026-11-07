@@ -246,6 +246,8 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         store.projects.status = unsupported
         with self.assertRaisesRegex(SceneError, 'unsupported'):
             store.build(pid, saved['plan_id'])
+        with self.assertRaisesRegex(SceneError, 'unsupported by intake and cannot be cited'):
+            store.save_plan(pid, self.world_with(refs), [tga], {})
 
     def test_revise_drops_rejected_source_and_keeps_valid_one(self):
         from unittest import mock
