@@ -252,7 +252,11 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.assertEqual(asides[0].read_bytes(), snapshot['evidence.json'])
         self.assertIn(asides[0].name, str(error))
         self.assertFalse(list(artifacts.glob('*.new')))
-        # The next successful recovery sweeps the kept copy.
+        # A recent kept copy might be another process's aside: the next success leaves it...
+        self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
+        self.assertTrue(asides[0].exists())
+        # ...and sweeps it once it is past the grace period.
+        os.utime(asides[0], (0, 0))
         self.store.recover(self.project['project_id'], self.ids['old.zip'], plugin.handlers.evidence_reader())
         self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
 
@@ -281,6 +285,8 @@ class RecoverEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ProjectError, 'Saved intake changed'):
             self.store.recover(self.project['project_id'], self.ids['old.zip'], base)
         self.assertTrue(all(k.exists() for k in kept))
+        for leftover in artifacts.glob('*.old'):
+            os.utime(leftover, (0, 0))  # past the grace period another process might still need
         self.store.recover(self.project['project_id'], self.ids['notes.txt'], base)  # documented way out
         self.assertFalse(list(artifacts.glob('*.old')) + list(artifacts.glob('*.new')))
 
@@ -291,11 +297,25 @@ class RecoverEvidenceTests(unittest.TestCase):
         artifacts = self.store.root / pid / 'artifacts'
         unrelated = [artifacts / 'keep.tmp', artifacts / ('foo.json.' + 'a' * 32 + '.old')]
         stale = artifacts / ('evidence.json.' + 'b' * 32 + '.old')
-        for path in unrelated + [stale]:
+        locked = artifacts / ('evidence.json.' + 'c' * 32 + '.old')
+        stale_intake = artifacts / (self.ids['notes.txt'] + '.intake.json.' + 'd' * 32 + '.new')
+        recent = artifacts / ('evidence.json.' + 'e' * 32 + '.old')
+        for path in unrelated + [stale, locked, stale_intake, recent]:
             path.write_bytes(b'x')
-        self.store.recover(pid, self.ids['old.zip'], reader)
+        for path in (stale, locked, stale_intake):
+            os.utime(path, (0, 0))
+        real_unlink = Path.unlink
+        def unlink(path, missing_ok=False):
+            if path.name == locked.name:
+                raise OSError('sharing violation')
+            return real_unlink(path, missing_ok=missing_ok)
+        with mock.patch.object(Path, 'unlink', unlink):
+            self.store.recover(pid, self.ids['old.zip'], reader)
         self.assertTrue(all(path.exists() for path in unrelated))
-        self.assertFalse(stale.exists())
+        self.assertTrue(locked.exists())   # its failure did not stop the sweep...
+        self.assertFalse(stale.exists())   # ...of the others
+        self.assertFalse(stale_intake.exists())
+        self.assertTrue(recent.exists())   # inside the grace period: may belong to another process
 
     def test_described_cap_matches_dossier_limit(self):
         plugin.handlers.evidence_reader()

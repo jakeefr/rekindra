@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import stat
 import threading
+import time
 import uuid
 
 from .identify import identify
@@ -25,6 +26,7 @@ _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip')
 _MAX_INTAKE_BYTES = 16 * 1024 * 1024
+_STAGED_GRACE_SECONDS = 300
 _STAGED = re.compile(r'^(?:[0-9a-f]{32}\.intake|evidence)\.json\.[0-9a-f]{32}\.(?:new|old)$')
 _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
 
@@ -368,13 +370,19 @@ class ProjectStore:
         project.update(updated)
         # Committed: best-effort removal of this attempt's aside copies and any left by an
         # earlier failed attempt. It never fails a recovery that is already saved. recover()
-        # holds _STORE_LOCK, so no other in-process recovery has an aside in flight here.
+        # holds _STORE_LOCK for in-process callers; another process sharing the store could
+        # have an aside in flight, so other attempts' files are only removed once they are
+        # older than _STAGED_GRACE_SECONDS.
+        now = time.time()
         try:
             leftovers = [path for path in artifacts_dir.iterdir() if _STAGED.fullmatch(path.name)]
         except OSError:
             leftovers = []
         for leftover in leftovers:
             try:
+                if (f'.{stamp}.' not in leftover.name
+                        and now - leftover.stat().st_mtime < _STAGED_GRACE_SECONDS):
+                    continue
                 leftover.unlink(missing_ok=True)
             except OSError:
                 continue
