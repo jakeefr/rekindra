@@ -229,6 +229,24 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         self.assertNotIn('text_provenance', dropped)
         self.assertTrue(store.build(pid, dropped['plan_id'])['path'])
 
+    def test_build_refuses_plan_citing_unsupported_source(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        store = self.compositions()
+        saved = store.save_plan(pid, self.world_with(refs), [tga], {})
+        real = store.projects.status
+
+        def unsupported(project_id):
+            project = real(project_id)
+            for a in project['artifacts']:
+                if a.get('kind') == 'evidence' and a.get('asset_id') == self.ids['notes.txt']:
+                    a['status'] = 'unsupported'
+            return project
+        store.projects.status = unsupported
+        with self.assertRaisesRegex(SceneError, 'unsupported'):
+            store.build(pid, saved['plan_id'])
+
     def test_revise_drops_rejected_source_and_keeps_valid_one(self):
         from unittest import mock
         note_ids, zip_ids = self.evidence_for('notes.txt'), self.evidence_for('old.zip')
@@ -249,6 +267,9 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
                 {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': refs[1:]}]}))
             self.assertTrue(out['ok'], out)
             kept = self.compositions().load_plan(pid, out['result']['plan_id'])['text_provenance']
+            self.assertTrue(self.compositions().build(pid, out['result']['plan_id'])['path'])
+            with self.assertRaisesRegex(SceneError, 'rejected'):
+                self.compositions().build(pid, saved['plan_id'])
         self.assertEqual({i['asset_id'] for i in kept['recovered_evidence']}, {zipped})
         self.assertEqual(kept['recovered_evidence'], saved['text_provenance']['recovered_evidence'][1:])
 
@@ -260,6 +281,10 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
             {'asset_id': ['not', 'hashable'], 'evidence_id': {}}, 'junk', None]}}
         saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {}, parent=parent)
         self.assertEqual(saved['text_provenance']['recovered_evidence'][0]['evidence_id'], ids[0])
+        for bad in (5, True, 'text', {'a': 1}):
+            parent['text_provenance']['recovered_evidence'] = bad
+            saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {}, parent=parent)
+            self.assertEqual(saved['text_provenance']['recovered_evidence'][0]['evidence_id'], ids[0])
 
     def test_carried_quotes_do_not_need_the_live_dossier(self):
         ids = self.evidence_for('notes.txt')

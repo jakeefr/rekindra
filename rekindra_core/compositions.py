@@ -43,6 +43,8 @@ def jpeg_dimensions(data: bytes) -> tuple[int, int]:
     raise SceneError('Missing or truncated JPEG frame header')
 
 
+# Intake statuses whose evidence may not be cited or built from.
+_REFUSED_INTAKE = ('rejected', 'unsupported')
 _RECOVERED_KEYS = frozenset(('asset_id', 'source_path', 'evidence_id', 'kind', 'locator', 'text',
                              'clipped', 'content', 'untrusted'))
 
@@ -137,7 +139,8 @@ class CompositionStore:
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
         wanted = {(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']}
         carried = {}
-        for item in (parent.get('recovered_evidence') if isinstance(parent, dict) else None) or []:
+        quotes = parent.get('recovered_evidence') if isinstance(parent, dict) else None
+        for item in quotes if isinstance(quotes, list) else []:
             if not isinstance(item, dict) or not isinstance(item.get('asset_id'), str) \
                     or not isinstance(item.get('evidence_id'), str):
                 continue
@@ -153,7 +156,7 @@ class CompositionStore:
             artifact = artifacts.get(aid)
             if artifact is None or aid not in cited or aid not in paths:
                 raise SceneError(f'text_references asset {aid} has no recovered evidence; run rekindra_recover on it first')
-            if artifact.get('status') in ('rejected', 'unsupported'):
+            if artifact.get('status') in _REFUSED_INTAKE:
                 raise SceneError(f'text_references asset {aid} was {artifact.get("status")} by intake and cannot be cited')
             for eid in ref['evidence_ids']:
                 if (aid, eid) in carried:
@@ -262,7 +265,7 @@ class CompositionStore:
             # load_plan stays lenient so a revise can drop the citation, but nothing
             # is built from a plan that cites a source intake now refuses.
             refused = {a.get('asset_id'): a.get('status') for a in self.projects.status(project_id)['artifacts']
-                       if a.get('kind') == 'evidence' and a.get('status') in ('rejected', 'unsupported')}
+                       if a.get('kind') == 'evidence' and a.get('status') in _REFUSED_INTAKE}
             for ref in plan['scene']['text_references']:
                 if ref['asset_id'] in refused:
                     raise SceneError(f"text_references asset {ref['asset_id']} was {refused[ref['asset_id']]} "
