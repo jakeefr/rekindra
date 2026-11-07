@@ -87,7 +87,8 @@ vec3 atmosphere(vec3 ray){
  return col;
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
-  function createRenderer(scene,programs){
+  function createRenderer(scene,programs,{sampleScale:requestedScale=2}={}){
+    if(requestedScale!==1&&requestedScale!==2)throw Error('World sample scale must be 1 or 2');
     const reflector=scene.objects.find(o=>(o.reflection?.strength??0)>0);
     const reflectionHeight=reflector?Number(reflector.position.y):0;
     const reflectionUniforms=reflector?'uniform float reflectionPass,reflectionHeight,reflectionActive;':'';
@@ -159,6 +160,18 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
     const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;
     const gl=canvas.getContext('webgl2',{alpha:false,antialias:true,preserveDrawingBuffer:true});
     if(!gl)throw Error('This generated world needs WebGL2. Use a browser with graphics acceleration.');
+    // Four spatial samples per output pixel; no temporal state or material changes.
+    // Keep the public canvas at authored resolution, including export/preview callers.
+    const viewportLimit=gl.getParameter(gl.MAX_VIEWPORT_DIMS);
+    const targetLimit=Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE),gl.getParameter(gl.MAX_RENDERBUFFER_SIZE));
+    const sampleScale=Math.max(1,Math.min(requestedScale,Math.floor(Math.min(targetLimit,viewportLimit[0])/scene.width),Math.floor(Math.min(targetLimit,viewportLimit[1])/scene.height)));
+    canvas.width=scene.width*sampleScale;canvas.height=scene.height*sampleScale;
+    const output=sampleScale===1?canvas:document.createElement('canvas');
+    if(sampleScale!==1){output.width=scene.width;output.height=scene.height;}
+    const resolve=sampleScale===1?null:output.getContext('2d',{alpha:false});
+    if(sampleScale!==1&&!resolve)throw Error('World sampling resolve unavailable');
+    if(resolve){resolve.imageSmoothingEnabled=true;resolve.imageSmoothingQuality='high';}
+
     const owned=[];let lost=false;
     canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();lost=true});
     function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){const message=gl.getShaderInfoLog(s);gl.deleteShader(s);throw Error('World shader compilation failed: '+message.slice(0,350))}return s}
@@ -237,9 +250,9 @@ void main(){vec3 ray=normalize(forward+right*screen.x*tanHalf*aspect+up*screen.y
       const reflectionShader=isReflector?`
 uniform highp sampler2D reflectionImage;
 vec3 reflectedRadiance(){
- vec2 extent=vec2(${scene.width}.,${scene.height}.),uv=gl_FragCoord.xy/extent;
+ vec2 extent=vec2(${canvas.width}.,${canvas.height}.),uv=gl_FragCoord.xy/extent;
  vec3 encoded=vec3(0.);
- ${o.reflection.blur>0?`for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)encoded+=texture(reflectionImage,uv+vec2(float(x),float(y))*${Number(o.reflection.blur).toFixed(8)}/extent).rgb/9.;`:'encoded=texture(reflectionImage,uv).rgb;'}
+ ${o.reflection.blur>0?`for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)encoded+=texture(reflectionImage,uv+vec2(float(x),float(y))*${Number(o.reflection.blur*sampleScale).toFixed(8)}/extent).rgb/9.;`:'encoded=texture(reflectionImage,uv).rgb;'}
  return -log(max(vec3(1.)-pow(encoded,vec3(2.2)),vec3(.000001)))/exposure;
 }`:'';
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
@@ -419,9 +432,11 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       for(const s of surfaces){setup(s.p,c,b,time);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
         for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
-      gl.bindVertexArray(null);if(gl.getError()!==gl.NO_ERROR)throw Error('World rendering failed');return canvas;
+      gl.bindVertexArray(null);if(gl.getError()!==gl.NO_ERROR)throw Error('World rendering failed');
+      if(resolve)resolve.drawImage(canvas,0,0,output.width,output.height);
+      return output;
     }
-    return {render,canvas,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
+    return {render,canvas:output,sampleScale,requestedScale,dispose(){for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
   }
   const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

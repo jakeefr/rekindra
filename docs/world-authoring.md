@@ -286,3 +286,7 @@ When a support protrudes, isolate the main support and bracket separately. Shrin
 A concave U-channel should not use an ordinary triangle-fan end cap. Construct an end face following its cross-section, with a small rounded return and deliberate overlap covering the swept shell thickness. A tubular rim can create oversized knobs where it meets side rails; inspect a close oblique terminal view before accepting it. This is an authored construction, not a new runtime primitive or a watertight-mesh guarantee. See rain-switch-finished.json for one tested example.
 
 Review the open state as well as the docked state. A bracket can disappear behind the moving arm after docking yet protrude into the open mouth beforehand. Locate the actual backbone/receiver intersection, check that the mount spans both attachment coordinates, and keep its upper extent below the receiving mouth. Preserve the camera while comparing: a hidden defect is not a repaired joint.
+
+## Render sampling
+
+Worlds now use2x spatial sampling per axis by default and resolve to the same1280x720 preview/export frame. This reduces narrow specular-edge aliasing without changing roughness or scene time. Reflection blur retains its output-pixel scale. A graphics-limited device can fall back to standard quality; the artifact reports that condition and exposes requested/actual sampling in review diagnostics. This adds GPU work and does not make arbitrarily fine patterns stable, add motion blur, or repair geometry. Keep the existing work budgets and preview deadline.

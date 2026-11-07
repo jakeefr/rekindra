@@ -3,6 +3,8 @@
   const data=JSON.parse(document.querySelector('#payload').textContent),scene=data.scene;
   const $=id=>document.getElementById(id),canvas=$('stage'),ctx=canvas.getContext('2d'),images={};
   let time=0,playing=false,start=0,exporting=false,cancelled=false,world=null;
+  const renderQuality=()=>world?{requestedScale:world.requestedScale,actualScale:world.sampleScale,limited:world.sampleScale<world.requestedScale}:null;
+  const qualityNotice=()=>renderQuality()?.limited?' Using standard quality because this graphics device cannot render the higher-quality frame.':'';
   const scratch=document.createElement('canvas');scratch.width=1280;scratch.height=720;const sc=scratch.getContext('2d');
   $('title').textContent=scene.title;$('mood').textContent=scene.mood.toUpperCase();$('reason').textContent=scene.reason;
   $('seek').max=scene.duration;$('model').textContent=data.model.model?`Creative plan: ${data.model.provider} / ${data.model.model}`:'Creative plan: local authored fixture';
@@ -23,7 +25,7 @@
         const px=i%2*640,py=Math.floor(i/2)*376;
         x.drawImage(scratch,px,py,640,360);x.fillStyle='#eee';x.font='12px monospace';x.fillText(t.toFixed(2)+' s',px+8,py+372);
       }
-      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,png:c.toDataURL('image/png').split(',')[1]};
+      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1]};
     }finally{display(saved)}
   }
   function reportReview(result){
@@ -55,7 +57,7 @@
       if(chunks.length!==frames)throw Error('Encoder did not return every frame');
       const bytes=RekindraWebM.muxWebM(chunks,1280,720,frames/30*1000),blob=new Blob([bytes],{type:'video/webm'});
       if(download){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='rekindra-scene.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60_000)}
-      $('status').textContent=`Video ready. ${frames} frames, ${(blob.size/1024/1024).toFixed(1)} MB.`;return blob;
+      $('status').textContent=`Video ready. ${frames} frames, ${(blob.size/1024/1024).toFixed(1)} MB.${qualityNotice()}`;return blob;
     }finally{if(encoder.state!=='closed')encoder.close();exporting=false;$('export').disabled=false;$('play').disabled=false;$('seek').disabled=false;$('ascii').disabled=false;$('cancel').hidden=true;display(wasTime)}
   }
   try{
@@ -77,11 +79,12 @@
     }
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
     if(data.inspection_only){$('status').textContent='Inspection view only. Saved scene and presentation camera are unchanged.';$('export').disabled=true;}
+    $('status').textContent+=qualityNotice();
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};
     $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=()=>display(time);
     $('export').onclick=()=>exportVideo().catch(e=>$('status').textContent=e.message);
     $('cancel').onclick=()=>cancelled=true;
-    globalThis.rekindra={ready:true,scene,data,renderAt:display,exportVideo,reviewFrames,cancelExport:()=>cancelled=true};
+    globalThis.rekindra={ready:true,scene,data,renderQuality:renderQuality(),renderAt:display,exportVideo,reviewFrames,cancelExport:()=>cancelled=true};
     if(new URLSearchParams(location.search).get('rekindra_review')==='1')reportReview({ok:true,result:reviewFrames()});
     else requestAnimationFrame(tick);
   }catch(e){$('status').textContent=`Cannot open scene: ${e.message}`;$('play').disabled=true;$('export').disabled=true;globalThis.rekindra={ready:false,error:e.message};

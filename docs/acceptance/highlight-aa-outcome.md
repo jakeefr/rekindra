@@ -1,0 +1,11 @@
+# Spatial highlight antialiasing
+
+Original renderer now renders2x each dimension and resolves once to the authored-size output canvas. Materials and global time remain unchanged. Reflection UVs use internal dimensions; reflection blur is scaled to retain output-pixel meaning. Browser limits can select1x; the artifact then visibly reports standard quality and exposes requested/actual sampling in its API and review diagnostics. No temporal history or external engine.
+
+Diagnosis/prototypes: hardware MSAA was already requested. A bounded normal-variance roughness prototype broadened highlights but increased spatial error34–71% and was rejected. Research reference: https://google.github.io/filament/main/materials.html and https://yusuketokuyoshi.com/papers/2019/ImprovedGeometricSpecularAA.pdf ; no code or engine imported. Initial reference harness was invalid because the player is fixed1280x720; corrected it to use renderer canvases directly.
+
+GPU regression RED before implementation: default output identical to1x, error ratio1. GREEN: five fixed times compared with a4x-per-axis reference, highlight MAE ratios .176,.201,.161,.188,.182 (about80% reduction). Threshold<.6 remains fixed. Exact same-time pixels and public dimensions pass. This measures spatial error at sampled times, not an80% temporal-shimmer or cross-device guarantee. The higher-resolution reference is an estimate, not ground truth.
+
+Fresh review found silent graphics-limit fallback. Fixed with a simulated constrained-viewport browser test, RED undefined diagnostics -> GREEN actual1/requested2/limitedtrue plus visible standard-quality status. No remaining reviewer findings. Existing panel/reflection GPU controls pass, including reflection motion/resources/contact/caps.89Python+15Node pass. Full rain export16s1280x720,7,020,642bytes passes unchanged motion/repeat/playback/cancellation/integrity checks;24decoded frames reviewed. Six-frame review8.57s under unchanged45s deadline. Original native artifact preserved; comparison export uses same saved data with new runtime.
+
+Limit: higher GPU work/memory, though tested preview remains within budget. No universal removal of subpixel detail aliasing or new motion-blur capability claimed. Normal1x fallback preserves compatibility. All local evidence in .local/highlight-aa. No public publication or intake changes.
