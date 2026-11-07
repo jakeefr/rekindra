@@ -37,3 +37,19 @@ class ColorPatternTests(unittest.TestCase):
         scene['objects'] = [dict(copy.deepcopy(obj), id=f's{i}') for i in range(3)]
         with self.assertRaisesRegex(SceneError, '128 total'):
             validate_world(scene, {'a'*32})
+
+    def test_refuses_high_frequency_stripes(self):
+        # B01 architecture study: this payload rendered conspicuous radial terrace stripes.
+        for value in ('.35+.25*cos(u*80*pi)', '.2*sin(v*120)', 'clamp(sin(u*200),-.2,.2)'):
+            with self.subTest(value=value):
+                scene = world()
+                scene['objects'][0]['color_pattern'] = value
+                with self.assertRaisesRegex(SceneError, 'stripes'):
+                    validate_world(scene, {'a'*32})
+        # Low-frequency bands and fine grain with a small swing remain allowed.
+        for value in ('.5+.5*cos(u*8*pi+t)', 'clamp(.5+2*sin(2*pi*u),0,1)', '.03*sin(u*170+v*45)',
+                      '.48+.035*sin(u*170+v*45-t*.85)'):
+            with self.subTest(value=value):
+                scene = world()
+                scene['objects'][0]['color_pattern'] = value
+                validate_world(scene, {'a'*32})

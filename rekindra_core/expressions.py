@@ -38,3 +38,34 @@ def compile_expression(source, names=None):
         raise SceneError('Only u, v, t, pi, earlier local bindings, arithmetic and supported math functions are allowed')
     glsl=visit(tree.body)
     return {'glsl':glsl,'cost':cost}
+
+
+def _bound(a):return min(max(a,-10000.0),10000.0)
+
+
+_SAMPLERS={'sin':math.sin,'cos':math.cos,'abs':abs,
+           'sqrt':lambda a:math.sqrt(max(0.0,a)),
+           'exp':lambda a:math.exp(min(max(a,-16.0),16.0)),
+           'min':min,'max':max,
+           'pow':lambda a,b:_bound(min(max(a,.0001),10000.0)**min(max(b,-8.0),8.0)),
+           'clamp':lambda a,b,c:min(max(a,min(b,c)),max(b,c)),
+           'mix':lambda a,b,c:a+(b-a)*min(max(c,0.0),1.0)}
+
+
+def sampler(source):
+    """Return f(u,v,t) mirroring the shader helpers for an already-compiled
+    binding-free expression. Walks the parsed tree; never evaluates input code."""
+    compile_expression(source)
+    body=ast.parse(source.strip(),mode='eval').body
+    def run(node,env):
+        if isinstance(node,ast.Constant):return float(node.value)
+        if isinstance(node,ast.Name):return env[node.id]
+        if isinstance(node,ast.UnaryOp):
+            x=run(node.operand,env);return -x if isinstance(node.op,ast.USub) else x
+        if isinstance(node,ast.BinOp):
+            a,b=run(node.left,env),run(node.right,env)
+            if isinstance(node.op,ast.Div):
+                return _bound(a/(b if abs(b)>=.0001 else (-.0001 if b<0 else .0001)))
+            return _bound(a+b if isinstance(node.op,ast.Add) else a-b if isinstance(node.op,ast.Sub) else a*b)
+        return _bound(_SAMPLERS[node.func.id](*[run(arg,env) for arg in node.args]))
+    return lambda u,v,t:run(body,{'u':u,'v':v,'t':t,'pi':math.pi})
