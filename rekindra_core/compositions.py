@@ -53,6 +53,15 @@ def _interpretation(ref: dict) -> dict:
             'content': 'interpretation', 'origin': 'agent', 'recovered': False}
 
 
+def _quote_ok(item, aid: str, eid: str, paths: dict) -> bool:
+    return (isinstance(item, dict) and set(item) == _RECOVERED_KEYS
+            and item['asset_id'] == aid and item['evidence_id'] == eid
+            and aid in paths and item['source_path'] == paths[aid]
+            and item['content'] == 'recovered' and item['untrusted'] is True
+            and isinstance(item['text'], str)
+            and _evidence_id(aid, item['locator'], item['text']) == eid)
+
+
 def _evidence_id(source_id: str, locator, text: str) -> str:
     # Same derivation as rekindra_evidence._dossier._evidence: the ID commits to
     # the source, the locator and the exact quoted text.
@@ -181,15 +190,15 @@ class CompositionStore:
         unkeyed hashes, so someone who can rewrite the plan file can also rewrite
         a quote and its ID together. It catches stale or hand-edited plans that
         no longer agree with themselves or with the project's assets.
+        Intake status is not checked here, so a plan whose source intake later
+        rejects can still be loaded and revised to drop that citation; any new
+        plan that keeps citing it is refused by text_provenance.
         """
         if refs is None:
             if stored is not None:
                 raise SceneError('Plan text evidence provenance has changed')
             return
-        project = self.projects.status(project_id)
-        paths = {a['asset_id']: a['source_path'] for a in project['assets']}
-        refused = {a.get('asset_id') for a in project['artifacts']
-                   if a.get('kind') == 'evidence' and a.get('status') in ('rejected', 'unsupported')}
+        paths = {a['asset_id']: a['source_path'] for a in self.projects.status(project_id)['assets']}
         wanted = [(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']]
         if (not isinstance(stored, dict) or set(stored) != {'recovered_evidence', 'interpretations'}
                 or stored['interpretations'] != [_interpretation(ref) for ref in refs]
@@ -197,12 +206,7 @@ class CompositionStore:
                 or len(stored['recovered_evidence']) != len(wanted)):
             raise SceneError('Plan text evidence provenance has changed')
         for item, (aid, eid) in zip(stored['recovered_evidence'], wanted):
-            if (not isinstance(item, dict) or set(item) != _RECOVERED_KEYS
-                    or item['asset_id'] != aid or item['evidence_id'] != eid
-                    or aid not in paths or aid in refused
-                    or item['source_path'] != paths[aid] or item['content'] != 'recovered'
-                    or item['untrusted'] is not True or not isinstance(item['text'], str)
-                    or _evidence_id(aid, item['locator'], item['text']) != eid):
+            if not _quote_ok(item, aid, eid, paths):
                 raise SceneError('Plan text evidence provenance has changed')
 
     def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict,
@@ -216,13 +220,19 @@ class CompositionStore:
                   'scene': normalized, 'source_ids': selected_ids,
                   'sources': [{k: v for k, v in s.items() if k != 'data'} for s in sources],
                   'model': attribution}
+        refs = normalized.get('text_references')
         carried = {}
-        if parent is not None and parent.get('text_provenance') is not None:
-            # Reuse the parent's checked quotes per (asset, evidence) pair. A later
-            # recovery may have rebuilt the dossier, which must not block edits.
-            self.check_text_provenance(project_id, parent['scene'].get('text_references'), parent['text_provenance'])
-            carried = {(i['asset_id'], i['evidence_id']): i for i in parent['text_provenance']['recovered_evidence']}
-        text = self.text_provenance(project_id, normalized.get('text_references'), carried)
+        if parent is not None and refs is not None and isinstance(parent.get('text_provenance'), dict):
+            # Reuse the parent's quotes per (asset, evidence) pair the new plan still
+            # cites. A later recovery may have rebuilt the dossier, which must not
+            # block edits. Each reused quote is rechecked; pairs being dropped are not.
+            wanted = {(ref['asset_id'], eid) for ref in refs for eid in ref['evidence_ids']}
+            paths = {a['asset_id']: a['source_path'] for a in self.projects.status(project_id)['assets']}
+            for item in parent['text_provenance'].get('recovered_evidence') or []:
+                key = (item.get('asset_id'), item.get('evidence_id')) if isinstance(item, dict) else None
+                if key in wanted and _quote_ok(item, *key, paths):
+                    carried[key] = item
+        text = self.text_provenance(project_id, refs, carried)
         if text is not None:
             record['text_provenance'] = text
         encoded=json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2).encode()

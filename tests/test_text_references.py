@@ -205,6 +205,7 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
         self.assertTrue(out['ok'], out)
 
     def test_carried_quotes_are_refused_once_intake_rejects_the_asset(self):
+        # The plan stays loadable and can drop the citation; keeping it is refused.
         ids = self.evidence_for('notes.txt')
         pid, tga = self.project['project_id'], self.ids['photo.tga']
         refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
@@ -219,13 +220,28 @@ class TextReferenceProvenanceTests(recover_tests.RecoverEvidenceTests):
                     a['status'] = 'rejected'
             return project
         store.projects.status = rejected
-        with self.assertRaisesRegex(SceneError, 'text evidence provenance'):
-            store.load_plan(pid, saved['plan_id'])
-        with self.assertRaises(SceneError):
-            store.save_plan(pid, self.world_with(refs), [tga], {}, parent=saved)
+        parent = store.load_plan(pid, saved['plan_id'])
         with self.assertRaisesRegex(SceneError, 'rejected'):
-            store.text_provenance(pid, refs, {(i['asset_id'], i['evidence_id']): i
-                                              for i in saved['text_provenance']['recovered_evidence']})
+            store.save_plan(pid, self.world_with(refs), [tga], {}, parent=parent)
+        dropped = store.save_plan(pid, world(tga), [tga], {}, parent=parent)
+        self.assertNotIn('text_provenance', dropped)
+
+    def test_carried_quotes_do_not_need_the_live_dossier(self):
+        ids = self.evidence_for('notes.txt')
+        pid, tga = self.project['project_id'], self.ids['photo.tga']
+        refs = [{'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1], 'interpretation': 'x'}]
+        saved = self.compositions().save_plan(pid, self.world_with(refs), [tga], {})
+        evidence = self.store._project(pid) / 'artifacts' / 'evidence.json'
+        evidence.write_bytes(evidence.read_bytes() + b' ')  # sha256 no longer matches the manifest
+        reworded = copy.deepcopy(refs); reworded[0]['interpretation'] = 'y'
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': reworded}]}))
+        self.assertTrue(out['ok'], out)
+        added = copy.deepcopy(refs); added[0]['evidence_ids'] = ids[:1] + [EV]
+        out = json.loads(self.handlers['rekindra_revise_world'](
+            {'project_id': pid, 'plan_id': saved['plan_id'], 'edits': [{'field': 'text_references', 'value': added}]}))
+        self.assertFalse(out['ok'], out)
+        self.assertIn('Saved evidence', json.dumps(out))
 
     def test_world_and_revise_handlers_carry_text_references(self):
         ids = self.evidence_for('notes.txt')
