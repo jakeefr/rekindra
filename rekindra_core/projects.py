@@ -21,6 +21,8 @@ from .png import encode_png
 _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
+_ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
+_EVIDENCE_FORMATS = ('text', 'zip')
 _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
 
 
@@ -106,7 +108,7 @@ class ProjectStore:
                     if (not isinstance(artifact, dict)
                             or not isinstance(artifact.get('asset_id'), str)
                             or artifact['asset_id'] not in asset_ids or artifact['asset_id'] in artifact_ids
-                            or artifact.get('kind') != 'recovered' or artifact.get('format') != 'png'
+                            or (artifact.get('kind'), artifact.get('format')) not in _ARTIFACT_KINDS
                             or not isinstance(artifact.get('sha256'), str) or not _HASH.fullmatch(artifact['sha256'])
                             or not isinstance(artifact.get('source_sha256'), str) or not _HASH.fullmatch(artifact['source_sha256'])
                             or not isinstance(artifact.get('path'), str)):
@@ -216,7 +218,13 @@ class ProjectStore:
             destination.unlink(missing_ok=True)
             raise
 
-    def recover(self, project_id: str, asset_id: str) -> dict:
+    def recover(self, project_id: str, asset_id: str, evidence_reader=None) -> dict:
+        """Recover one saved asset.
+
+        TGA decodes to PNG. Text and ZIP go through ``evidence_reader`` (a dict with
+        ``intake(format, data, name)`` and ``dossier(records)``) when the caller
+        supplies one; their result is quoted observation, never interpretation.
+        """
         with _STORE_LOCK:
             if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
                 raise ProjectError('Invalid asset identifier')
@@ -233,8 +241,10 @@ class ProjectStore:
                 data = inp.read(self.limits.max_file_bytes+1)
             if len(data) > self.limits.max_file_bytes or hashlib.sha256(data).hexdigest() != asset.get('sha256'):
                 raise ProjectError('Snapshot integrity check failed; original copy changed')
+            if asset.get('format') in _EVIDENCE_FORMATS and evidence_reader is not None:
+                return self._recover_evidence(project, directory, asset, data, evidence_reader)
             if asset.get('format') not in ('tga', 'tga_candidate'):
-                raise ProjectError('Recovery currently supports the documented TGA subset only')
+                raise ProjectError('Recovery supports the documented TGA subset, plus text and ZIP inventory')
             try:
                 raster = decode_tga(data)
                 png = encode_png(raster)
@@ -251,3 +261,42 @@ class ProjectStore:
             project['stage'] = 'recovered'
             self._save(directory, project)
             return artifact
+
+    def _recover_evidence(self, project: dict, directory: Path, asset: dict, data: bytes, reader) -> dict:
+        asset_id = asset['asset_id']
+        envelope = reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
+        if not isinstance(envelope, dict):
+            raise ProjectError('Evidence intake returned no result')
+        blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')
+        target = directory / 'artifacts' / (asset_id + '.intake.json')
+        _no_links(target)
+        _atomic(target, blob)
+        warnings = [w.get('code') for w in envelope.get('warnings') or [] if isinstance(w, dict)]
+        artifact = {'asset_id': asset_id, 'kind': 'evidence', 'format': 'intake-json',
+                    'path': str(target), 'source_sha256': asset['sha256'],
+                    'sha256': hashlib.sha256(blob).hexdigest(), 'decoder': 'rekindra-intake-v1',
+                    'intake_format': envelope.get('format'), 'status': envelope.get('status'),
+                    'warnings': warnings}
+        project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
+        paths = {a['asset_id']: a['source_path'] for a in project['assets']}
+        records = []
+        for item in project['artifacts']:
+            if item.get('kind') != 'evidence':
+                continue
+            path = Path(item['path'])
+            _no_links(path)
+            raw = path.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != item['sha256']:
+                raise ProjectError('Saved intake changed; re-run recovery for that asset')
+            records.append({'source_id': item['asset_id'], 'relative_path': paths[item['asset_id']],
+                            'intake': json.loads(raw.decode('utf-8'))})
+        dossier = reader['dossier'](records)
+        dossier_blob = json.dumps(dossier, ensure_ascii=False, sort_keys=True).encode('utf-8')
+        dossier_path = directory / 'artifacts' / 'evidence.json'
+        _no_links(dossier_path)
+        _atomic(dossier_path, dossier_blob)
+        project['evidence'] = {'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
+                               'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]}
+        project['stage'] = 'recovered'
+        self._save(directory, project)
+        return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
