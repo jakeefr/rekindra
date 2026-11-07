@@ -40,7 +40,10 @@ class ColorPatternTests(unittest.TestCase):
 
     def test_refuses_high_frequency_stripes(self):
         # B01 architecture study: this payload rendered conspicuous radial terrace stripes.
-        for value in ('.35+.25*cos(u*80*pi)', '.2*sin(v*120)', 'clamp(sin(u*200),-.2,.2)'):
+        # Patterns are clamped 0..1 like the renderer's blend, so a band around .5 counts,
+        # and stripes that only appear later in time are sampled too.
+        for value in ('.35+.25*cos(u*80*pi)', '.2*sin(v*120)', 'clamp(sin(u*200),-.2,.2)',
+                      '.5+.1*cos(u*80*pi)', '.7+.2*sin(u*200)', '.5+.4*sin(u*200*t)'):
             with self.subTest(value=value):
                 scene = world()
                 scene['objects'][0]['color_pattern'] = value
@@ -48,7 +51,7 @@ class ColorPatternTests(unittest.TestCase):
                     validate_world(scene, {'a'*32})
         # Low-frequency bands and fine grain with a small swing remain allowed.
         for value in ('.5+.5*cos(u*8*pi+t)', 'clamp(.5+2*sin(2*pi*u),0,1)', '.03*sin(u*170+v*45)',
-                      '.48+.035*sin(u*170+v*45-t*.85)'):
+                      '.48+.035*sin(u*170+v*45-t*.85)', '-.4+.2*sin(u*200)', '1.5+.3*sin(v*300)'):
             with self.subTest(value=value):
                 scene = world()
                 scene['objects'][0]['color_pattern'] = value

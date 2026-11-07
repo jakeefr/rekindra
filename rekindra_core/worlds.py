@@ -59,7 +59,7 @@ def compile_surface(obj):
 
 
 # A color_pattern repeating more than this many times across a surface's u or v
-# range, with a visible swing after the -0.35..0.35 clamp, reads as hard
+# range, with a visible swing after the renderer's 0..1 blend clamp, reads as hard
 # stripes rather than material grain (B01 terrace: .35+.25*cos(u*80*pi)).
 _STRIPE_CYCLES=16
 _STRIPE_SWING=.08
@@ -67,15 +67,15 @@ _STRIPE_SWING=.08
 
 def _refuse_stripes(source):
     f=sampler(source);n=2048
-    for t in (0.0,):
+    for t in (0.0,1.0,7.3):
         for fixed in (.25,.5,.75):
             for axis in ('u','v'):
-                xs=[min(max(f(i/(n-1),fixed,t) if axis=='u' else f(fixed,i/(n-1),t),-.35),.35) for i in range(n)]
+                xs=[min(max(f(i/(n-1),fixed,t) if axis=='u' else f(fixed,i/(n-1),t),0.),1.) for i in range(n)]
                 lo,hi=min(xs),max(xs)
                 if hi-lo<_STRIPE_SWING:continue
                 mid=(lo+hi)/2;crossings=sum((a<mid)!=(b<mid) for a,b in zip(xs,xs[1:]))
-                if crossings/2>_STRIPE_CYCLES:
-                    raise SceneError(f'color_pattern repeats about {crossings//2} times across {axis} with a visible swing; '
+                if crossings>2*_STRIPE_CYCLES:
+                    raise SceneError(f'color_pattern repeats about {crossings/2:g} times across {axis} with a visible swing; '
                                      f'this renders as hard stripes. Keep repeats at or below {_STRIPE_CYCLES} or the swing under {_STRIPE_SWING}')
 
 
