@@ -259,7 +259,36 @@ class RecoverEvidenceTests(unittest.TestCase):
     def test_interrupt_is_not_replaced_by_restore_error(self):
         patcher = mock.patch.object(self.store, '_save', side_effect=KeyboardInterrupt)
         with self._replace_failing_on(lambda src, dst: src.endswith('.old'), 'locked'):
-            self._failing_write('notes.txt', patcher, KeyboardInterrupt)
+            artifacts, *_, error = self._failing_write('notes.txt', patcher, KeyboardInterrupt)
+        kept = list(artifacts.glob('*.old'))
+        self.assertTrue(kept)
+        self.assertFalse(list(artifacts.glob('*.new')))
+        self.assertTrue(any(k.name in note for k in kept for note in getattr(error, '__notes__', [])))
+
+    def test_kept_intake_blocks_other_recovery_and_is_not_swept(self):
+        base = plugin.handlers.evidence_reader()
+        reader = {'intake': lambda f, d, n: dict(base['intake'](f, d, n), changed_on_rerun=True),
+                  'dossier': base['dossier']}
+        patcher = self._replace_failing_on(
+            lambda src, dst: src.endswith('.old') or (src.endswith('.new') and dst == 'evidence.json'), 'locked')
+        artifacts, snapshot, _, error = self._failing_write('notes.txt', patcher, ProjectError, reader=reader)
+        intake_name = self.ids['notes.txt'] + '.intake.json'
+        kept = list(artifacts.glob(intake_name + '.*.old'))
+        self.assertEqual([k.read_bytes() for k in kept], [snapshot[intake_name]])
+        with self.assertRaisesRegex(ProjectError, 'Saved intake changed'):
+            self.store.recover(self.project['project_id'], self.ids['old.zip'], base)
+        self.assertTrue(all(k.exists() for k in kept))
+
+    def test_sweep_leaves_unrelated_files(self):
+        pid = self.project['project_id']
+        reader = plugin.handlers.evidence_reader()
+        self.store.recover(pid, self.ids['notes.txt'], reader)
+        artifacts = self.store.root / pid / 'artifacts'
+        unrelated = [artifacts / 'keep.tmp', artifacts / ('foo.json.' + 'a' * 32 + '.old')]
+        for path in unrelated:
+            path.write_bytes(b'x')
+        self.store.recover(pid, self.ids['old.zip'], reader)
+        self.assertTrue(all(path.exists() for path in unrelated))
 
     def test_described_cap_matches_dossier_limit(self):
         plugin.handlers.evidence_reader()

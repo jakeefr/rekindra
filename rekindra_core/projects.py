@@ -355,21 +355,25 @@ class ProjectStore:
                         staged.unlink(missing_ok=True)
                     except OSError:
                         pass
-                pending = sys.exc_info()[1]
-                if kept and (pending is None or isinstance(pending, Exception)):
+                if kept:
                     # The set-aside files are now the only copy of the previous bytes: keep them.
-                    raise ProjectError('Evidence files could not be restored after a failed write; previous bytes '
-                                       'are kept in artifacts as ' + ', '.join(kept)
-                                       + '. Re-run recovery for this asset to rebuild them.')
-        # Committed: drop this attempt's aside copies and any left by an earlier failed attempt.
-        for leftover in artifacts_dir.iterdir():
-            if _STAGED.fullmatch(leftover.name):
-                try:
-                    leftover.unlink()
-                except OSError:
-                    pass
+                    detail = ('Evidence files could not be restored after a failed write; previous bytes '
+                              'are kept in artifacts as ' + ', '.join(kept)
+                              + '. Re-run recovery for this asset to rebuild them.')
+                    pending = sys.exc_info()[1]
+                    if pending is None or isinstance(pending, Exception):
+                        raise ProjectError(detail)
+                    pending.add_note(detail)  # an interrupt keeps propagating, with the detail attached
         project.clear()
         project.update(updated)
+        # Committed: best-effort removal of this attempt's aside copies and any left by an
+        # earlier failed attempt. It never fails a recovery that is already saved.
+        try:
+            for leftover in artifacts_dir.iterdir():
+                if _STAGED.fullmatch(leftover.name):
+                    leftover.unlink(missing_ok=True)
+        except OSError:
+            pass
         return {'artifact': artifact, 'dossier': dossier, 'dossier_path': str(dossier_path)}
 
     @staticmethod
