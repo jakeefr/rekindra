@@ -158,9 +158,11 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
 }`).join('\n');
     const controlledAmbient=(scene.environment.ambient_strength??1)!==1||(scene.environment.ground_strength??0)>0;
     const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;
-    // No MSAA: hardware multisample resolve of overlapping additive (glow) layers is not bit-stable between identical
-    // draws, which breaks deterministic seeking. Edges are smoothed by the sampleScale supersample instead.
-    const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,preserveDrawingBuffer:true});
+    // Scenes with glow drop MSAA: hardware multisample resolve of overlapping additive layers is not bit-stable between
+    // identical draws, which breaks deterministic seeking. Their edges rely on the sampleScale supersample alone.
+    const contextOptions={alpha:false,antialias:true,preserveDrawingBuffer:true};
+    if(scene.objects.some(o=>o.glow!==undefined))contextOptions.antialias=false;
+    const gl=canvas.getContext('webgl2',contextOptions);
     if(!gl)throw Error('This generated world needs WebGL2. Use a browser with graphics acceleration.');
     // Four spatial samples per output pixel; no temporal state or material changes.
     // Keep the public canvas at authored resolution, including export/preview callers.

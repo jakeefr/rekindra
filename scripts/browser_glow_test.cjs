@@ -12,7 +12,9 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    const ground={id:'ground',segments:[4,4],color:'#909090',color_high:'#909090',roughness:1,metalness:0,emission:0};
    const tube={id:'tube',segments:[48,8],color:'#FFC060',color_high:'#FFC060',roughness:1,metalness:0,emission:0};
    const wall={id:'wall',segments:[2,2],color:'#305070',color_high:'#305070',roughness:1,metalness:0,emission:0};
-   const P={ground:{position:['(u-.5)*30.','0.','(v-.5)*30.'],color_mix:'0.'},tube:{position:['cos(u*2.*pi)','.5+v*2.5','sin(u*2.*pi)'],color_mix:'0.'},wall:{position:['-2.5+u*2.4','v*4.','2.5'],color_mix:'0.'}};
+   const P={ground:{position:['(u-.5)*30.','0.','(v-.5)*30.'],color_mix:'0.'},tube:{position:['cos(u*2.*pi)','.5+v*2.5','sin(u*2.*pi)'],color_mix:'0.'},wall:{position:['-2.5+u*2.4','v*4.','2.5'],color_mix:'0.'},ghost:{position:['cos(u*2.*pi)','v','40.+sin(u*2.*pi)'],color_mix:'0.'}};
+   // Any glow surface switches the renderer off MSAA, so every control carries one behind the camera: compare like with like.
+   const ghost={...tube,id:'ghost',glow:1};
    function capture(objs){
     const scene={width:W,height:H,camera:[camera,{...camera,at:12}],environment:env,objects:objs};
     const rr=RekindraWorld.createRenderer(scene,objs.map(o=>P[o.id])),c=document.createElement('canvas');c.width=W;c.height=H;
@@ -21,9 +23,9 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    }
    const proj=p=>RekindraWorld.projectPoint(p,camera,W,H).map(Math.round);
    const mirror={...ground,position:{y:'0'},reflection:{strength:.8,blur:0}};
-   return{W,none:capture([ground,wall]),glow:capture([ground,{...tube,glow:1},wall]),opaque:capture([ground,tube,wall]),
-    bare:capture([ground]),bareGlow:capture([ground,{...tube,glow:1}]),
-    mirror:capture([mirror]),mirrorGlow:capture([mirror,{...tube,glow:1}]),
+   return{W,none:capture([ground,wall,ghost]),glow:capture([ground,{...tube,glow:1},wall]),opaque:capture([ground,tube,wall,ghost]),
+    bare:capture([ground,ghost]),bareGlow:capture([ground,{...tube,glow:1}]),
+    mirror:capture([mirror,ghost]),mirrorGlow:capture([mirror,{...tube,glow:1}]),
     pts:{behindWall:proj([-.6,1.75,.8]),centre:proj([0,1.75,1]),edge:proj([.95,1.75,.31]),reflected:proj([0,-1.75,1])}};
   });
   for(const k of ['none','glow','opaque','bareGlow','mirrorGlow'])fs.writeFileSync(path.join(out,k+'.png'),Buffer.from(r[k].png,'base64'));
