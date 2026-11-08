@@ -20,10 +20,13 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
     return{px:Array.from(x.getImageData(0,0,W,H).data),png:c.toDataURL().split(',')[1]};
    }
    const proj=p=>RekindraWorld.projectPoint(p,camera,W,H).map(Math.round);
+   const mirror={...ground,position:{y:'0'},reflection:{strength:.8,blur:0}};
    return{W,none:capture([ground,wall]),glow:capture([ground,{...tube,glow:1},wall]),opaque:capture([ground,tube,wall]),
-    pts:{behindWall:proj([-1.6,1.75,2.5]),centre:proj([0,1.75,1]),edge:proj([.95,1.75,.31])}};
+    bare:capture([ground]),bareGlow:capture([ground,{...tube,glow:1}]),
+    mirror:capture([mirror]),mirrorGlow:capture([mirror,{...tube,glow:1}]),
+    pts:{behindWall:proj([-.6,1.75,.8]),centre:proj([0,1.75,1]),edge:proj([.95,1.75,.31]),reflected:proj([0,-1.75,1])}};
   });
-  for(const k of ['none','glow','opaque'])fs.writeFileSync(path.join(out,k+'.png'),Buffer.from(r[k].png,'base64'));
+  for(const k of ['none','glow','opaque','bareGlow','mirrorGlow'])fs.writeFileSync(path.join(out,k+'.png'),Buffer.from(r[k].png,'base64'));
   const lum=(img,i)=>img.px[i]+img.px[i+1]+img.px[i+2];
   const at=([x,y])=>(y*r.W+x)*4;
   let darker=0,brighter=0,shadowed=0;
@@ -32,13 +35,18 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    if(lum(r.glow,i)>lum(r.none,i)+30)brighter++;
    if(lum(r.opaque,i)<lum(r.none,i)-30)shadowed++;
   }
-  const d=p=>lum(r.glow,at(p))-lum(r.none,at(p));
-  const metrics={darker,brighter,shadowed,behindWall:d(r.pts.behindWall),centre:d(r.pts.centre),edge:d(r.pts.edge)};
+  let mirrorDarker=0;for(let i=0;i<r.mirror.px.length;i+=4)if(lum(r.mirrorGlow,i)<lum(r.mirror,i)-3)mirrorDarker++;
+  const d=(p,a=r.glow,b=r.none)=>lum(a,at(p))-lum(b,at(p));
+  const metrics={darker,brighter,shadowed,behindWall:d(r.pts.behindWall),behindWallControl:d(r.pts.behindWall,r.bareGlow,r.bare),
+   centre:d(r.pts.centre),edge:d(r.pts.edge),reflected:d(r.pts.reflected,r.mirrorGlow,r.mirror),mirrorDarker};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(metrics,null,2));console.log(metrics);
   assert.ok(shadowed>500,'Control: the opaque tube must visibly shadow or cover the scene');
   assert.equal(darker,0,'Glow must never darken any pixel (additive, no shadow)');
   assert.ok(brighter>500,'Glow must visibly add light');
+  assert.ok(metrics.behindWallControl>30,'Control: without the wall this pixel must show the glow');
   assert.ok(Math.abs(metrics.behindWall)<=3,'Opaque wall in front must hide the glow');
+  assert.ok(metrics.reflected>20,'A planar reflector must show the glow mirrored below the plane');
+  assert.equal(metrics.mirrorDarker,0,'Glow must not darken a reflective scene');
   assert.ok(metrics.centre>metrics.edge+20,'Glow must be brighter facing the camera than at its silhouette');
  }finally{await browser.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
