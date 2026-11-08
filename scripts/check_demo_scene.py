@@ -278,10 +278,10 @@ def check_boats(scene, boat_id, mast_ids=None):
             masts.append(f'{mid} not on the hull assembly')
     chosen = (lambda oid: oid in mast_ids) if mast_ids else is_mast
     for p in scene['objects']:
-        if p['id'] in peers and not chosen(p['id']) and 'mast' in p['id'].lower():
+        if p['id'] in peers and not chosen(p['id']) and re.search(r'mast(?!er|ic)', p['id'].lower()):
             skipped += 1
             masts.append(f'{p["id"]} skipped (pass --mast-id to measure)')
-        if p['id'] in peers and chosen(p['id']) and p.get('position'):
+        if p['id'] in peers and chosen(p['id']):
             mx, mz, _ = surface_extent(p)
             if mx is None:
                 mast_unmeasured = True

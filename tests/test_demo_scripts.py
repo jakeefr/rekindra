@@ -120,7 +120,7 @@ class BeamAndBoatTests(unittest.TestCase):
         pts = [[0, -1.4], [.32, -.7], [.45, .2], [.36, 1.0], [-.36, 1.0], [-.45, .2], [-.32, -.7]]
         hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
                 'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'}}
-        mast = {'id': 'mast', 'assembly': 'home'}
+        mast = {'id': 'cabin', 'assembly': 'home'}
         ok, detail = check.check_boats({'objects': [hull, mast]}, 'boat')
         self.assertTrue(ok, detail)
         disc = {'id': 'boat', 'assembly': 'home',
@@ -164,6 +164,9 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertIn('spar not on the hull assembly', detail)
         away = dict(mast(.07, '#B89A78'), id='spar', assembly='elsewhere')
         self.assertIs(False, check.check_boats({'objects': [hull, flag, away]}, 'boat', ['spar'])[0])
+        self.assertIsNone(check.check_boats({'objects': [hull, {'id': 'spar', 'assembly': 'home'}]},
+                                            'boat', ['spar'])[0])
+        self.assertTrue(check.check_boats({'objects': [hull, dict(thin, id='master_cabin')]}, 'boat')[0])
         ok, detail = check.check_boats({'objects': [hull, dict(thin, id='mastFore')]}, 'boat')
         self.assertIsNone(ok, detail)
         self.assertIn('mastFore skipped', detail)
