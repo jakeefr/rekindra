@@ -62,6 +62,22 @@ that metric while the sweep reads plainly in frames. Per the approved plan ("pic
 frames"), the shaft is kept; the metric mismatch is recorded, not tuned. With this design the
 checker's overall exit code will not be 0; read the beam line as advisory.
 
+## Beam from the lamp: engine glow mode (2026-11-07, approved by Jake)
+
+Jake's review of the live take: the light sat on the water instead of coming from the lighthouse. Guidance alone
+could not fix it: every surface was opaque and cast shadows, so any beam in the air read as a solid wedge. This unit
+changes the engine (the "engine untouched" scope above covers only the five earlier fixes).
+
+- `glow` object field (.05..3): additive, see-through, no shadow or contact depth, ignores scene lighting, fades at its
+  silhouette and with fog, depth-tested so opaque matter hides it, drawn in the mirrored reflection pass, cannot be
+  the reflector. Optional and revisable; omitting it keeps the old render path.
+- Pass conditions (`scripts/browser_glow_test.cjs`): no pixel darker than the scene without it, visible added light,
+  opaque control does shadow, a wall in front hides it exactly, centre brighter than silhouette. Passed at attempt 1.
+  `tests/test_glow.py` covers validation, the reflector rule and revise set/remove.
+- Offline probe (`glow1`-`glow3`, same base plan): attempt 1 at glow .9-1.3 saturated to a white wedge; attempt 2 at
+  .12 reads as a soft beam leaving the lamp in all six frames and hidden by the tower when it points away. Guidance and
+  RULES.md now say: apex at the lamp, on the sweeping assembly, glow ~.12, plus a glow halo on the lamp room.
+
 ## Recording
 
 Best-of-N recording on Monday (approved): several takes of each beat, the best one used, disclosed in the post.

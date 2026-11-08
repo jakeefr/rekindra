@@ -182,7 +182,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=active_reflectors=0
     for obj in s['objects']:
         if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft','reflection')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft','reflection','glow')},'id position segments color color_high color_mix roughness metalness emission','surface')
         if 'reflection' in obj:
             reflection=obj['reflection'];fields(reflection,'strength blur','planar reflection')
             _number(reflection['strength'],0,1,'reflection strength');_number(reflection['blur'],0,8,'reflection blur')
@@ -197,6 +197,9 @@ def validate_world(value,asset_ids):
             _number(height,-80,80,'reflection plane height')
             active_reflectors+=reflection['strength']>0
             if active_reflectors>1:raise SceneError('World allows only one active planar reflection')
+        if 'glow' in obj:
+            _number(obj['glow'],.05,3,'glow')
+            if 'reflection' in obj:raise SceneError('A glow surface cannot be the reflector')
         if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
             raise SceneError('Surface shading must be smooth or flat')
         caps=obj.get('caps',[])
@@ -345,3 +348,6 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['assembly']={'type'
 WORLD_SCHEMA['properties']['objects']['items']['properties']['shading']={'type':'string','enum':['smooth','flat'],'description':'Optional normal mode, smooth by default. Flat uses each rendered triangle normal for faceted rock, cut crystal or deliberately low-poly construction. Geometry and shadow silhouettes unchanged; caps remain flat. Bump detail may still perturb lighting normals. Choose segments to represent intentional planes; flat shading cannot create cracks or repair bad geometry.'}
 
 WORLD_SCHEMA['properties']['objects']['items']['properties']['loft']={'type':'array','minItems':2,'maxItems':8,'description':'Optional ordered convex cross-sections. Supplies loft_x/loft_y/loft_z to position and bindings. Equal3-16point counts, same winding, heights increasing >=0.0001. Points are x,z, no repeated closing vertex. Rings close automatically. u segments must be a multiple of point count; v segments a multiple of sections-1. Use position x:loft_x,y:loft_y,z:loft_z then optional bounded deformation. Static sections interpolate linearly in v; instance/assembly transforms still apply. Work charged per copy/cap. Convex source rings do not guarantee deformed geometry is collision-free.','items':obj_schema({'height':{'type':'number','minimum':-80,'maximum':80},'points':{'type':'array','minItems':3,'maxItems':16,'items':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':-80,'maximum':80}}}})}
+
+WORLD_SCHEMA['properties']['objects']['items']['properties']['glow']={'type':'number','minimum':.05,'maximum':3,
+    'description':'Optional see-through light volume: the surface ADDS albedo*glow to whatever is behind it, casts no shadow, ignores scene lighting, fades at its silhouette and with fog. Use for a lighthouse beam, lamp halo or light shaft, never for solid matter. Black albedo adds nothing, so a color_pattern toward color_high #000000 fades it out along its length. Opaque surfaces in front still hide it.'}

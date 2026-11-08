@@ -306,9 +306,14 @@ Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_d
   `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
 - **Sea color:** keep the water albedo mid-blue (about `#1F5888`) at default roughness. Dark albedo or roughness .5 lets
   the pink sky sheen turn the sea purple.
-- **Beams:** an emissive cone reads as a solid wedge. Light the lamp room (small emissive sphere, emission ~2) and lay a
-  flat strip on the water that widens away from the lamp, emission ~.6, `color_high` = water color, `color_pattern`
-  `clamp(abs(v-.5)*2.2+u*.55,0,1)` so its edges and far end fade. Keep it on the rotating assembly so it sweeps.
+- **Beams:** every light effect must start at its source. An opaque or emissive cone reads as a solid wedge and casts
+  a shadow; use a `glow` cone instead (additive, see-through, no shadow, soft silhouette). Apex at the lamp centre,
+  axis outward and slightly down, radius ~.1 at the lamp widening to ~1.5 over ~20 units, no caps, `glow` ~.12
+  (.08-.25; higher saturates to white), warm `color`, `color_high` `#000000`, `color_pattern` `u` so it fades along its
+  length. Put it on the rotating assembly whose pivot is the lamp centre so it sweeps from the lamp. Light the lamp room
+  (small emissive sphere, emission ~2) inside a `glow` sphere halo (radius ~1, glow ~.06). An optional faint water glint
+  goes on the same assembly, under the beam, starting a few units out from the tower. Check in the preview that the
+  beam leaves the lamp in every frame.
 - **Boats:** a disc or squashed sphere reads as a flat blob. Loft a pointed-bow hull (7-point outline, length at least
   2.5x the beam) and add mast and lamp surfaces on the same assembly and instances.
 - **Revising:** when replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to

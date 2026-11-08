@@ -335,6 +335,9 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 `vec3 albedo=mix(baseColor,highColor,blend);
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
+${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
+{float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
+${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
@@ -393,15 +396,23 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       if(!contactEnabled)return;
       gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,cameraDepthBuffer);
       gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.POLYGON_OFFSET_FILL);gl.clear(gl.DEPTH_BUFFER_BIT);
-      for(const s of surfaces){if(pass&&s.o===reflector)continue;setup(s.cameraDepthProgram,c,b,time,pass);drawSurface(s,s.cameraDepthProgram)}
+      for(const s of surfaces){if(pass&&s.o===reflector||s.o.glow!==undefined)continue;setup(s.cameraDepthProgram,c,b,time,pass);drawSurface(s,s.cameraDepthProgram)}
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,cameraDepthTexture);gl.activeTexture(gl.TEXTURE0);
     }
     function colorPass(c,b,time,pass){
       gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(null);setup(skyProgram,c,b,time,pass);gl.drawArrays(gl.TRIANGLES,0,3);
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
-      for(const s of surfaces){if(pass&&s.o===reflector)continue;setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
-        for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
+      drawColor(c,b,time,pass);
+    }
+    // Opaque surfaces first; glow surfaces then add light, depth-tested but not depth-writing.
+    function drawColor(c,b,time,pass){
+      for(const glow of [false,true]){
+        if(glow){gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false)}
+        for(const s of surfaces){if((s.o.glow!==undefined)!==glow||pass&&s.o===reflector)continue;setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
+          for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
+        if(glow){gl.disable(gl.BLEND);gl.depthMask(true)}
+      }
     }
     function render(time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
@@ -409,13 +420,13 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       if(contactEnabled&&!reflector){
         gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,cameraDepthBuffer);
         gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.POLYGON_OFFSET_FILL);gl.clear(gl.DEPTH_BUFFER_BIT);
-        for(const s of surfaces){setup(s.cameraDepthProgram,c,b,time);drawSurface(s,s.cameraDepthProgram)}
+        for(const s of surfaces){if(s.o.glow!==undefined)continue;setup(s.cameraDepthProgram,c,b,time);drawSurface(s,s.cameraDepthProgram)}
         gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,cameraDepthTexture);gl.activeTexture(gl.TEXTURE0);
       }
       gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,shadowBuffer);
       gl.viewport(0,0,shadowSize,shadowSize);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(1,1);gl.clear(gl.DEPTH_BUFFER_BIT);
-      for(const s of surfaces){setup(s.depthProgram,c,b,time);drawSurface(s,s.depthProgram)}
+      for(const s of surfaces){if(s.o.glow!==undefined)continue;setup(s.depthProgram,c,b,time);drawSurface(s,s.depthProgram)}
       gl.disable(gl.POLYGON_OFFSET_FILL);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
       gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,depthTexture);gl.viewport(0,0,canvas.width,canvas.height);
       if(reflector){
@@ -430,8 +441,7 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       }
       gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.disable(gl.DEPTH_TEST);gl.bindVertexArray(null);setup(skyProgram,c,b,time);gl.drawArrays(gl.TRIANGLES,0,3);
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
-      for(const s of surfaces){setup(s.p,c,b,time);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
-        for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
+      drawColor(c,b,time,0);
       gl.bindVertexArray(null);if(gl.getError()!==gl.NO_ERROR)throw Error('World rendering failed');
       if(resolve)resolve.drawImage(canvas,0,0,output.width,output.height);
       return output;
