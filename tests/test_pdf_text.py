@@ -210,15 +210,39 @@ class WorkerControlTests(unittest.TestCase):
         self.assertEqual(out['status'], 'unsupported')
         self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_memory_limit')
 
+    def stub_pages(self, texts):
+        package = self.dir / 'pypdf'
+        package.mkdir()
+        (package / '__init__.py').write_text(
+            f'TEXTS = {texts!r}\n'
+            'class Page:\n    def __init__(self, text): self.text = text\n'
+            '    def extract_text(self):\n        if self.text is None: raise MemoryError\n        return self.text\n'
+            'class PdfReader:\n    is_encrypted = False\n'
+            '    def __init__(self, *a, **k): self.pages = [Page(t) for t in TEXTS]\n', encoding='utf-8')
+        (package / 'errors.py').write_text(
+            'class DependencyError(Exception): pass\nclass FileNotDecryptedError(Exception): pass\n', encoding='utf-8')
+
+    def test_every_page_over_the_memory_limit_is_not_called_damaged(self):
+        self.stub_pages([None, None])
+        out = read(b'%PDF-1.4\n')
+        self.assertEqual(out['status'], 'unsupported')
+        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_memory_limit')
+
+    def test_pages_read_before_the_memory_limit_are_kept(self):
+        self.stub_pages(['First page text.', None])
+        out = read(b'%PDF-1.4\n')
+        self.assertEqual(out['status'], 'partial')
+        self.assertIn('pdf_memory_limit', warning_codes(out))
+        self.assertEqual(len(out['text_members']), 1)
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'page_memory_limit')
+
     def test_reader_slots_bound_concurrent_workers(self):
         slots = threading.BoundedSemaphore(1)
         slots.acquire()
         with mock.patch.object(pdf_text, '_WORKER_SLOTS', slots), mock.patch.object(pdf_text, 'TIMEOUT_SECONDS', 0.01), \
-                mock.patch.object(pdf_text, '_run_worker') as run:
-            out = read(b'%PDF-1.4\n')
+                mock.patch.object(pdf_text, '_run_worker') as run, self.assertRaises(pdf_text.ReaderBusy):
+            read(b'%PDF-1.4\n')
         run.assert_not_called()
-        self.assertEqual(out['status'], 'unsupported')
-        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_reader_busy')
 
     @unittest.skipIf(sys.platform == 'darwin', 'macOS does not enforce RLIMIT_AS')
     def test_worker_memory_is_capped(self):
@@ -334,6 +358,19 @@ class PipelineTests(unittest.TestCase):
         reader['intake'] = intake
         self.store.recover(self.pid, self.ids['log.pdf'], reader)
         self.assertEqual(got, [True])
+
+    def test_busy_reader_leaves_saved_evidence_alone(self):
+        saved = Path(self.recover('log.pdf')['dossier_path'])
+        before = saved.read_bytes()
+        slots = threading.BoundedSemaphore(1)
+        slots.acquire()
+        # The plugin is loaded under its own package name here; use the copy the store imports.
+        reader = dict(rt.plugin.handlers.evidence_reader())
+        reader['intake'] = lambda fmt, data, name: pdf_text.read_pdf_text(data, name, inspect_text)
+        with mock.patch.object(pdf_text, '_WORKER_SLOTS', slots), mock.patch.object(pdf_text, 'TIMEOUT_SECONDS', 0.01), \
+                self.assertRaises(ProjectError):
+            self.store.recover(self.pid, self.ids['log.pdf'], reader)
+        self.assertEqual(saved.read_bytes(), before)
 
     def test_asset_changed_during_the_read_is_not_committed(self):
         status = self.store.status

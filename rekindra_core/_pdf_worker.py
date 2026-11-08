@@ -132,6 +132,9 @@ def main(argv):
     for number in range(1, min(count, max_pages) + 1):
         try:
             text = _CONTROL.sub('', pages[number - 1].extract_text() or '')
+        except MemoryError:
+            _emit({'kind': 'page_failed', 'page': number, 'code': 'memory_limit'})
+            continue
         except Exception:
             _emit({'kind': 'page_failed', 'page': number})
             continue

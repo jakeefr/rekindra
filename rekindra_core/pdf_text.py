@@ -35,6 +35,10 @@ _REFUSALS = {
 }
 
 
+class ReaderBusy(Exception):
+    """No reader process could be started in time; says nothing about the file."""
+
+
 def _reader_dir() -> str | None:
     """The directory holding pypdf, found without importing it into the gateway."""
     try:
@@ -111,9 +115,9 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
     reader_dir, python = _reader_dir(), _python()
     if reader_dir is None or python is None:
         return _stop(envelope, 'unsupported', *_REFUSALS['reader_unavailable'][1:])
-    if not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS):
-        return _stop(envelope, 'unsupported', 'pdf_reader_busy',
-                     'Other PDFs were being read for too long; recover this one again.')
+    # Long enough for two hung workers to reach their deadlines and free a slot.
+    if not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS * 3):
+        raise ReaderBusy('Other PDFs were being read for too long; recover this one again.')
     try:
         records, timed_out = _run_worker(python, reader_dir, data)
     except OSError:
@@ -133,7 +137,7 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
         return _stop(envelope, 'unsupported', 'pdf_reader_stopped',
                      'The PDF reader stopped before opening this file, so its contents are unknown.')
 
-    members, skipped, failed = [], [], 0
+    members, skipped, failed, out_of_memory = [], [], 0, 0
     seen = set()
     for record in records:
         page = record.get('page')
@@ -141,7 +145,12 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
             continue
         seen.add(page)
         name_on_report = f'page-{page:04d}.txt'
-        if record.get('kind') == 'page_failed':
+        if record.get('kind') == 'page_failed' and record.get('code') == 'memory_limit':
+            failed += 1
+            out_of_memory += 1
+            skipped.append({'name': name_on_report, 'code': 'page_memory_limit',
+                            'reason': 'Reading this page hit the memory limit; its contents are unknown.'})
+        elif record.get('kind') == 'page_failed':
             failed += 1
             skipped.append({'name': name_on_report, 'code': 'page_failed', 'reason': 'This page could not be decoded.'})
         elif record.get('kind') == 'page':
@@ -163,6 +172,8 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
         return _stop(envelope, 'rejected', 'no_extractable_text',
                      'No page has extractable text, so this is probably a scan or image-only PDF. '
                      'OCR is not available.', skipped)
+    if not members and out_of_memory:
+        return _stop(envelope, *_REFUSALS['memory_limit'], skipped)
     if not members:
         code, reason = (('pdf_timeout', f'Reading stopped after {TIMEOUT_SECONDS:g} seconds before any page gave text.')
                         if timed_out else ('malformed_pdf', 'No page of this PDF could be decoded.'))
@@ -180,6 +191,9 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
         reason = f'Only the first {MAX_PDF_PAGES} of {page_count} pages were read.'
         warnings.append({'code': 'page_limit', 'message': reason})
         skipped.append({'name': f'pages {MAX_PDF_PAGES + 1}-{page_count}', 'code': 'page_limit', 'reason': reason})
+    if out_of_memory:
+        warnings.append({'code': 'pdf_memory_limit',
+                         'message': f'{out_of_memory} page(s) hit the memory limit; see text_member_report.'})
     no_text = sum(s['code'] in ('page_no_text', 'page_failed') for s in skipped)
     if no_text:
         warnings.append({'code': 'pages_without_text',

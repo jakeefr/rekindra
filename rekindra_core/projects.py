@@ -19,6 +19,7 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
+from .pdf_text import ReaderBusy
 from .zip_text import MAX_DOSSIER_SOURCES, fit_members, member_byte_room, member_records
 
 _STORE_LOCK = threading.RLock()
@@ -266,7 +267,10 @@ class ProjectStore:
                 return self._recover_tga(project, directory, asset, data)
         # A reader can wait on a child process for seconds, so the store stays free meanwhile;
         # what it read is only committed if the asset is still the one that was verified.
-        envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
+        try:
+            envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
+        except ReaderBusy as exc:   # a load problem, so whatever was saved earlier stays
+            raise ProjectError(str(exc)) from exc
         with _STORE_LOCK:
             project = self.status(project_id)
             directory = self._project(project_id)
