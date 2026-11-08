@@ -90,6 +90,29 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   in all six decoded frames. Open polish: far sea edge shows as a corner line this take, beam far end reads slightly
   flat, boats have no masts this take.
 
+## Sunday checks and polish (2026-11-08)
+
+- Live revise, beat 5, on `e2e-glow2` ("the lamp-room glass fogs at dusk — soften the beam and bring the boats in
+  along it"): two `rekindra_revise_world` calls and two previews, all ok; export passed. Decoded frames: beam angled
+  down to the water, slightly softer; boats with mast and lamp ride in along it in all six frames. Pass.
+- MSAA change vs non-glow scenes (rain-finish plan, no glow): rendered with world.js from before the MSAA change
+  (2eca0c9^), before glow (83cf642^) and current. Live canvas: at most 33 bytes per frame differ, max delta 1, the
+  same as current vs current (MSAA noise between page loads). Decoded exports before-MSAA vs current: bit-identical.
+  Against the older stored rain export the difference (mean |d| .28, 0.22% of pixels over 8) is the same for both
+  builds; it comes from the earlier supersample commit 168e571, not MSAA. Pass.
+- Polish, offline probes on a scratch copy of the glow2 project (`polish.py`, one change per variant):
+  - Far sea edge, 3 attempts, not adopted. The plan check failed (fog .001 is only ~27% at the 320 rim). Attempt 1
+    (fog .006, rim radius 520, ~96% fog) and attempts 2-3 (fog color set to the engine horizon sky,
+    mix(sky_bottom, sky_top, .31), first in sRGB then linear) shrank the rim step from ~40 to ~8 levels, but the
+    line stays visible and the fog turns the blue sea grey-purple, undoing the sea-color fix. Cause found: the engine
+    sky at the horizon is 31% toward sky_top and fog is one flat color, so no fog color matches the horizon along the
+    whole rim while the near sea keeps its color. The fix would be an engine change (fog toward the sky color along
+    the view ray); left for Jake to decide.
+  - Beam end, attempt 1 pass: color_pattern/color_mix `u*u*(3-2*u)` fades the cone to nothing; no flat cap.
+  - Boats, attempt 1 pass: hull already a pointed loft; mast radius .035 -> .07 and #695041 -> #B89A78 makes the mast
+    readable so the lamp no longer floats.
+  Guidance (schemas.py, docs/world-authoring.md) and RULES.md updated for the beam and mast.
+
 ## Recording
 
 Best-of-N recording on Monday (approved): several takes of each beat, the best one used, disclosed in the post.
