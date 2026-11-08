@@ -81,6 +81,15 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   .12 reads as a soft beam leaving the lamp in all six frames and hidden by the tower when it points away. Guidance and
   RULES.md now say: apex at the lamp, on the sweeping assembly, glow ~.12, plus a glow halo on the lamp room.
 
+- Live run `e2e-glow` built the beam from the lamp, but export failed the seek check: hardware MSAA resolve of
+  overlapping additive layers drifted between identical draws (about half of runs; SwiftShader bit-exact). Attempt 1
+  (front faces only, x2 gain) and attempt 2 (mirror-pass facing fix) reduced it but broke glow seen from inside or on
+  open meshes (review 5379). Attempt 3 (2eca0c9, 85fbc71): scenes with glow render without MSAA, double-sided x1
+  glow restored, strict bit-exact seek check restored; 8/8 strict on the live artifact. Scenes without glow keep MSAA.
+- Live run `e2e-glow2` (85fbc71): corrupt.json rejected; export passed first try; beam leaves the lamp and sweeps
+  in all six decoded frames. Open polish: far sea edge shows as a corner line this take, beam far end reads slightly
+  flat, boats have no masts this take.
+
 ## Recording
 
 Best-of-N recording on Monday (approved): several takes of each beat, the best one used, disclosed in the post.
