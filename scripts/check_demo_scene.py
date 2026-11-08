@@ -13,6 +13,7 @@ Usage:
 import argparse
 import colorsys
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -91,12 +92,16 @@ def check_horizon(scene, water_id):
     o = find(scene, water_id) if water_id else None
     if not o:
         return False, f'water object {water_id!r} not found'
+    if unmeasurable(scene, o):
+        return False, f'water={water_id} unmeasured ({", ".join(unmeasurable(scene, o))})'
     try:
         fx, fz = sampler(o['position']['x']), sampler(o['position']['z'])
     except Exception as exc:
         return False, f'water={water_id} unsampled ({exc.__class__.__name__})'
     g = np.linspace(0, 1, 49)
-    offs = [i.get('offset', [0, 0, 0]) for i in o.get('instances') or [{}]]
+    insts = o.get('instances') or [{}]
+    offs = [i.get('offset', [0, 0, 0]) for i in insts]
+    scales = [i.get('scale', [1, 1, 1]) for i in insts]
     sides = {'u0': [(0.0, v) for v in g], 'u1': [(1.0, v) for v in g],
              'v0': [(u, 0.0) for u in g], 'v1': [(u, 1.0) for u in g]}
     xz = {k: np.array([(fx(u, v, 0.0), fz(u, v, 0.0)) for u, v in uv]) for k, uv in sides.items()}
@@ -110,7 +115,8 @@ def check_horizon(scene, water_id):
             boundary.append(k)
     if not boundary:
         return False, f'water={water_id} has no open boundary edge'
-    pts = np.array([(x + d[0], z + d[2]) for k in boundary for x, z in xz[k] for d in offs])
+    pts = np.array([(x * sc[0] + d[0], z * sc[2] + d[2]) for k in boundary for x, z in xz[k]
+                    for d, sc in zip(offs, scales)])
     eyes = np.array([[c['eye'][0], c['eye'][2]] for c in scene['camera']])
     dist = np.hypot(pts[:, None, 0] - eyes[None, :, 0], pts[:, None, 1] - eyes[None, :, 1])
     near = float(dist.min())
@@ -132,6 +138,25 @@ def check_horizon(scene, water_id):
                 f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}')
 
 
+def uses_t(expr):
+    """True when t appears as its own token (not inside sqrt, step, atan...)."""
+    return bool(re.search(r'(?<![A-Za-z0-9_])t(?![A-Za-z0-9_])', str(expr)))
+
+
+def unmeasurable(scene, o):
+    """Transforms the local-space measurements here do not model; report them instead of guessing."""
+    why = []
+    if o.get('assembly'):
+        a = assembly(scene, o['assembly']) or {}
+        moved = any(str(v).strip() not in ('0', '0.0') for k in ('translation', 'rotation')
+                    for v in (a.get(k) or {}).values())
+        if moved or a.get('parent') or any(float(x) != 1 for x in a.get('scale', [1, 1, 1])):
+            why.append('assembly transform')
+    if any(i.get('rotation') and any(float(x) for x in i['rotation']) for i in o.get('instances') or []):
+        why.append('instance rotation')
+    return why
+
+
 def find(scene, oid):
     for o in scene['objects']:
         if o['id'] == oid:
@@ -148,8 +173,12 @@ def assembly(scene, aid):
 
 def check_beam(scene, frames, beam_id):
     o = find(scene, beam_id) if beam_id else None
-    a = assembly(scene, o.get('assembly')) if o else None
-    sweeps = bool(a) and any('t' in str(a['rotation'][k]).replace('sqrt', '') for k in 'xyz')
+    if not o:
+        return False, f'beam object {beam_id!r} not found'
+    a = assembly(scene, o.get('assembly'))
+    if not a:
+        return False, f'beam={beam_id} has no assembly (cannot sweep)'
+    sweeps = any(uses_t(a['rotation'][k]) for k in 'xyz')
     centroids, areas = [], []
     for f in frames:
         r, g, b = f[..., 0], f[..., 1], f[..., 2]
@@ -167,7 +196,8 @@ def check_beam(scene, frames, beam_id):
 
 
 def surface_extent(o):
-    if o.get('loft'):
+    pos = o.get('position') or {}
+    if o.get('loft') and all(str(pos.get(k, '')).strip() == f'loft_{k}' for k in 'xyz'):
         pts = np.array([p for s in o['loft'] for p in s['points']], float)
         return float(np.ptp(pts[:, 0])), float(np.ptp(pts[:, 1])), 'loft'
     try:
@@ -187,7 +217,9 @@ def check_boats(scene, boat_id):
     ex, ez, how = surface_extent(o)
     if ex is None:
         return False, f'boat={boat_id} extent {how}'
-    ratio = max(ex, ez) / max(min(ex, ez), 1e-6)
+    # Instance scale stretches each copy; the least elongated copy decides.
+    scales = [i.get('scale', [1, 1, 1]) for i in o.get('instances') or []] or [[1, 1, 1]]
+    ratio = min(max(ex * sc[0], ez * sc[2]) / max(min(ex * sc[0], ez * sc[2]), 1e-6) for sc in scales)
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
     ok = ratio >= 2.5 and bool(peers)
