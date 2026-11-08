@@ -127,6 +127,30 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   Still open on glow3: the far rim / corner line (needs the engine fog change above) and sea hue 231, near the top
   of the band.
 
+## Opt-in `fog_sky_blend`: 3 attempts, all failed, reverted (2026-11-08, approved by Jake)
+
+Pass condition, fixed before measuring (`scripts/check_rim.py`): rim step median <= 10 RGB levels, every frame <= 14,
+and the existing sea-hue and luma checks. Baseline on the glow3 plan: 47.6 median, 56.8 worst; sea hue 231, luma pass.
+Offline probes on a scratch copy of glow3, decoded export frames, the option implemented in the shader:
+
+| Attempt | Change | Rim median / worst | Sea hue | Luma | Result |
+|---|---|---|---|---|---|
+| 1 | `fog_sky_blend` 1, density .002 | 45.8 / 55.9 | 231 pass | pass | FAIL |
+| 2 | attempt 1 + density .006 | 25.8 / 33.7 | 261 FAIL | pass | FAIL |
+| 3 | attempt 1 + rim `color_high` #FFB9D1 | 46.2 / 56.0 | 231 pass | pass | FAIL |
+
+- Attempt 2 reaches about 85% fog at the rim. The remaining 15% still shows about 26 levels after display gamma, and the
+  haze covers the near sea and turns it violet.
+- A larger disc cannot raise rim fog at low density: the far plane is fixed at 400 (`runtime/world.js`), so a wider rim
+  clips into a new hard edge. Moving the far plane was outside the approved change.
+- Attempt 3 came from inferring the albedo that would equal the sky; red needed 1.44 linear, so it was clipped. It also
+  failed the existing horizon check, and made no measurable difference to the rim.
+- Engine reverted: `runtime/world.js` is byte-identical to 36c3cf9. Because nothing shipped, the bit-identity proof on
+  the rain scene and the Violet Hour Gate was not needed and was not run post-change; only the pre-change controls exist
+  (decoded frames 8/8 identical, WebM bytes equal between repeat exports). No RULES.md line, no new take.
+- Fallback per the approved plan: guidance for a low headland or island silhouette in front of the rim (`schemas.py`,
+  `docs/world-authoring.md`). Not rendered or tested in a live take.
+
 ## Recording
 
 Best-of-N recording on Monday (approved): several takes of each beat, the best one used, disclosed in the post.

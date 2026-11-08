@@ -48,6 +48,15 @@ Supported TGA subset: 24/32-bit, no color map or interleaving; all four image or
 
 Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited directory entries, depth 32, and 20 million decoded pixels. Limits, excluded credential/development paths, unreadable inputs, and links appear in the skipped report. Do not supply a store and source that overlap. One Hermes process may write a given store in this milestone; this is not a hostile multi-user filesystem sandbox.
 
+## Limitations
+
+Four input limits to know up front. Each is reported by the agent; none crashes.
+
+- A notes-only folder cannot produce a world. At least one image is required.
+- Text inside ZIP archives is not read.
+- JPEG and PNG files are visual references only. They are not recovered assets.
+- PDF is not supported.
+
 ## Verification
 
 Latest local core verification: 86 Python and 10 Node tests pass. The current plugin declares nine tools including native preview and immutable revision; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. `scripts/smoke.py` reproduces the installed recovery-registry flow. `scripts/creative_smoke.py` specifically tests the optional auxiliary-model route; it currently exposes the host Codex-auth limitation above.

@@ -302,6 +302,12 @@ Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_d
   with no offset or assembly translation, or put the centre in the offset instead. Keep every eye within ~10 units of the
   centre (rim spread is about 2*offset/radius), or raise the radius. Then the rim projects as a level line. Fade the rim into the sky with
   `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`.
+- **Hide the far edge:** on open water the disc rim still shows as a thin line against the sky, and neither fog nor rim
+  color removes it. Put a low headland or island silhouette along the horizon, in front of the rim: a ring of radius ~280
+  on the same centre as the sea, for example `x` `20.5+280*cos(u*2*pi)`, `y` `-.2+v*(6+1.5*sin(u*2*pi*5)+.8*sin(u*2*pi*13+1))`,
+  `z` `27+280*sin(u*2*pi)`, dark matte, a hazy tone between `sky_bottom` and the sea. Its lowest top must clear
+  `eye_height*(1-280/320)`, about 2 units for a 14 unit eye. Stay inside 400 units: the renderer's far plane cuts anything
+  beyond. Record the landform as invented in `references`.
 - **Disc seams:** on a disc every `u` frequency (waves, color, bump) must be an integer multiple of `2*pi`, e.g.
   `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
 - **Sea color:** keep the water albedo mid-blue (about `#1F5888`) at default roughness. Dark albedo or roughness .5 lets
