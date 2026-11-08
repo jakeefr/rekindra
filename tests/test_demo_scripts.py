@@ -75,6 +75,15 @@ class HorizonTests(unittest.TestCase):
         rotated = water(disc['position'], instances=[{'offset': [0, 0, 0], 'rotation': [0, .5, 0]}])
         self.assertIsNone(check.check_horizon(self.scene(rotated), 'sea')[0])
 
+    def test_unsampleable_pattern(self):
+        def disc(r):
+            return water({'x': f'12+{r}*v*v*cos(u*2*pi)', 'y': '0', 'z': f'24+{r}*v*v*sin(u*2*pi)'},
+                         color_high='#B88198', color_pattern='mystery(v)')
+        self.assertIsNone(check.check_horizon(self.scene(disc(320)), 'sea')[0])
+        self.assertFalse(check.check_horizon(self.scene(disc(120)), 'sea')[0])  # rim too near: FAIL anyway
+        foggy = {'environment': dict(ENV, fog_density=.02), 'camera': EYES, 'objects': [disc(320)], 'assemblies': []}
+        self.assertTrue(check.check_horizon(foggy, 'sea')[0])  # fog alone decides the fade
+
     def test_instance_scale_moves_the_rim(self):
         disc = water({'x': '12+150*v*v*cos(u*2*pi)', 'y': '0', 'z': '24+150*v*v*sin(u*2*pi)'},
                      color_high='#B88198', color_pattern='clamp((v-.9)*10,0,1)')
@@ -210,6 +219,11 @@ class ExportSelectionTests(unittest.TestCase):
             other = Path(tmp) / 'elsewhere.json'
             other.write_text(json.dumps({'scene': {'schema_version': 2}}))
             self.assertTrue(export.world_html(dict(item, plan_path=str(other))).endswith('plan2.html'))
+
+    def test_missing_plan_path_does_not_fall_back(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            item = dict(self.project(tmp), plan_path=str(Path(tmp) / 'gone.json'))
+            self.assertIsNone(export.world_html(item))
 
     def test_create_world_path_is_used_directly(self):
         self.assertEqual(export.world_html({'tool': 'rekindra_create_world', 'path': 'x.html'}), 'x.html')

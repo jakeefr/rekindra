@@ -136,7 +136,7 @@ def check_horizon(scene, water_id):
             fp = sampler(o['color_pattern'])
             pattern_fade = min(min(1.0, max(0.0, fp(u, v, 0.0))) for k in boundary for u, v in sides[k]) >= .9
         except Exception as exc:
-            if not fog_fade:
+            if not fog_fade and near >= 250 and spread <= .08:  # fade is the only open question
                 return None, f'water={water_id} unmeasured (color_pattern unsampled: {exc.__class__.__name__})'
     ok = near >= 250 and spread <= .08 and (fog_fade or pattern_fade)
     return ok, (f'water={water_id} nearest far edge={near:.0f} (>=250, sides={boundary}), rim spread={spread:.2f} (<=0.08), '
