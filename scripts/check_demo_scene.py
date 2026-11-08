@@ -130,17 +130,19 @@ def check_horizon(scene, water_id):
     fog_fade = gap <= 48 and 1 - np.exp(-near * density) >= .95
     sky = rgb(env.get('sky_bottom', '#ffffff'))
     # The far edge also fades if the water's own color_pattern reaches a sky-matching color_high there.
-    pattern_fade = False
+    pattern_fade, pattern_err = False, ''
+    geometry_ok = near >= 250 and spread <= .08
     if o.get('color_pattern') and float(np.linalg.norm(rgb(o.get('color_high', '#000000')) - sky)) <= 48:
         try:
             fp = sampler(o['color_pattern'])
             pattern_fade = min(min(1.0, max(0.0, fp(u, v, 0.0))) for k in boundary for u, v in sides[k]) >= .9
         except Exception as exc:
-            if not fog_fade and near >= 250 and spread <= .08:  # fade is the only open question
+            pattern_err = f' (color_pattern unsampled: {exc.__class__.__name__})'
+            if not fog_fade and geometry_ok:  # fade is the only open question
                 return None, f'water={water_id} unmeasured (color_pattern unsampled: {exc.__class__.__name__})'
-    ok = near >= 250 and spread <= .08 and (fog_fade or pattern_fade)
+    ok = geometry_ok and (fog_fade or pattern_fade)
     return ok, (f'water={water_id} nearest far edge={near:.0f} (>=250, sides={boundary}), rim spread={spread:.2f} (<=0.08), '
-                f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}')
+                f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}{pattern_err}')
 
 
 def uses_t(expr):

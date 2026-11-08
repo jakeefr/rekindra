@@ -81,6 +81,11 @@ class HorizonTests(unittest.TestCase):
                          color_high='#B88198', color_pattern='mystery(v)')
         self.assertIsNone(check.check_horizon(self.scene(disc(320)), 'sea')[0])
         self.assertFalse(check.check_horizon(self.scene(disc(120)), 'sea')[0])  # rim too near: FAIL anyway
+        slanted = water({'x': '300+600*v*v*cos(u*2*pi)', 'y': '0', 'z': '600*v*v*sin(u*2*pi)'},
+                        color_high='#B88198', color_pattern='mystery(v)')
+        ok, detail = check.check_horizon(self.scene(slanted), 'sea')
+        self.assertFalse(ok, detail)  # far but uneven rim: FAIL anyway
+        self.assertIn('unsampled', detail)
         foggy = {'environment': dict(ENV, fog_density=.02), 'camera': EYES, 'objects': [disc(320)], 'assemblies': []}
         self.assertTrue(check.check_horizon(foggy, 'sea')[0])  # fog alone decides the fade
 
