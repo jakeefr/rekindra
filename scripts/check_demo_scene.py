@@ -60,7 +60,7 @@ def check_fog(env, frames, source):
     density = float(env.get('fog_density', 0))
     src_std = float((source @ LUMA).std())
     std = float(np.mean([(f @ LUMA).std() for f in frames]))
-    ok = density <= .006 and std >= FOG_MIN_STD
+    ok = bool(density <= .006 and std >= FOG_MIN_STD)
     return ok, (f'fog_density={density:.4f} (<=0.006), luma_std={std:.3f} (>={FOG_MIN_STD}; '
                 f'original plan 0.073, source {src_std:.3f} for reference)')
 
@@ -73,7 +73,7 @@ def check_sea(frames):
         hues.append(hue_deg(band))
         blue.append(float((band[:, 2] > band[:, 0]).mean()))
     hue, frac = float(np.median(hues)), float(np.mean(blue))
-    ok = 185 <= hue <= 235 and frac >= .6
+    ok = bool(185 <= hue <= 235 and frac >= .6)
     return ok, f'sea_band hue={hue:.0f} (185-235), blue>red frac={frac:.2f} (>=0.60)'
 
 
@@ -140,7 +140,7 @@ def check_horizon(scene, water_id):
             pattern_err = f' (color_pattern unsampled: {exc.__class__.__name__})'
             if not fog_fade and geometry_ok:  # fade is the only open question
                 return None, f'water={water_id} unmeasured{pattern_err}'
-    ok = geometry_ok and (fog_fade or pattern_fade)
+    ok = bool(geometry_ok and (fog_fade or pattern_fade))
     return ok, (f'water={water_id} nearest far edge={near:.0f} (>=250, sides={boundary}), rim spread={spread:.2f} (<=0.08), '
                 f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}{pattern_err}')
 
@@ -197,7 +197,7 @@ def check_beam(scene, frames, beam_id):
     travel = max((np.hypot(p[0] - q[0], p[1] - q[1]) for p in pts for q in pts), default=0.0)
     w = frames[0].shape[1]
     area = float(np.median(areas))
-    ok = sweeps and area >= .002 and travel >= .05 * w
+    ok = bool(sweeps and area >= .002 and travel >= .05 * w)
     return ok, (f'beam={beam_id} assembly_rotation_has_t={sweeps}, warm_area={area * 100:.2f}% (>=0.20%), '
                 f'warm_centroid_travel={travel:.0f}px (>={.05 * w:.0f})')
 
@@ -237,7 +237,7 @@ def check_boats(scene, boat_id):
     ratio = min(max(ex * sc[0], ez * sc[2]) / max(min(ex * sc[0], ez * sc[2]), 1e-6) for sc in scales)
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
-    ok = ratio >= 2.5 and bool(peers)
+    ok = bool(ratio >= 2.5 and bool(peers))
     return ok, f'boat={boat_id} hull L/W={ratio:.2f} (>=2.5, {how}), parts sharing assembly={peers or "none"}'
 
 
