@@ -297,8 +297,10 @@ Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_d
 
 - **Fog:** `fog_density` above about .006 washes the whole frame to one tone. Get depth from color and light instead.
 - **Horizon:** a square sea plane shows its far edge as a slanted hard line. Use a disc of radius ~320 (`320*v*v`) centred
-  under the camera eyes, not at the origin: add the middle eye's x and z as constants (eye [21,12.5,27] gives
-  `21+320*v*v*cos(u*2*pi)`, `27+320*v*v*sin(u*2*pi)`), so the rim is at an even distance and projects as a level line. Fade the rim into the sky with
+  under the camera eyes, not at the origin: add the centre of all eyes (midway between min and max eye x, and z) as
+  constants (eyes x 18..23, z 24..30 give `20.5+320*v*v*cos(u*2*pi)`, `27+320*v*v*sin(u*2*pi)`). Keep the water scale 1
+  with no offset or assembly translation, or put the centre in the offset instead. Keep every eye within ~10 units of the
+  centre (rim spread is about 2*offset/radius), or raise the radius. Then the rim projects as a level line. Fade the rim into the sky with
   `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`.
 - **Disc seams:** on a disc every `u` frequency (waves, color, bump) must be an integer multiple of `2*pi`, e.g.
   `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
