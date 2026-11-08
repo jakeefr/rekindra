@@ -19,7 +19,7 @@ This is not an artistic acceptance. Frame reviews below are honest notes, not si
 ## Live runs (Hermes gateway, gpt-6.1-sol, demo-lighthouse folder)
 
 Folder: `<local path>\samples\demo-lighthouse` (prepared sample: copy of e2e-lighthouse plus a deliberately
-corrupt `corrupt.json`). Originals untouched; hashes in `samples/demo-lighthouse.sha256` verify.
+corrupt `corrupt.json`). Originals untouched; hashes in `<local path>\samples\demo-lighthouse.sha256` (outside the repo) verify.
 
 ### Create, attempt 1 (logs `e2e-fixes`)
 
@@ -45,7 +45,7 @@ Request: lamp-room glass fogs at dusk, soften the beam, bring the two boats in a
 ### Horizon, attempt 2 (logs `e2e-fixes2`)
 
 Guidance change: give an explicit eye-centred formula (centre of all camera eyes added as constants).
-Review fix in e378932: centre on the midpoint of all eyes, keep scale 1 / no offset.
+Review fix in e378932: centre on the midpoint of all eyes, keep scale 1 with no offset, or put the centre in the offset.
 
 - Agent centred the disc at (19,27); eyes x 17..21, z 26..28. corrupt.json rejected again.
 - Checker: fog PASS (.144), sea PASS (hue 225), **horizon PASS** (edge 318, rim spread .24 -> .01), beam FAIL on the
@@ -59,7 +59,8 @@ Review fix in e378932: centre on the midpoint of all eyes, keep scale 1 / no off
 
 The checker's beam unit counts warm (lamp-coloured) pixels. The live shaft is pale against the water, so it fails
 that metric while the sweep reads plainly in frames. Per the approved plan ("pick whichever looks better in decoded
-frames"), the shaft is kept; the metric mismatch is recorded, not tuned.
+frames"), the shaft is kept; the metric mismatch is recorded, not tuned. With this design the
+checker's overall exit code will not be 0; read the beam line as advisory.
 
 ## Recording
 
