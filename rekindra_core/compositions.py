@@ -55,13 +55,24 @@ def _interpretation(ref: dict) -> dict:
             'content': 'interpretation', 'origin': 'agent', 'recovered': False}
 
 
+def _is_member(source_id, aid: str) -> bool:
+    # A ZIP's text member is a dossier source of its own, owned by the ZIP's asset.
+    return isinstance(source_id, str) and re.fullmatch(re.escape(aid) + r':m\d{4}', source_id) is not None
+
+
 def _quote_ok(item, aid: str, eid: str, paths: dict) -> bool:
-    return (isinstance(item, dict) and set(item) == _RECOVERED_KEYS
-            and item['asset_id'] == aid and item['evidence_id'] == eid
-            and aid in paths and item['source_path'] == paths[aid]
+    if not isinstance(item, dict) or aid not in paths:
+        return False
+    member = item.get('member_source_id')
+    if member is not None:
+        located = (set(item) == _RECOVERED_KEYS | {'member_source_id'} and _is_member(member, aid)
+                   and isinstance(item['source_path'], str) and item['source_path'].startswith(paths[aid] + '!'))
+    else:
+        located = set(item) == _RECOVERED_KEYS and item['source_path'] == paths[aid]
+    return (located and item['asset_id'] == aid and item['evidence_id'] == eid
             and item['content'] == 'recovered' and item['untrusted'] is True
             and isinstance(item['text'], str)
-            and _evidence_id(aid, item['locator'], item['text']) == eid)
+            and _evidence_id(member or aid, item['locator'], item['text']) == eid)
 
 
 def _evidence_id(source_id: str, locator, text: str) -> str:
@@ -163,12 +174,17 @@ class CompositionStore:
                     recovered.append(dict(carried[(aid, eid)]))
                     continue
                 item = items.get(eid)
-                if item is None or item.get('source_id') != aid:
+                member = item.get('source_id') if item is not None and _is_member(item.get('source_id'), aid) else None
+                if item is None or (member is None and item.get('source_id') != aid):
                     raise SceneError(f'Evidence {eid} was not recovered from asset {aid}')
-                recovered.append({'asset_id': aid, 'source_path': paths[aid], 'evidence_id': eid,
-                                  'kind': item.get('kind'), 'locator': item.get('locator'), 'text': item.get('text'),
-                                  'clipped': bool(item.get('clipped')),
-                                  'content': 'recovered', 'untrusted': True})
+                quote = {'asset_id': aid, 'source_path': item.get('relative_path') if member else paths[aid],
+                         'evidence_id': eid,
+                         'kind': item.get('kind'), 'locator': item.get('locator'), 'text': item.get('text'),
+                         'clipped': bool(item.get('clipped')),
+                         'content': 'recovered', 'untrusted': True}
+                if member:
+                    quote['member_source_id'] = member
+                recovered.append(quote)
             interpretations.append(_interpretation(ref))
         return {'recovered_evidence': recovered, 'interpretations': interpretations}
 
@@ -188,7 +204,9 @@ class CompositionStore:
             raise SceneError('Saved evidence is not readable; re-run rekindra_recover') from exc
         if not isinstance(dossier, dict):
             raise SceneError('Saved evidence is not readable; re-run rekindra_recover')
-        return {e.get('evidence_id'): e for e in dossier.get('evidence') or [] if isinstance(e, dict)}
+        rows = {s.get('source_id'): s.get('relative_path') for s in dossier.get('sources') or [] if isinstance(s, dict)}
+        return {e.get('evidence_id'): dict(e, relative_path=rows.get(e.get('source_id')))
+                for e in dossier.get('evidence') or [] if isinstance(e, dict)}
 
     def check_text_provenance(self, project_id: str, refs, stored) -> None:
         """Check a saved plan's text provenance without the live dossier.

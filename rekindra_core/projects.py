@@ -19,6 +19,7 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
+from .zip_text import member_records
 
 _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
@@ -282,6 +283,9 @@ class ProjectStore:
                     'sha256': hashlib.sha256(blob).hexdigest(), 'decoder': 'rekindra-intake-v1',
                     'intake_format': envelope.get('format'), 'status': envelope.get('status'),
                     'warnings': warnings}
+        report = envelope.get('text_member_report')
+        if isinstance(report, dict):
+            artifact['text_members'] = report
         artifacts = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
         records = []
@@ -302,11 +306,16 @@ class ProjectStore:
                 intake = json.loads(raw.decode('utf-8'))
             except (UnicodeDecodeError, ValueError) as exc:
                 raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
+            try:
+                intake, members = member_records(sid, paths[sid], intake)
+            except ValueError as exc:
+                raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
             if isinstance(intake, dict) and intake.get('status') == 'rejected':
                 # Intake refused this source, so nothing from it may surface as recovered
                 # evidence. Its row and rejection stay; its facts are dropped.
-                intake = dict(intake, facts={})
+                intake, members = dict(intake, facts={}), []
             records.append({'source_id': sid, 'relative_path': paths[sid], 'intake': intake})
+            records.extend(members)
         dossier = reader['dossier'](records)
         if not isinstance(dossier, dict) or dossier.get('status') == 'rejected':
             errors = dossier.get('errors') if isinstance(dossier, dict) else None
@@ -328,7 +337,9 @@ class ProjectStore:
                  for path, data in ((target, blob), (dossier_path, dossier_blob))]
         updated = dict(project, artifacts=artifacts, stage='recovered',
                        evidence={'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
-                                 'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]})
+                                 'status': dossier.get('status'),
+                                 # Asset IDs only: ZIP members are cited through their archive.
+                                 'source_ids': [r['source_id'] for r in records if ':' not in r['source_id']]})
         moved, promoted, committed = [], [], False
         try:
             for _, staged, _, data in swaps:
