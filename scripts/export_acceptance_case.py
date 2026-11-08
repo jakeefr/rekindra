@@ -11,9 +11,23 @@ parser.add_argument('events', type=Path)
 parser.add_argument('output', type=Path)
 args = parser.parse_args()
 row = summarize(args.events)
-worlds = [a for a in row['artifacts'] if a['tool'] == 'rekindra_create_world' and a.get('path')]
+
+
+def world_html(item):
+    """HTML for a created world, or for the plan a preview rendered (covers revise-only runs)."""
+    if item['tool'] == 'rekindra_create_world' and item.get('path'):
+        return item['path']
+    if item['tool'] == 'rekindra_preview' and item.get('path') and item.get('project_id') and item.get('plan_id'):
+        for parent in Path(item['path']).parents:
+            if parent.name == item['project_id']:
+                html = parent / 'artifacts' / f"{item['plan_id']}.html"
+                return str(html) if html.is_file() else None
+    return None
+
+
+worlds = [dict(a, path=world_html(a)) for a in row['artifacts'] if world_html(a)]
 args.output.mkdir(parents=True, exist_ok=True)
-record = {'selection': 'last authored world, not a quality acceptance decision', 'case': row['case']}
+record = {'selection': 'last created or previewed world, not a quality acceptance decision', 'case': row['case']}
 if not worlds:
     record['outcome'] = 'no world authored in this run'
 else:

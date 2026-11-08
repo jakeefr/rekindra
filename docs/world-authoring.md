@@ -290,3 +290,23 @@ Review the open state as well as the docked state. A bracket can disappear behin
 ## Render sampling
 
 Worlds now use2x spatial sampling per axis by default and resolve to the same1280x720 preview/export frame. This reduces narrow specular-edge aliasing without changing roughness or scene time. Reflection blur retains its output-pixel scale. A graphics-limited device can fall back to standard quality; the artifact reports that condition and exposes requested/actual sampling in review diagnostics. This adds GPU work and does not make arbitrarily fine patterns stable, add motion blur, or repair geometry. Keep the existing work budgets and preview deadline.
+
+## Open water, horizon, beams and small boats
+
+Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_demo_scene.py`.
+
+- **Fog:** `fog_density` above about .006 washes the whole frame to one tone. Get depth from color and light instead.
+- **Horizon:** a square sea plane shows its far edge as a slanted hard line. Use a disc of radius ~320 (`320*v*v`) centred
+  under the camera eyes, so the rim is at an even distance and projects as a level line. Fade the rim into the sky with
+  `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`.
+- **Disc seams:** on a disc every `u` frequency (waves, color, bump) must be an integer multiple of `2*pi`, e.g.
+  `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
+- **Sea color:** keep the water albedo mid-blue (about `#1F5888`) at default roughness. Dark albedo or roughness .5 lets
+  the pink sky sheen turn the sea purple.
+- **Beams:** an emissive cone reads as a solid wedge. Light the lamp room (small emissive sphere, emission ~2) and lay a
+  flat strip on the water that widens away from the lamp, emission ~.6, `color_high` = water color, `color_pattern`
+  `clamp(abs(v-.5)*2.2+u*.55,0,1)` so its edges and far end fade. Keep it on the rotating assembly so it sweeps.
+- **Boats:** a disc or squashed sphere reads as a flat blob. Loft a pointed-bow hull (7-point outline, length at least
+  2.5x the beam) and add mast and lamp surfaces on the same assembly and instances.
+- **Revising:** when replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to
+  soften a beam is not a request to stop its sweep.
