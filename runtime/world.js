@@ -336,8 +336,10 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
-{float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
-${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
+// One layer per pixel (front faces only, doubled gain): overlapping additive layers sum in driver order under MSAA.
+// The mirrored reflection pass flips winding, so it keeps the other side.
+{if(gl_FrontFacing==${reflector?'(reflectionPass>.5)':'false'})discard;float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
+${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow*2).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
