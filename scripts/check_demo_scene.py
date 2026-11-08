@@ -243,10 +243,10 @@ def surface_extent(o):
 
 
 def is_mast(oid):
-    """A mast part by id token (boat_masts, mast_2), not a lamp, flag or pennant hung on it."""
-    tokens = re.split(r'[^a-z0-9]+', oid.lower())
-    return any(t in ('mast', 'masts') for t in tokens) and not any(
-        w in t for t in tokens for w in ('lamp', 'light', 'flag', 'pennant', 'sail'))
+    """Mast is the head noun: the id ends in mast(s) plus an optional number (boat_masts, mainmast, mast_2,
+    sailboat_mast). Parts hung on a mast (mast_flag, mast_lantern, masthead_lamp) and combined parts
+    (mast_and_boom) are not measured against the mast rule."""
+    return re.search(r'masts?[_-]?\d*$', oid.lower()) is not None
 
 
 def check_boats(scene, boat_id):

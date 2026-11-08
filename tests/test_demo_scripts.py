@@ -153,6 +153,13 @@ class BeamAndBoatTests(unittest.TestCase):
         lamp = dict(mast(.03, '#FFD18A'), id='masthead_lamp')
         ok, detail = check.check_boats({'objects': [hull, mast(.07, '#B89A78'), flag, lamp]}, 'boat')
         self.assertTrue(ok, detail)
+        self.assertIs(False, check.check_boats({'objects': [hull, dict(thin, id='sailboat_mast')]}, 'boat')[0])
+
+    def test_mast_ids(self):
+        for oid in ('boat_masts', 'mainmast', 'mast2', 'mast_2', 'sailboat_mast', 'boatMast', 'flagship_mast'):
+            self.assertTrue(check.is_mast(oid), oid)
+        for oid in ('mast_flag', 'mast_lantern', 'masthead_lamp', 'mast_and_boom', 'hull'):
+            self.assertFalse(check.is_mast(oid), oid)
 
     def test_beam_fade_needs_eased_end(self):
         self.assertTrue(check.beam_fade({'color_pattern': 'u*u*(3-2*u)'})[0])
