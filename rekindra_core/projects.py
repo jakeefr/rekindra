@@ -19,7 +19,7 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
-from .zip_text import member_records
+from .zip_text import MAX_DOSSIER_SOURCES, fit_members, member_records
 
 _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
@@ -276,6 +276,11 @@ class ProjectStore:
         envelope = reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         if not isinstance(envelope, dict):
             raise ProjectError('Evidence intake returned no result')
+        # Every evidence asset keeps its own slot; members share what is left.
+        slots = MAX_DOSSIER_SOURCES - sum(a.get('format') in _EVIDENCE_FORMATS for a in project['assets'])
+        used = sum((a.get('text_members') or {}).get('read', 0) for a in project['artifacts']
+                   if a.get('kind') == 'evidence' and a.get('asset_id') != asset_id)
+        envelope = fit_members(envelope, asset['source_path'], max(0, slots - used))
         blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')
         warnings = [w.get('code') for w in envelope.get('warnings') or [] if isinstance(w, dict)]
         artifact = {'asset_id': asset_id, 'kind': 'evidence', 'format': 'intake-json',

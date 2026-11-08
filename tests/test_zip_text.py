@@ -64,7 +64,7 @@ class ReaderTests(unittest.TestCase):
         # Random-looking stored data: ratio is fine, the total is not.
         body = bytes(range(256)) * 1024
         env = inspect_archive(make_zip([('a.txt', body)], zipfile.ZIP_STORED), 'a.zip')
-        env['facts']['total_claimed_uncompressed_bytes'] = zip_text.MAX_TOTAL_CLAIMED_BYTES + 1
+        env['facts']['entries'][0]['claimed_uncompressed_size_bytes'] = zip_text.MAX_TOTAL_CLAIMED_BYTES + 1
         out = zip_text.read_archive_text(env, make_zip([('a.txt', body)], zipfile.ZIP_STORED), inspect_text)
         self.assertEqual((out['status'], out['text_member_report']['refused']['code']), ('rejected', 'zip_bomb_guard'))
 
@@ -123,6 +123,41 @@ class ReaderTests(unittest.TestCase):
         out = read(make_zip([('../evil.txt', 'nope'), ('ok.txt', 'fine')]))
         self.assertEqual([m['name'] for m in out['text_members']], ['ok.txt'])
         self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'unsafe_member')
+
+    def test_compressible_unread_member_does_not_refuse_archive(self):
+        out = read(make_zip([('texture.tga', b'\0' * (512 * 1024)), ('a.txt', 'fine')]))
+        self.assertEqual(out['status'], 'ok')
+        self.assertEqual(out['text_member_report']['read'], 1)
+        self.assertIn('unread_members_compress_heavily', [w['code'] for w in out['warnings']])
+
+    def test_one_bad_note_among_other_entries_is_partial(self):
+        out = read(make_zip([('photo.tga', b'x' * 40), ('bad.log', b'\x00\x01\x02' * 40)]))
+        self.assertEqual(out['status'], 'partial')
+        self.assertNotIn('refused', out['text_member_report'])
+        self.assertTrue(out['facts']['entries'])
+
+    def test_name_the_dossier_would_refuse_is_skipped(self):
+        out = read(make_zip([('a\u2028b.txt', 'nope'), ('.. /c.txt', 'nope'), ('ok.txt', 'fine')]))
+        self.assertEqual([m['name'] for m in out['text_members']], ['ok.txt'])
+        self.assertEqual({s['code'] for s in out['text_member_report']['skipped']}, {'unsafe_member'})
+
+    def test_fit_members_reports_what_it_leaves_out(self):
+        out = zip_text.fit_members(read(make_zip([('a.txt', 'one'), ('b.txt', 'two')])), 'x.zip', 1)
+        self.assertEqual([m['name'] for m in out['text_members']], ['a.txt'])
+        self.assertEqual(out['status'], 'partial')
+        self.assertEqual(out['text_member_report']['read'], 1)
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'project_source_limit')
+
+    def test_fit_members_reports_over_long_paths(self):
+        parent = 'p/' * 200 + 'x.zip'
+        out = zip_text.fit_members(read(make_zip([('n' * 150 + '.txt', 'one'), ('b.txt', 'two')])), parent, 5)
+        self.assertEqual([m['name'] for m in out['text_members']], ['b.txt'])
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'member_path_too_long')
+
+    def test_limits_match_the_dossier(self):
+        from rekindra_evidence import _limits
+        self.assertEqual((zip_text.MAX_DOSSIER_SOURCES, zip_text.MAX_DOSSIER_PATH),
+                         (_limits.MAX_RECORDS, _limits.MAX_PATH_CHARS))
 
     def test_binary_text_member_is_reported(self):
         out = read(make_zip([('a.txt', b'\x00\x01\x02' * 40), ('b.txt', 'fine')]))
@@ -209,6 +244,21 @@ class PipelineTests(unittest.TestCase):
                                      'interpretation': 'x'}]
         with self.assertRaises(SceneError):
             CompositionStore(self.store).save_plan(self.pid, scene, [self.ids['photo.tga']], {})
+
+    def test_members_cannot_use_up_the_project_source_limit(self):
+        for i in range(5):
+            names = [(f'n{j}.txt', f'note {i} {j}') for j in range(zip_text.MAX_TEXT_MEMBERS)]
+            (self.source / f'many{i}.zip').write_bytes(make_zip(names))
+        project = self.store.inspect(self.source)
+        pid, ids = project['project_id'], {a['source_path']: a['asset_id'] for a in project['assets']}
+        reader = rt.plugin.handlers.evidence_reader()
+        for i in range(5):
+            out = self.store.recover(pid, ids[f'many{i}.zip'], reader)
+        # 128 slots, 8 evidence assets keep one each, so 120 members fit across the archives.
+        self.assertEqual(out['dossier']['counts']['sources'], 5 + 120)
+        report = out['artifact']['text_members']
+        self.assertEqual(report['read'], 0)
+        self.assertEqual(report['skipped'][0]['code'], 'project_source_limit')
 
     def test_source_unchanged_and_nothing_extracted(self):
         before = sorted(p.name for p in self.source.rglob('*'))

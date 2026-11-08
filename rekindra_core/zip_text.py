@@ -19,6 +19,8 @@ MAX_RATIO = 100
 RATIO_FLOOR_BYTES = 64 * 1024      # small members may compress well without being suspicious
 MAX_NAME_CHARS = 200
 TIME_BUDGET_SECONDS = 5.0
+MAX_DOSSIER_SOURCES = 128          # the evidence dossier's record limit
+MAX_DOSSIER_PATH = 512             # the evidence dossier's path limit
 _CHUNK_BYTES = 64 * 1024
 _REPORT_SKIPS = 32
 
@@ -31,6 +33,8 @@ _DECODE_ERRORS = (zipfile.BadZipFile, zlib.error, lzma.LZMAError, EOFError, NotI
 _TOLERATED = {'encrypted', 'nested_archive_not_inspected'}
 _FAILED = ('encrypted_member', 'corrupt_member', 'text_intake_rejected')
 _MEMBER_ID = re.compile(r'm\d{4}')
+# A dossier source path may not carry these, so such a name must be skipped, not stored.
+_BAD_NAME_CHARS = re.compile('[\x00-\x1f\x7f-\x9f\u2028\u2029]')
 
 _REASONS = {
     'nested_archive_not_read': 'Nested archive; archives inside archives are not opened.',
@@ -43,6 +47,8 @@ _REASONS = {
     'corrupt_member': 'The member failed to decompress or failed its checksum.',
     'text_intake_rejected': 'The member was read but is not usable text.',
     'time_budget_exhausted': 'The read time budget ran out before this member.',
+    'member_path_too_long': f'The archive path plus this member name exceeds {MAX_DOSSIER_PATH} characters.',
+    'project_source_limit': 'The project has no evidence source slots left for this member.',
 }
 
 
@@ -54,19 +60,35 @@ class _OutOfTime(Exception):
     pass
 
 
-def _bomb_reason(entries: list, facts: dict) -> str | None:
+def _is_text_name(name: str) -> bool:
+    return name.lower().endswith(_TEXT_SUFFIXES)
+
+
+def _bomb_shaped(entry: dict) -> bool:
+    claimed = entry.get('claimed_uncompressed_size_bytes') or 0
+    return claimed >= RATIO_FLOOR_BYTES and claimed > MAX_RATIO * max(entry.get('compressed_size_bytes') or 0, 1)
+
+
+def _bomb_reason(entries: list) -> str | None:
+    """Size signals count only for members that would be read; a blank texture is not a bomb."""
     claimed_total = 0
     for entry in entries:
-        claimed = entry.get('claimed_uncompressed_size_bytes') or 0
-        compressed = entry.get('compressed_size_bytes') or 0
-        claimed_total += claimed
-        if claimed >= RATIO_FLOOR_BYTES and claimed > MAX_RATIO * max(compressed, 1):
-            return f'A member expands more than {MAX_RATIO}:1, so the archive was not opened.'
         if 'overlapping_entries' in (entry.get('safety_warnings') or []):
             return 'Members overlap each other, a zip-bomb construction, so the archive was not opened.'
-    if max(claimed_total, facts.get('total_claimed_uncompressed_bytes') or 0) > MAX_TOTAL_CLAIMED_BYTES:
-        return f'Members claim more than {MAX_TOTAL_CLAIMED_BYTES} bytes in total, so the archive was not opened.'
+        if not _is_text_name(str(entry.get('name') or '')):
+            continue
+        claimed_total += entry.get('claimed_uncompressed_size_bytes') or 0
+        if _bomb_shaped(entry):
+            return f'A text member expands more than {MAX_RATIO}:1, so the archive was not opened.'
+    if claimed_total > MAX_TOTAL_CLAIMED_BYTES:
+        return f'Text members claim more than {MAX_TOTAL_CLAIMED_BYTES} bytes in total, so the archive was not opened.'
     return None
+
+
+def _safe_name(name: str) -> bool:
+    if _BAD_NAME_CHARS.search(name):
+        return False
+    return not any(len(part) >= 2 and not part.strip('. ') for part in re.split(r'[/\\]', name))
 
 
 def _refuse(envelope: dict, code: str, reason: str, skipped: list) -> dict:
@@ -101,9 +123,9 @@ def _precheck(entry: dict, info) -> str | None:
     if entry.get('encrypted') or info.flag_bits & 1:
         return 'encrypted_member'
     if (warnings - _TOLERATED or entry.get('name_truncated') or len(name) > MAX_NAME_CHARS
-            or info.filename != name):
+            or info.filename != name or not _safe_name(name)):
         return 'unsafe_member'
-    if not lowered.endswith(_TEXT_SUFFIXES):
+    if not _is_text_name(name):
         return 'unsupported_member_type'
     if info.compress_type not in _METHODS:
         return 'unsupported_compression'
@@ -118,7 +140,7 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
         return envelope
     facts = envelope.get('facts') or {}
     entries = facts.get('entries') or []
-    bomb = _bomb_reason(entries, facts)
+    bomb = _bomb_reason(entries)
     if bomb:
         return _refuse(envelope, 'zip_bomb_guard', bomb, [])
     try:
@@ -134,7 +156,7 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
                 continue
             name = str(entry.get('name') or '')
             code = _precheck(entry, info)
-            is_text = name.lower().endswith(_TEXT_SUFFIXES)
+            is_text = _is_text_name(name)
             attempted += is_text
             if code is None and len(members) >= MAX_TEXT_MEMBERS:
                 code = 'member_limit'
@@ -159,13 +181,13 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
                             'text_candidate': is_text})
 
     unread = [s for s in skipped if s.pop('text_candidate')]
-    # Candidates are skipped entries that named a text type; every reader failure is one of them.
-    failed = [s for s in unread if s['code'] in _FAILED]
-    if attempted and not members and len(failed) == attempted:
-        codes = {s['code'] for s in failed}
-        code, reason = ('encrypted_archive', 'Every text member is encrypted, so none could be read.') \
+    # Refuse only an archive with nothing else to offer: one bad note among healthy
+    # entries is a partial result, and refusing would discard the inventory.
+    if attempted and not members and all(s['code'] in _FAILED for s in skipped):
+        codes = {s['code'] for s in skipped}
+        code, reason = ('encrypted_archive', 'Every member is encrypted, so none could be read.') \
             if codes == {'encrypted_member'} else \
-            ('corrupt_archive', 'Every text member is corrupt or unusable, so none could be read.')
+            ('corrupt_archive', 'Every member is corrupt or unusable, so none could be read.')
         return _refuse(envelope, code, reason, skipped)
 
     warnings = list(envelope.get('warnings') or [])
@@ -177,9 +199,42 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
     if skipped and len(skipped) > len(unread):
         warnings.append({'code': 'other_members_not_read',
                          'message': f'{len(skipped) - len(unread)} non-text member(s) were not read.'})
+    bomb_shaped = sum(1 for e in entries if _bomb_shaped(e) and not _is_text_name(str(e.get('name') or '')))
+    if bomb_shaped:
+        warnings.append({'code': 'unread_members_compress_heavily',
+                         'message': f'{bomb_shaped} unread member(s) expand more than {MAX_RATIO}:1.'})
     report = {'read': len(members), 'skipped': skipped[:_REPORT_SKIPS],
               'skipped_omitted': max(0, len(skipped) - _REPORT_SKIPS)}
     return dict(envelope, status=status, warnings=warnings, text_members=members, text_member_report=report)
+
+
+def fit_members(envelope: dict, relative_path: str, room: int) -> dict:
+    """Keep only the members the dossier can hold, reporting each one that is left out.
+
+    ``room`` is how many member sources this archive may still add to the project, so
+    a member-heavy archive cannot use up the slots other assets need.
+    """
+    members = envelope.get('text_members')
+    if not isinstance(members, list) or not members:
+        return envelope
+    kept, dropped = [], []
+    for member in members:
+        code = ('member_path_too_long' if len(f"{relative_path}!{member['name']}") > MAX_DOSSIER_PATH
+                else 'project_source_limit' if len(kept) >= room else None)
+        if code is None:
+            kept.append(member)
+        else:
+            dropped.append({'name': member['name'][:MAX_NAME_CHARS], 'code': code, 'reason': _REASONS[code]})
+    if not dropped:
+        return envelope
+    old = envelope['text_member_report']
+    skipped = dropped + old['skipped']
+    report = dict(old, read=len(kept), skipped=skipped[:_REPORT_SKIPS],
+                  skipped_omitted=old['skipped_omitted'] + max(0, len(skipped) - _REPORT_SKIPS))
+    warnings = list(envelope.get('warnings') or []) + [
+        {'code': 'text_members_skipped',
+         'message': f'{len(dropped)} text member(s) did not fit in the project; see text_member_report.'}]
+    return dict(envelope, status='partial', warnings=warnings, text_members=kept, text_member_report=report)
 
 
 def member_records(source_id: str, relative_path: str, intake: dict) -> tuple[dict, list]:
@@ -200,10 +255,8 @@ def member_records(source_id: str, relative_path: str, intake: dict) -> tuple[di
                 or not isinstance(member['member_id'], str) or not _MEMBER_ID.fullmatch(member['member_id'])
                 or not isinstance(member['name'], str)):
             raise ValueError('text_members is malformed')
-        path = f"{relative_path}!{member['name']}"
-        if len(path) <= 512:  # the dossier's path limit; one over-long name must not refuse the rest
-            records.append({'source_id': f"{source_id}:{member['member_id']}", 'relative_path': path,
-                            'intake': member['intake']})
+        records.append({'source_id': f"{source_id}:{member['member_id']}",
+                        'relative_path': f"{relative_path}!{member['name']}", 'intake': member['intake']})
     return parent, records
 
 
