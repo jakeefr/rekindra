@@ -19,10 +19,11 @@ def world_html(item):
                 if not (html.is_file() and plan.is_file()):
                     return None  # e.g. a review_camera preview of a plan that was never built
                 try:
-                    scene = json.loads(plan.read_text(encoding='utf-8')).get('scene', {})
+                    data = json.loads(plan.read_text(encoding='utf-8'))
                 except (ValueError, OSError):
                     return None  # unreadable plan is not a world to export
-                return str(html) if scene.get('schema_version') == 2 else None
+                scene = data.get('scene') if isinstance(data, dict) else None
+                return str(html) if isinstance(scene, dict) and scene.get('schema_version') == 2 else None
     return None
 
 

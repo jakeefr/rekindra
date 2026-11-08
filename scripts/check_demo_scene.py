@@ -9,6 +9,9 @@ Frames are single-frame PNGs, or a decoded review grid with --grid COLSxROWS
 Usage:
   py -3 scripts/check_demo_scene.py PLAN.json SOURCE.png FRAME.png [FRAME.png ...]
       [--grid 3x2 --label-px 30] [--boat-id ID] [--beam-id ID] [--water-id ID]
+
+Exit codes: 0 all PASS; 1 any FAIL; 3 no FAIL but some unit UNMEASURED
+(2 stays argparse's usage error).
 """
 import argparse
 import colorsys
@@ -132,8 +135,9 @@ def check_horizon(scene, water_id):
         try:
             fp = sampler(o['color_pattern'])
             pattern_fade = min(min(1.0, max(0.0, fp(u, v, 0.0))) for k in boundary for u, v in sides[k]) >= .9
-        except Exception:
-            pattern_fade = False
+        except Exception as exc:
+            if not fog_fade:
+                return None, f'water={water_id} unmeasured (color_pattern unsampled: {exc.__class__.__name__})'
     ok = near >= 250 and spread <= .08 and (fog_fade or pattern_fade)
     return ok, (f'water={water_id} nearest far edge={near:.0f} (>=250, sides={boundary}), rim spread={spread:.2f} (<=0.08), '
                 f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}')
@@ -261,8 +265,8 @@ def main(argv=None):
     for name, (ok, detail) in results.items():
         print(f'{"UNMEASURED" if ok is None else "PASS" if ok else "FAIL"} {name}: {detail}')
     states = [ok for ok, _ in results.values()]
-    # 1 = a unit failed; 2 = nothing failed but the checker could not measure a unit.
-    return 1 if False in states else 2 if None in states else 0
+    # 1 = a unit failed; 3 = nothing failed but the checker could not measure a unit.
+    return 1 if False in states else 3 if None in states else 0
 
 
 if __name__ == '__main__':

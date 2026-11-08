@@ -140,6 +140,30 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertIsNone(check.check_boats({'objects': objs, 'assemblies': [tilt]}, 'boat')[0])
 
 
+class MainExitTests(unittest.TestCase):
+    def run_main(self, results):
+        saved = {k: getattr(check, k) for k in ('check_fog', 'check_sea', 'check_horizon', 'check_beam', 'check_boats')}
+        values = iter(results)
+        try:
+            for k in saved:
+                setattr(check, k, lambda *a, _v=next(values): _v)
+            with tempfile.TemporaryDirectory() as tmp:
+                png = Path(tmp) / 'f.png'
+                Image.fromarray(np.zeros((40, 40, 3), np.uint8)).save(png)
+                plan = Path(tmp) / 'plan.json'
+                plan.write_text(json.dumps({'scene': {'environment': {}, 'objects': []}}))
+                return check.main([str(plan), str(png), str(png), '--label-px', '0'])
+        finally:
+            for k, v in saved.items():
+                setattr(check, k, v)
+
+    def test_exit_codes(self):
+        ok, bad, unk = (True, ''), (False, ''), (None, '')
+        self.assertEqual(self.run_main([ok] * 5), 0)
+        self.assertEqual(self.run_main([ok, ok, unk, ok, ok]), 3)
+        self.assertEqual(self.run_main([ok, bad, unk, ok, ok]), 1)
+
+
 class FrameTests(unittest.TestCase):
     def test_grid_tiles_drop_label_strip(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -173,11 +197,19 @@ class ExportSelectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(export.world_html(self.project(tmp, schema_version=1)))
 
-    def test_corrupt_plan_is_skipped(self):
+    def test_corrupt_or_non_object_plan_is_skipped(self):
+        for text in ('{"scene": ', '[]', '{"scene": null}'):
+            with tempfile.TemporaryDirectory() as tmp:
+                item = self.project(tmp)
+                (Path(tmp) / 'projects' / 'p1' / 'plans' / 'plan2.json').write_text(text)
+                self.assertIsNone(export.world_html(item), text)
+
+    def test_plan_path_from_summary_is_preferred(self):
         with tempfile.TemporaryDirectory() as tmp:
-            item = self.project(tmp)
-            (Path(tmp) / 'projects' / 'p1' / 'plans' / 'plan2.json').write_text('{"scene": ')
-            self.assertIsNone(export.world_html(item))
+            item = self.project(tmp, schema_version=1)  # the default plans/ copy is not a world
+            other = Path(tmp) / 'elsewhere.json'
+            other.write_text(json.dumps({'scene': {'schema_version': 2}}))
+            self.assertTrue(export.world_html(dict(item, plan_path=str(other))).endswith('plan2.html'))
 
     def test_create_world_path_is_used_directly(self):
         self.assertEqual(export.world_html({'tool': 'rekindra_create_world', 'path': 'x.html'}), 'x.html')
