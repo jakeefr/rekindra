@@ -271,7 +271,7 @@ def check_boats(scene, boat_id, mast_ids=None):
     ratio = min(max(ex * sc[0], ez * sc[2]) / max(min(ex * sc[0], ez * sc[2]), 1e-6) for sc in scales)
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
-    masts, mast_ok, mast_unmeasured = [], True, False
+    masts, mast_ok, mast_unmeasured, measured, skipped = [], True, False, 0, 0
     for mid in mast_ids or []:
         if mid not in peers:
             mast_ok = False
@@ -279,6 +279,7 @@ def check_boats(scene, boat_id, mast_ids=None):
     chosen = (lambda oid: oid in mast_ids) if mast_ids else is_mast
     for p in scene['objects']:
         if p['id'] in peers and not chosen(p['id']) and 'mast' in p['id'].lower():
+            skipped += 1
             masts.append(f'{p["id"]} skipped (pass --mast-id to measure)')
         if p['id'] in peers and chosen(p['id']) and p.get('position'):
             mx, mz, _ = surface_extent(p)
@@ -291,10 +292,12 @@ def check_boats(scene, boat_id, mast_ids=None):
                        for i in p.get('instances') or [{}]]
             radius = min(min(mx * sc[0], mz * sc[2]) for sc in mscales) / 2
             lum = luminance(p.get('color', '#000000'))
+            measured += 1
             mast_ok = mast_ok and radius >= .07 - 1e-6 and lum >= .5
             masts.append(f'{p["id"]} r={radius:.3f} (>=.07) lum={lum:.2f} (>=.5)')
     ok = bool(ratio >= 2.5 and bool(peers) and mast_ok)
-    if ok and mast_unmeasured:
+    # An unsampled mast, or mast-like parts with none measured (the guess may have missed the mast).
+    if ok and (mast_unmeasured or (skipped and not measured)):
         ok = None
     return ok, (f'boat={boat_id} hull L/W={ratio:.2f} (>=2.5, {how}), parts sharing assembly={peers or "none"}'
                 + (f', masts: {"; ".join(masts)}' if masts else ''))

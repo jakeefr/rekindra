@@ -159,7 +159,14 @@ class BeamAndBoatTests(unittest.TestCase):
         ok, detail = check.check_boats({'objects': [hull, dict(thin, id='spar'), flag]}, 'boat', ['spar'])
         self.assertIs(False, ok)
         self.assertIn('mast_flag skipped', detail)
-        self.assertIs(False, check.check_boats({'objects': [hull]}, 'boat', ['spar'])[0])
+        ok, detail = check.check_boats({'objects': [hull, flag]}, 'boat', ['spar'])
+        self.assertIs(False, ok)
+        self.assertIn('spar not on the hull assembly', detail)
+        away = dict(mast(.07, '#B89A78'), id='spar', assembly='elsewhere')
+        self.assertIs(False, check.check_boats({'objects': [hull, flag, away]}, 'boat', ['spar'])[0])
+        ok, detail = check.check_boats({'objects': [hull, dict(thin, id='mastFore')]}, 'boat')
+        self.assertIsNone(ok, detail)
+        self.assertIn('mastFore skipped', detail)
 
     def test_mast_ids(self):
         for oid in ('boat_masts', 'mainmast', 'mast2', 'mast_2', 'sailboat_mast', 'boatMast', 'flagship_mast',
