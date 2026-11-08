@@ -84,18 +84,19 @@ class RecoverEvidenceTests(unittest.TestCase):
         self.assertNotIn('notes.txt', json.dumps(r))  # cite by asset_id, not file name
         self.assertTrue(Path(r['dossier_path']).exists())
 
-    def test_zip_recovery_is_inventory_only(self):
+    def test_zip_recovery_reads_text_members(self):
         r = self.recover('old.zip')['result']
         self.assertEqual(r['format'], 'zip')
         self.assertIn('archive_metadata_unverified', r['notices'])
-        self.assertNotIn('secret body never read', json.dumps(r))
-        self.assertFalse(r['coverage']['member_contents_inspected'])
+        self.assertEqual(r['evidence'][0]['text'], 'secret body never read')
+        self.assertEqual(r['evidence'][0]['member_path'], 'old.zip!letters/first.txt')
+        self.assertTrue(r['coverage']['member_contents_inspected'])
 
     def test_dossier_accumulates_sources_and_status_stays_valid(self):
         self.recover('notes.txt')
         r = self.recover('old.zip')['result']
         dossier = json.loads(Path(r['dossier_path']).read_text(encoding='utf-8'))
-        self.assertEqual(dossier['counts']['sources'], 2)
+        self.assertEqual(dossier['counts']['sources'], 3)  # notes, the ZIP, the ZIP's text member
         status = json.loads(self.handlers['rekindra_status']({'project_id': self.project['project_id']}))
         self.assertTrue(status['ok'], status)
         self.assertEqual(status['result']['stage'], 'recovered')

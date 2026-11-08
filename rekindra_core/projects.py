@@ -19,12 +19,28 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
+from .zip_text import MAX_DOSSIER_SOURCES, fit_members, member_byte_room, member_records
 
 _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip')
+
+
+def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
+    """The bytes an evidence artifact holds; older manifests never recorded the figure."""
+    size = artifact.get('intake_bytes')
+    if isinstance(size, int):
+        return size
+    asset_id = artifact.get('asset_id')
+    if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
+        return 0
+    try:
+        return (artifacts_dir / (asset_id + '.intake.json')).stat().st_size
+    except OSError:
+        return 0
+
 _MAX_INTAKE_BYTES = 16 * 1024 * 1024
 _STAGED_GRACE_SECONDS = 300
 _STAGED = re.compile(r'^(?:[0-9a-f]{32}\.intake|evidence)\.json\.[0-9a-f]{32}\.(?:new|old)$')
@@ -275,13 +291,24 @@ class ProjectStore:
         envelope = reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         if not isinstance(envelope, dict):
             raise ProjectError('Evidence intake returned no result')
+        # Every evidence asset keeps its own slot; members share what is left.
+        slots = MAX_DOSSIER_SOURCES - sum(a.get('format') in _EVIDENCE_FORMATS for a in project['assets'])
+        others = [a for a in project['artifacts'] if a.get('kind') == 'evidence' and a.get('asset_id') != asset_id]
+        used = sum((a.get('text_members') or {}).get('read', 0) for a in others)
+        byte_room = member_byte_room(envelope, sum(_stored_intake_size(artifacts_dir, a) for a in others),
+                                     sum((a.get('text_members') or {}).get('member_bytes', 0) for a in others))
+        envelope = fit_members(envelope, asset['source_path'], max(0, slots - used), byte_room)
         blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')
         warnings = [w.get('code') for w in envelope.get('warnings') or [] if isinstance(w, dict)]
         artifact = {'asset_id': asset_id, 'kind': 'evidence', 'format': 'intake-json',
                     'path': str(artifacts_dir / (asset_id + '.intake.json')), 'source_sha256': asset['sha256'],
-                    'sha256': hashlib.sha256(blob).hexdigest(), 'decoder': 'rekindra-intake-v1',
+                    'sha256': hashlib.sha256(blob).hexdigest(), 'intake_bytes': len(blob),
+                    'decoder': 'rekindra-intake-v1',
                     'intake_format': envelope.get('format'), 'status': envelope.get('status'),
                     'warnings': warnings}
+        report = envelope.get('text_member_report')
+        if isinstance(report, dict):
+            artifact['text_members'] = report
         artifacts = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
         records = []
@@ -302,11 +329,16 @@ class ProjectStore:
                 intake = json.loads(raw.decode('utf-8'))
             except (UnicodeDecodeError, ValueError) as exc:
                 raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
+            try:
+                intake, members = member_records(sid, paths[sid], intake)
+            except ValueError as exc:
+                raise ProjectError('Saved intake is not readable; re-run recovery for that asset') from exc
             if isinstance(intake, dict) and intake.get('status') == 'rejected':
                 # Intake refused this source, so nothing from it may surface as recovered
                 # evidence. Its row and rejection stay; its facts are dropped.
-                intake = dict(intake, facts={})
+                intake, members = dict(intake, facts={}), []
             records.append({'source_id': sid, 'relative_path': paths[sid], 'intake': intake})
+            records.extend(members)
         dossier = reader['dossier'](records)
         if not isinstance(dossier, dict) or dossier.get('status') == 'rejected':
             errors = dossier.get('errors') if isinstance(dossier, dict) else None
@@ -328,7 +360,9 @@ class ProjectStore:
                  for path, data in ((target, blob), (dossier_path, dossier_blob))]
         updated = dict(project, artifacts=artifacts, stage='recovered',
                        evidence={'path': str(dossier_path), 'sha256': hashlib.sha256(dossier_blob).hexdigest(),
-                                 'status': dossier.get('status'), 'source_ids': [r['source_id'] for r in records]})
+                                 'status': dossier.get('status'),
+                                 # Asset IDs only: ZIP members are cited through their archive.
+                                 'source_ids': [r['source_id'] for r in records if ':' not in r['source_id']]})
         moved, promoted, committed = [], [], False
         try:
             for _, staged, _, data in swaps:
