@@ -47,13 +47,13 @@ class HorizonTests(unittest.TestCase):
     def test_small_square_fails(self):
         square = water({'x': '(u-.5)*100', 'y': '0', 'z': '(v-.5)*100'})
         ok, detail = check.check_horizon(self.scene(square), 'sea')
-        self.assertFalse(ok, detail)
+        self.assertIs(False, ok, detail)
 
     def test_rim_fade_needs_pattern_near_one(self):
         disc = water({'x': '12+320*v*v*cos(u*2*pi)', 'y': '0', 'z': '24+320*v*v*sin(u*2*pi)'},
                      color_high='#B88198', color_pattern='clamp((v-.9)*5,0,1)')
         ok, detail = check.check_horizon(self.scene(disc), 'sea')
-        self.assertFalse(ok, detail)  # pattern only reaches .5 at the rim
+        self.assertIs(False, ok, detail)  # pattern only reaches .5 at the rim
 
     def test_assembly_transform_is_reported_not_guessed(self):
         disc = water({'x': '320*v*v*cos(u*2*pi)', 'y': '0', 'z': '320*v*v*sin(u*2*pi)'}, assembly='drift')
@@ -80,19 +80,19 @@ class HorizonTests(unittest.TestCase):
             return water({'x': f'12+{r}*v*v*cos(u*2*pi)', 'y': '0', 'z': f'24+{r}*v*v*sin(u*2*pi)'},
                          color_high='#B88198', color_pattern='mystery(v)')
         self.assertIsNone(check.check_horizon(self.scene(disc(320)), 'sea')[0])
-        self.assertFalse(check.check_horizon(self.scene(disc(120)), 'sea')[0])  # rim too near: FAIL anyway
+        self.assertIs(False, check.check_horizon(self.scene(disc(120)), 'sea')[0])  # rim too near: FAIL anyway
         slanted = water({'x': '300+600*v*v*cos(u*2*pi)', 'y': '0', 'z': '600*v*v*sin(u*2*pi)'},
                         color_high='#B88198', color_pattern='mystery(v)')
         ok, detail = check.check_horizon(self.scene(slanted), 'sea')
-        self.assertFalse(ok, detail)  # far but uneven rim: FAIL anyway
-        self.assertIn('unsampled', detail)
+        self.assertIs(False, ok, detail)  # far but uneven rim: FAIL anyway
+        self.assertIn('pattern_fade=False (color_pattern unsampled', detail)
         foggy = {'environment': dict(ENV, fog_density=.02), 'camera': EYES, 'objects': [disc(320)], 'assemblies': []}
         self.assertTrue(check.check_horizon(foggy, 'sea')[0])  # fog alone decides the fade
 
     def test_instance_scale_moves_the_rim(self):
         disc = water({'x': '12+150*v*v*cos(u*2*pi)', 'y': '0', 'z': '24+150*v*v*sin(u*2*pi)'},
                      color_high='#B88198', color_pattern='clamp((v-.9)*10,0,1)')
-        self.assertFalse(check.check_horizon(self.scene(disc), 'sea')[0])  # rim ~150 from the eye
+        self.assertIs(False, check.check_horizon(self.scene(disc), 'sea')[0])  # rim ~150 from the eye
         big = dict(disc, position={'x': '150*v*v*cos(u*2*pi)', 'y': '0', 'z': '150*v*v*sin(u*2*pi)'},
                    instances=[{'offset': [12, 0, 24], 'scale': [2, 1, 2]}])
         ok, detail = check.check_horizon(self.scene(big), 'sea')
@@ -103,17 +103,17 @@ class BeamAndBoatTests(unittest.TestCase):
     def test_t_token(self):
         self.assertTrue(check.uses_t('-0.7+t*0.35'))
         for static in ('0', 'sqrt(2)', 'smoothstep(0,1,.5)', 'atan(1)', 'step(.5,.2)'):
-            self.assertFalse(check.uses_t(static), static)
+            self.assertIs(False, check.uses_t(static), static)
 
     def test_missing_beam_is_named(self):
         frames = [np.zeros((10, 10, 3))]
         ok, detail = check.check_beam({'objects': [], 'assemblies': []}, frames, 'beam')
-        self.assertFalse(ok)
+        self.assertIs(False, ok)
         self.assertIn('not found', detail)
 
     def test_beam_without_assembly_is_named(self):
         ok, detail = check.check_beam({'objects': [{'id': 'beam'}], 'assemblies': []}, [np.zeros((4, 4, 3))], 'beam')
-        self.assertFalse(ok)
+        self.assertIs(False, ok)
         self.assertIn('no assembly', detail)
 
     def test_pointed_loft_passes_and_disc_fails(self):
@@ -126,7 +126,7 @@ class BeamAndBoatTests(unittest.TestCase):
         disc = {'id': 'boat', 'assembly': 'home',
                 'position': {'x': '.6*v*cos(u*2*pi)', 'y': '0', 'z': '.4*v*sin(u*2*pi)'}}
         ok, detail = check.check_boats({'objects': [disc, mast]}, 'boat')
-        self.assertFalse(ok, detail)
+        self.assertIs(False, ok, detail)
 
     def test_instance_scale_uses_least_elongated_copy(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]
@@ -134,7 +134,7 @@ class BeamAndBoatTests(unittest.TestCase):
                 'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'},
                 'instances': [{'offset': [0, 0, 0], 'scale': [1, 1, 1]}, {'offset': [3, 0, 0], 'scale': [2.5, 1, 1]}]}
         ok, detail = check.check_boats({'objects': [hull, {'id': 'mast', 'assembly': 'home'}]}, 'boat')
-        self.assertFalse(ok, detail)  # the second copy is stretched almost square
+        self.assertIs(False, ok, detail)  # the second copy is stretched almost square
 
     def test_deformed_loft_is_unmeasured_not_failed(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]
@@ -149,7 +149,7 @@ class BeamAndBoatTests(unittest.TestCase):
                 'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'}}
         objs = [hull, {'id': 'mast', 'assembly': 'home'}]
         flat = {'id': 'home', 'rotation': {'x': '0', 'y': 't', 'z': '0'}, 'scale': [3, 1, 1]}
-        self.assertFalse(check.check_boats({'objects': objs, 'assemblies': [flat]}, 'boat')[0])
+        self.assertIs(False, check.check_boats({'objects': objs, 'assemblies': [flat]}, 'boat')[0])
         tilt = {'id': 'home', 'rotation': {'x': '0.1*sin(t)', 'y': '0', 'z': '0'}, 'scale': [1, 1, 1]}
         self.assertIsNone(check.check_boats({'objects': objs, 'assemblies': [tilt]}, 'boat')[0])
 

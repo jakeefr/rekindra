@@ -139,7 +139,7 @@ def check_horizon(scene, water_id):
         except Exception as exc:
             pattern_err = f' (color_pattern unsampled: {exc.__class__.__name__})'
             if not fog_fade and geometry_ok:  # fade is the only open question
-                return None, f'water={water_id} unmeasured (color_pattern unsampled: {exc.__class__.__name__})'
+                return None, f'water={water_id} unmeasured{pattern_err}'
     ok = geometry_ok and (fog_fade or pattern_fade)
     return ok, (f'water={water_id} nearest far edge={near:.0f} (>=250, sides={boundary}), rim spread={spread:.2f} (<=0.08), '
                 f'fog_fade={fog_fade} (gap={gap:.0f}<=48, opacity at edge>=0.95) or pattern_fade={pattern_fade}{pattern_err}')
