@@ -54,7 +54,7 @@ def read(data, name='archive.zip', **kw):
 
 class ReaderTests(unittest.TestCase):
     def test_bomb_rejected_with_reason(self):
-        out = read(make_zip([('notes/big.txt', b'a' * (2 * 1024 * 1024))]))
+        out = read(make_zip([('notes/big.txt', b'a' * (zip_text.BOMB_FLOOR_BYTES + 1))]))
         self.assertEqual(out['status'], 'rejected')
         self.assertEqual(out['text_member_report']['refused']['code'], 'zip_bomb_guard')
         self.assertIn('100:1', out['text_member_report']['refused']['reason'])
@@ -67,6 +67,33 @@ class ReaderTests(unittest.TestCase):
         env['facts']['entries'][0]['claimed_uncompressed_size_bytes'] = zip_text.MAX_TOTAL_CLAIMED_BYTES + 1
         out = zip_text.read_archive_text(env, make_zip([('a.txt', body)], zipfile.ZIP_STORED), inspect_text)
         self.assertEqual((out['status'], out['text_member_report']['refused']['code']), ('rejected', 'zip_bomb_guard'))
+
+    def test_oversized_compressible_note_is_skipped_not_refused(self):
+        out = read(make_zip([('big.csv', b'a' * (1024 * 1024)), ('ok.txt', 'fine')]))
+        self.assertEqual(out['status'], 'partial')
+        self.assertEqual([m['name'] for m in out['text_members']], ['ok.txt'])
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'member_too_large')
+        self.assertTrue(out['facts']['entries'])
+
+    def test_large_log_at_ordinary_ratio_is_skipped_not_refused(self):
+        data = make_zip([('server.log', 'x'), ('ok.txt', 'fine')])
+        env = inspect_archive(data, 'a.zip')
+        env['facts']['entries'][0]['claimed_uncompressed_size_bytes'] = 70 * 1024 * 1024
+        env['facts']['entries'][0]['compressed_size_bytes'] = 7 * 1024 * 1024
+        out = zip_text.read_archive_text(env, data, inspect_text)
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'member_too_large')
+        self.assertEqual([m['name'] for m in out['text_members']], ['ok.txt'])
+
+    def test_small_heavily_compressed_note_reported_per_member(self):
+        out = read(make_zip([('blank.txt', b'a' * (200 * 1024)), ('ok.txt', 'fine')]))
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'member_compresses_heavily')
+        self.assertEqual([m['name'] for m in out['text_members']], ['ok.txt'])
+
+    def test_total_read_is_capped(self):
+        with mock.patch.object(zip_text, 'MAX_TOTAL_READ_BYTES', 10):
+            out = read(make_zip([('a.txt', 'eight ch'), ('b.txt', 'eight ch')]))
+        self.assertEqual([m['name'] for m in out['text_members']], ['a.txt'])
+        self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'total_read_limit')
 
     def test_encrypted_rejected_with_reason(self):
         out = read(set_encrypted(make_zip([('notes/keeper.txt', KEEPER)])))
@@ -156,8 +183,8 @@ class ReaderTests(unittest.TestCase):
 
     def test_limits_match_the_dossier(self):
         from rekindra_evidence import _limits
-        self.assertEqual((zip_text.MAX_DOSSIER_SOURCES, zip_text.MAX_DOSSIER_PATH),
-                         (_limits.MAX_RECORDS, _limits.MAX_PATH_CHARS))
+        self.assertEqual((zip_text.MAX_DOSSIER_SOURCES, zip_text.MAX_DOSSIER_PATH, zip_text.MAX_DOSSIER_INPUT_BYTES),
+                         (_limits.MAX_RECORDS, _limits.MAX_PATH_CHARS, _limits.MAX_INPUT_BYTES))
 
     def test_binary_text_member_is_reported(self):
         out = read(make_zip([('a.txt', b'\x00\x01\x02' * 40), ('b.txt', 'fine')]))
@@ -176,7 +203,7 @@ class PipelineTests(unittest.TestCase):
         self.bytes = make_zip([('notes/keeper.txt', KEEPER), ('inner.zip', b'PK'),
                                ('notes/data.csv', 'year,lamp\n1931,lit\n')])
         (self.source / 'archive.zip').write_bytes(self.bytes)
-        (self.source / 'bomb.zip').write_bytes(make_zip([('big.txt', b'a' * (2 * 1024 * 1024))]))
+        (self.source / 'bomb.zip').write_bytes(make_zip([('big.txt', b'a' * (zip_text.BOMB_FLOOR_BYTES + 1))]))
         (self.source / 'locked.zip').write_bytes(set_encrypted(make_zip([('s.txt', KEEPER)])))
         (self.source / 'photo.tga').write_bytes(fixture())
         self.store = ProjectStore(temp / 'projects')
@@ -259,6 +286,21 @@ class PipelineTests(unittest.TestCase):
         report = out['artifact']['text_members']
         self.assertEqual(report['read'], 0)
         self.assertEqual(report['skipped'][0]['code'], 'project_source_limit')
+
+    def test_multibyte_members_stay_within_the_dossier_input_limit(self):
+        for i in range(3):
+            names = [(f'n{j}.txt', ('\u706f\u53f0\u306e\u8a18\u9332 %d %d\u3002' % (i, j)) * 400)
+                     for j in range(zip_text.MAX_TEXT_MEMBERS)]
+            (self.source / f'wide{i}.zip').write_bytes(make_zip(names))
+        project = self.store.inspect(self.source)
+        pid, ids = project['project_id'], {a['source_path']: a['asset_id'] for a in project['assets']}
+        reader = rt.plugin.handlers.evidence_reader()
+        reports = [self.store.recover(pid, ids[f'wide{i}.zip'], reader)['artifact']['text_members'] for i in range(3)]
+        self.assertEqual(reports[0]['read'], zip_text.MAX_TEXT_MEMBERS)
+        self.assertLess(reports[2]['read'], zip_text.MAX_TEXT_MEMBERS)
+        self.assertIn('project_evidence_size_limit', {s['code'] for s in reports[2]['skipped']})
+        # A whole text asset still fits after the members have taken their share.
+        self.assertEqual(self.store.recover(pid, ids['archive.zip'], reader)['artifact']['intake_format'], 'zip')
 
     def test_source_unchanged_and_nothing_extracted(self):
         before = sorted(p.name for p in self.source.rglob('*'))

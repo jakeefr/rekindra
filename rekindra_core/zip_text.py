@@ -6,6 +6,7 @@ reads the plain-text members with bounded reads and hands each one to
 ``inspect_text``. Nothing is ever written to disk and nothing inside the ZIP runs.
 """
 import io
+import json
 import lzma
 import re
 import time
@@ -14,13 +15,18 @@ import zlib
 
 MAX_TEXT_MEMBERS = 32
 MAX_MEMBER_BYTES = 256 * 1024      # inspect_text's own input budget
-MAX_TOTAL_CLAIMED_BYTES = 64 * 1024 * 1024
+MAX_TOTAL_READ_BYTES = 4 * 1024 * 1024    # what one archive may really decompress
+MAX_TOTAL_CLAIMED_BYTES = 1024 * 1024 * 1024
 MAX_RATIO = 100
 RATIO_FLOOR_BYTES = 64 * 1024      # small members may compress well without being suspicious
+BOMB_FLOOR_BYTES = 16 * 1024 * 1024     # over the ratio at this size, the whole archive is refused
 MAX_NAME_CHARS = 200
 TIME_BUDGET_SECONDS = 5.0
 MAX_DOSSIER_SOURCES = 128          # the evidence dossier's record limit
 MAX_DOSSIER_PATH = 512             # the evidence dossier's path limit
+MAX_DOSSIER_INPUT_BYTES = 1024 * 1024    # the evidence dossier's input limit
+MEMBER_BYTE_SHARE = 512 * 1024     # members may use half, so whole assets still fit
+DOSSIER_BYTE_MARGIN = 32 * 1024    # record wrappers around the stored intake bytes
 _CHUNK_BYTES = 64 * 1024
 _REPORT_SKIPS = 32
 
@@ -30,7 +36,7 @@ _NESTED_SUFFIXES = ('.zip', '.jar', '.war', '.apk', '.7z', '.rar', '.tar', '.gz'
 _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
 _DECODE_ERRORS = (zipfile.BadZipFile, zlib.error, lzma.LZMAError, EOFError, NotImplementedError,
                   RuntimeError, OSError, ValueError)
-_TOLERATED = {'encrypted', 'nested_archive_not_inspected'}
+_TOLERATED = {'encrypted', 'nested_archive_not_inspected', 'suspicious_expansion'}
 _FAILED = ('encrypted_member', 'corrupt_member', 'text_intake_rejected')
 _MEMBER_ID = re.compile(r'm\d{4}')
 # A dossier source path may not carry these, so such a name must be skipped, not stored.
@@ -44,11 +50,14 @@ _REASONS = {
     'unsupported_compression': 'Compression method other than stored or deflate.',
     'member_limit': f'More than {MAX_TEXT_MEMBERS} text members; the rest were not read.',
     'member_too_large': f'Larger than the {MAX_MEMBER_BYTES}-byte member limit.',
+    'member_compresses_heavily': f'Expands more than {MAX_RATIO}:1, so it was not read.',
+    'total_read_limit': f'The archive reached its {MAX_TOTAL_READ_BYTES}-byte read limit before this member.',
     'corrupt_member': 'The member failed to decompress or failed its checksum.',
     'text_intake_rejected': 'The member was read but is not usable text.',
     'time_budget_exhausted': 'The read time budget ran out before this member.',
     'member_path_too_long': f'The archive path plus this member name exceeds {MAX_DOSSIER_PATH} characters.',
     'project_source_limit': 'The project has no evidence source slots left for this member.',
+    'project_evidence_size_limit': 'The project has no evidence size budget left for this member.',
 }
 
 
@@ -70,16 +79,17 @@ def _bomb_shaped(entry: dict) -> bool:
 
 
 def _bomb_reason(entries: list) -> str | None:
-    """Size signals count only for members that would be read; a blank texture is not a bomb."""
+    """Refuse only at bomb scale; a smaller oversized note is skipped per member by ``_precheck``."""
     claimed_total = 0
     for entry in entries:
         if 'overlapping_entries' in (entry.get('safety_warnings') or []):
             return 'Members overlap each other, a zip-bomb construction, so the archive was not opened.'
         if not _is_text_name(str(entry.get('name') or '')):
             continue
-        claimed_total += entry.get('claimed_uncompressed_size_bytes') or 0
-        if _bomb_shaped(entry):
-            return f'A text member expands more than {MAX_RATIO}:1, so the archive was not opened.'
+        claimed = entry.get('claimed_uncompressed_size_bytes') or 0
+        claimed_total += claimed
+        if claimed >= BOMB_FLOOR_BYTES and _bomb_shaped(entry):
+            return f'A text member claims {claimed} bytes at more than {MAX_RATIO}:1, so the archive was not opened.'
     if claimed_total > MAX_TOTAL_CLAIMED_BYTES:
         return f'Text members claim more than {MAX_TOTAL_CLAIMED_BYTES} bytes in total, so the archive was not opened.'
     return None
@@ -131,6 +141,8 @@ def _precheck(entry: dict, info) -> str | None:
         return 'unsupported_compression'
     if (entry.get('claimed_uncompressed_size_bytes') or 0) > MAX_MEMBER_BYTES:
         return 'member_too_large'
+    if _bomb_shaped(entry):
+        return 'member_compresses_heavily'
     return None
 
 
@@ -148,7 +160,7 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
     except _DECODE_ERRORS:
         return _refuse(envelope, 'corrupt_archive', 'The archive directory could not be read.', [])
 
-    members, skipped, attempted = [], [], 0
+    members, skipped, attempted, read_total = [], [], 0, 0
     deadline = clock() + TIME_BUDGET_SECONDS
     with archive:
         for index, (entry, info) in enumerate(zip(entries, archive.infolist()), 1):
@@ -171,6 +183,10 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
                     code = 'time_budget_exhausted'
                 except _DECODE_ERRORS:
                     code = 'corrupt_member'
+                else:
+                    read_total += len(raw)
+                    if read_total > MAX_TOTAL_READ_BYTES:
+                        code = 'total_read_limit'
             if code is None:
                 intake = inspect_text(raw, name.rsplit('/', 1)[-1])
                 if intake.get('status') in ('ok', 'partial'):
@@ -208,26 +224,42 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
     return dict(envelope, status=status, warnings=warnings, text_members=members, text_member_report=report)
 
 
-def fit_members(envelope: dict, relative_path: str, room: int) -> dict:
+def _member_bytes(member: dict) -> int:
+    return len(json.dumps(member, ensure_ascii=False, sort_keys=True).encode('utf-8'))
+
+
+def member_byte_room(envelope: dict, other_intake_bytes: int, other_member_bytes: int) -> int:
+    """How many stored bytes this archive's members may use, given what the project already holds."""
+    parent = {k: v for k, v in envelope.items() if k not in ('text_members', 'text_member_report')}
+    parent_bytes = len(json.dumps(parent, ensure_ascii=False, sort_keys=True).encode('utf-8'))
+    return max(0, min(MAX_DOSSIER_INPUT_BYTES - DOSSIER_BYTE_MARGIN - other_intake_bytes - parent_bytes,
+                      MEMBER_BYTE_SHARE - other_member_bytes))
+
+
+def fit_members(envelope: dict, relative_path: str, room: int, byte_room: int = MEMBER_BYTE_SHARE) -> dict:
     """Keep only the members the dossier can hold, reporting each one that is left out.
 
-    ``room`` is how many member sources this archive may still add to the project, so
-    a member-heavy archive cannot use up the slots other assets need.
+    ``room`` is how many member sources this archive may still add to the project and
+    ``byte_room`` how many stored bytes, so a member-heavy archive can neither use up
+    the slots other assets need nor push the dossier over its input limit.
     """
     members = envelope.get('text_members')
     if not isinstance(members, list) or not members:
         return envelope
-    kept, dropped = [], []
+    kept, dropped, used = [], [], 0
     for member in members:
+        size = _member_bytes(member)
         code = ('member_path_too_long' if len(f"{relative_path}!{member['name']}") > MAX_DOSSIER_PATH
-                else 'project_source_limit' if len(kept) >= room else None)
+                else 'project_source_limit' if len(kept) >= room
+                else 'project_evidence_size_limit' if used + size > byte_room else None)
         if code is None:
             kept.append(member)
+            used += size
         else:
             dropped.append({'name': member['name'][:MAX_NAME_CHARS], 'code': code, 'reason': _REASONS[code]})
+    old = dict(envelope['text_member_report'], member_bytes=used)
     if not dropped:
-        return envelope
-    old = envelope['text_member_report']
+        return dict(envelope, text_member_report=old)
     skipped = dropped + old['skipped']
     report = dict(old, read=len(kept), skipped=skipped[:_REPORT_SKIPS],
                   skipped_omitted=old['skipped_omitted'] + max(0, len(skipped) - _REPORT_SKIPS))
