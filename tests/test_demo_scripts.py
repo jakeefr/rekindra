@@ -145,7 +145,9 @@ class BeamAndBoatTests(unittest.TestCase):
         bound = dict(mast(.07, '#B89A78'), position={'x': 'r*cos(u*2*pi)', 'y': 'v', 'z': 'r*sin(u*2*pi)'})
         self.assertIsNone(check.check_boats({'objects': [hull, bound]}, 'boat')[0])
         thin = mast(.035, '#695041')
-        self.assertIs(False, check.check_boats({'objects': [hull, dict(bound, id='mast_b'), thin]}, 'boat')[0])
+        ok, detail = check.check_boats({'objects': [hull, dict(bound, id='mast_b'), thin]}, 'boat')
+        self.assertIs(False, ok)
+        self.assertIn('mast_b unsampled', detail)
         home = {'id': 'home', 'rotation': {'x': '0', 'y': '0', 'z': '0'}, 'scale': [.5, 1, .5]}
         self.assertIs(False, check.check_boats({'objects': [hull, mast(.07, '#B89A78')], 'assemblies': [home]},
                                                'boat')[0])
@@ -154,9 +156,14 @@ class BeamAndBoatTests(unittest.TestCase):
         ok, detail = check.check_boats({'objects': [hull, mast(.07, '#B89A78'), flag, lamp]}, 'boat')
         self.assertTrue(ok, detail)
         self.assertIs(False, check.check_boats({'objects': [hull, dict(thin, id='sailboat_mast')]}, 'boat')[0])
+        ok, detail = check.check_boats({'objects': [hull, dict(thin, id='spar'), flag]}, 'boat', ['spar'])
+        self.assertIs(False, ok)
+        self.assertIn('mast_flag skipped', detail)
+        self.assertIs(False, check.check_boats({'objects': [hull]}, 'boat', ['spar'])[0])
 
     def test_mast_ids(self):
-        for oid in ('boat_masts', 'mainmast', 'mast2', 'mast_2', 'sailboat_mast', 'boatMast', 'flagship_mast'):
+        for oid in ('boat_masts', 'mainmast', 'mast2', 'mast_2', 'sailboat_mast', 'boatMast', 'flagship_mast',
+                    'mast_b', 'mast_fore', 'boat_mast_lower'):
             self.assertTrue(check.is_mast(oid), oid)
         for oid in ('mast_flag', 'mast_lantern', 'masthead_lamp', 'mast_and_boom', 'hull'):
             self.assertFalse(check.is_mast(oid), oid)

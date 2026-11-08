@@ -243,13 +243,15 @@ def surface_extent(o):
 
 
 def is_mast(oid):
-    """Mast is the head noun: the id ends in mast(s) plus an optional number (boat_masts, mainmast, mast_2,
-    sailboat_mast). Parts hung on a mast (mast_flag, mast_lantern, masthead_lamp) and combined parts
-    (mast_and_boom) are not measured against the mast rule."""
-    return re.search(r'masts?[_-]?\d*$', oid.lower()) is not None
+    """Default guess when --mast-id is not given. Mast is the head noun: the id ends in mast(s) plus an
+    optional number, letter or position (boat_masts, mainmast, mast_2, mast_b, mast_fore, sailboat_mast).
+    Parts hung on a mast (mast_flag, mast_lantern, masthead_lamp) and combined parts (mast_and_boom) are
+    not measured; check_boats lists them as skipped so a miss is visible."""
+    return re.search(r'masts?(?:[_-]?\d+|[_-](?:[a-z]|fore|aft|main|mizzen|upper|lower))?$',
+                     oid.lower()) is not None
 
 
-def check_boats(scene, boat_id):
+def check_boats(scene, boat_id, mast_ids=None):
     o = find(scene, boat_id) if boat_id else None
     if not o:
         return False, f'boat object {boat_id!r} not found'
@@ -270,8 +272,15 @@ def check_boats(scene, boat_id):
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
     masts, mast_ok, mast_unmeasured = [], True, False
+    for mid in mast_ids or []:
+        if mid not in peers:
+            mast_ok = False
+            masts.append(f'{mid} not on the hull assembly')
+    chosen = (lambda oid: oid in mast_ids) if mast_ids else is_mast
     for p in scene['objects']:
-        if p['id'] in peers and is_mast(p['id']) and p.get('position'):
+        if p['id'] in peers and not chosen(p['id']) and 'mast' in p['id'].lower():
+            masts.append(f'{p["id"]} skipped (pass --mast-id to measure)')
+        if p['id'] in peers and chosen(p['id']) and p.get('position'):
             mx, mz, _ = surface_extent(p)
             if mx is None:
                 mast_unmeasured = True
@@ -301,6 +310,8 @@ def main(argv=None):
     ap.add_argument('--boat-id')
     ap.add_argument('--beam-id')
     ap.add_argument('--water-id')
+    ap.add_argument('--mast-id', action='append', help='mast part id on the hull assembly (repeatable); '
+                    'without it, ids ending in mast(s) are measured')
     a = ap.parse_args(argv)
     grid = tuple(int(n) for n in a.grid.split('x')) if a.grid else None
     plan = json.loads(Path(a.plan).read_text(encoding='utf-8'))
@@ -312,7 +323,7 @@ def main(argv=None):
         'sea': check_sea(frames),
         'horizon': check_horizon(scene, a.water_id),
         'beam': check_beam(scene, frames, a.beam_id),
-        'boats': check_boats(scene, a.boat_id),
+        'boats': check_boats(scene, a.boat_id, a.mast_id),
     }
     for name, (ok, detail) in results.items():
         print(f'{"UNMEASURED" if ok is None else "PASS" if ok else "FAIL"} {name}: {detail}')
