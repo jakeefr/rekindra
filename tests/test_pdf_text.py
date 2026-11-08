@@ -197,7 +197,30 @@ class WorkerControlTests(unittest.TestCase):
         out = read(b'%PDF-1.4\n')
         self.assertEqual(out['status'], 'unsupported')
         self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_reader_unavailable')
+        self.assertIn('could not be loaded', out['text_member_report']['refused']['reason'])
 
+    def test_memory_limit_is_not_blamed_on_the_file(self):
+        package = self.dir / 'pypdf'
+        package.mkdir()
+        (package / '__init__.py').write_text(
+            'class PdfReader:\n    def __init__(self, *a, **k):\n        raise MemoryError\n', encoding='utf-8')
+        (package / 'errors.py').write_text(
+            'class DependencyError(Exception): pass\nclass FileNotDecryptedError(Exception): pass\n', encoding='utf-8')
+        out = read(b'%PDF-1.4\n')
+        self.assertEqual(out['status'], 'unsupported')
+        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_memory_limit')
+
+    def test_reader_slots_bound_concurrent_workers(self):
+        slots = threading.BoundedSemaphore(1)
+        slots.acquire()
+        with mock.patch.object(pdf_text, '_WORKER_SLOTS', slots), mock.patch.object(pdf_text, 'TIMEOUT_SECONDS', 0.01), \
+                mock.patch.object(pdf_text, '_run_worker') as run:
+            out = read(b'%PDF-1.4\n')
+        run.assert_not_called()
+        self.assertEqual(out['status'], 'unsupported')
+        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_reader_busy')
+
+    @unittest.skipIf(sys.platform == 'darwin', 'macOS does not enforce RLIMIT_AS')
     def test_worker_memory_is_capped(self):
         code = ('import sys\nsys.path.insert(0, sys.argv[1])\nimport _pdf_worker as w\n'
                 'w._MEMORY_BYTES = 128 * 1024 * 1024\nw._limit_resources()\n'

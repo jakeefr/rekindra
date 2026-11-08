@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
 import unicodedata
 
 from .zip_text import _REPORT_SKIPS, _refuse
@@ -21,13 +22,16 @@ MAX_PDF_PAGES = 32
 MAX_PAGE_CHARS = 60000       # at most 240 KB of UTF-8, inside inspect_text's input budget
 TIMEOUT_SECONDS = 20.0
 WORKER = Path(__file__).with_name('_pdf_worker.py')
+_WORKER_SLOTS = threading.BoundedSemaphore(2)   # each worker may use its full memory cap
 
 _REFUSALS = {
     'encrypted': ('rejected', 'encrypted_pdf',
                   'The PDF is encrypted and no password is available, so its contents are unknown.'),
     'malformed': ('rejected', 'malformed_pdf', 'The file is damaged or is not a readable PDF.'),
     'reader_unavailable': ('unsupported', 'pdf_reader_unavailable',
-                           'The PDF reader (pypdf) is not installed in this Hermes environment.'),
+                           'The PDF reader (pypdf) is not installed or could not be loaded in this Hermes environment.'),
+    'memory_limit': ('unsupported', 'pdf_memory_limit',
+                     'Reading this PDF hit the memory limit, so its contents are unknown.'),
 }
 
 
@@ -107,10 +111,15 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
     reader_dir, python = _reader_dir(), _python()
     if reader_dir is None or python is None:
         return _stop(envelope, 'unsupported', *_REFUSALS['reader_unavailable'][1:])
+    if not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS):
+        return _stop(envelope, 'unsupported', 'pdf_reader_busy',
+                     'Other PDFs were being read for too long; recover this one again.')
     try:
         records, timed_out = _run_worker(python, reader_dir, data)
     except OSError:
         return _stop(envelope, 'unsupported', 'pdf_reader_unavailable', 'The PDF reader process could not be started.')
+    finally:
+        _WORKER_SLOTS.release()
 
     refused = next((r for r in records if r.get('kind') == 'refused'), None)
     if refused:

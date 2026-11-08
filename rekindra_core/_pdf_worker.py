@@ -1,8 +1,9 @@
 """Child process: read one PDF from stdin and print its page text as JSON lines.
 
 Runs on its own so a hostile PDF is confined to this process: the parent kills it
-at its deadline, and memory is capped wherever the OS lets the cap be set (a Job
-Object on Windows, rlimits elsewhere). Never imported by the plugin. Each line is flushed
+at its deadline, and memory is capped where the OS enforces it (a Job Object on
+Windows, RLIMIT_AS on Linux; macOS has only the deadline and a CPU limit). Never
+imported by the plugin. Each line is flushed
 as it is produced, so the pages read before a hang still reach the parent.
 
     python -I -S -B _pdf_worker.py <dir holding pypdf> <max pages> <max chars per page>
@@ -90,6 +91,8 @@ def _open(data):
         return reader, encrypted
     except (FileNotDecryptedError, DependencyError):
         _emit({'kind': 'refused', 'code': 'encrypted'})
+    except MemoryError:
+        _emit({'kind': 'refused', 'code': 'memory_limit'})
     except Exception:  # pypdf raises many types on damaged input; all mean the same here
         _emit({'kind': 'refused', 'code': 'malformed'})
     return None
@@ -115,6 +118,9 @@ def main(argv):
         count = len(pages)
     except FileNotDecryptedError:
         _emit({'kind': 'refused', 'code': 'encrypted'})
+        return 0
+    except MemoryError:
+        _emit({'kind': 'refused', 'code': 'memory_limit'})
         return 0
     except Exception:
         _emit({'kind': 'refused', 'code': 'malformed'})
