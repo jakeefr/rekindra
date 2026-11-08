@@ -26,6 +26,21 @@ _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip')
+
+
+def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
+    """The bytes an evidence artifact holds; older manifests never recorded the figure."""
+    size = artifact.get('intake_bytes')
+    if isinstance(size, int):
+        return size
+    asset_id = artifact.get('asset_id')
+    if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
+        return 0
+    try:
+        return (artifacts_dir / (asset_id + '.intake.json')).stat().st_size
+    except OSError:
+        return 0
+
 _MAX_INTAKE_BYTES = 16 * 1024 * 1024
 _STAGED_GRACE_SECONDS = 300
 _STAGED = re.compile(r'^(?:[0-9a-f]{32}\.intake|evidence)\.json\.[0-9a-f]{32}\.(?:new|old)$')
@@ -280,7 +295,7 @@ class ProjectStore:
         slots = MAX_DOSSIER_SOURCES - sum(a.get('format') in _EVIDENCE_FORMATS for a in project['assets'])
         others = [a for a in project['artifacts'] if a.get('kind') == 'evidence' and a.get('asset_id') != asset_id]
         used = sum((a.get('text_members') or {}).get('read', 0) for a in others)
-        byte_room = member_byte_room(envelope, sum(a.get('intake_bytes', 0) for a in others),
+        byte_room = member_byte_room(envelope, sum(_stored_intake_size(artifacts_dir, a) for a in others),
                                      sum((a.get('text_members') or {}).get('member_bytes', 0) for a in others))
         envelope = fit_members(envelope, asset['source_path'], max(0, slots - used), byte_room)
         blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')

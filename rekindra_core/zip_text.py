@@ -160,7 +160,8 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
     except _DECODE_ERRORS:
         return _refuse(envelope, 'corrupt_archive', 'The archive directory could not be read.', [])
 
-    members, skipped, attempted, read_total = [], [], 0, 0
+    members, skipped, attempted = [], [], 0
+    read_allowance = MAX_TOTAL_READ_BYTES
     deadline = clock() + TIME_BUDGET_SECONDS
     with archive:
         for index, (entry, info) in enumerate(zip(entries, archive.infolist()), 1):
@@ -174,7 +175,12 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
                 code = 'member_limit'
             if code is None and clock() > deadline:
                 code = 'time_budget_exhausted'
+            # zipfile never yields more than the declared size, so charging it up front
+            # bounds decompression, and a member that later fails still pays for its read.
+            if code is None and info.file_size > read_allowance:
+                code = 'total_read_limit'
             if code is None:
+                read_allowance -= info.file_size
                 try:
                     raw = _bounded_read(archive, info, deadline, clock)
                 except _TooLarge:
@@ -183,10 +189,6 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
                     code = 'time_budget_exhausted'
                 except _DECODE_ERRORS:
                     code = 'corrupt_member'
-                else:
-                    read_total += len(raw)
-                    if read_total > MAX_TOTAL_READ_BYTES:
-                        code = 'total_read_limit'
             if code is None:
                 intake = inspect_text(raw, name.rsplit('/', 1)[-1])
                 if intake.get('status') in ('ok', 'partial'):

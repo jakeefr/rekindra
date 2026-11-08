@@ -10,7 +10,7 @@ from test_worlds import world
 import test_recover_evidence as rt
 from test_tga import fixture
 from rekindra_core.compositions import CompositionStore
-from rekindra_core.projects import ProjectStore
+from rekindra_core.projects import ProjectStore, _stored_intake_size
 from rekindra_core.scenes import SceneError
 from rekindra_core import zip_text
 from rekindra_intake import inspect_archive, inspect_text
@@ -94,6 +94,29 @@ class ReaderTests(unittest.TestCase):
             out = read(make_zip([('a.txt', 'eight ch'), ('b.txt', 'eight ch')]))
         self.assertEqual([m['name'] for m in out['text_members']], ['a.txt'])
         self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'total_read_limit')
+
+    def test_members_past_the_read_limit_are_never_opened(self):
+        data = make_zip([('a.txt', 'eight ch'), ('b.txt', 'eight ch'), ('c.txt', 'eight ch')])
+        with mock.patch.object(zip_text, 'MAX_TOTAL_READ_BYTES', 10), \
+                mock.patch.object(zipfile.ZipFile, 'open', autospec=True, side_effect=zipfile.ZipFile.open) as opened:
+            out = read(data)
+        self.assertEqual([call.args[1].filename for call in opened.call_args_list], ['a.txt'])
+        self.assertEqual([s['code'] for s in out['text_member_report']['skipped']], ['total_read_limit'] * 2)
+
+    def test_failed_reads_count_against_the_read_limit(self):
+        data = corrupt_member(make_zip([('a.txt', KEEPER), ('b.txt', KEEPER)]), 'a.txt')
+        with mock.patch.object(zip_text, 'MAX_TOTAL_READ_BYTES', len(KEEPER) + 1):
+            out = read(data)
+        self.assertEqual([s['code'] for s in out['text_member_report']['skipped']],
+                         ['corrupt_member', 'total_read_limit'])
+
+    def test_older_manifests_are_sized_from_the_saved_intake(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root, asset_id = Path(folder), 'a' * 32
+            (root / f'{asset_id}.intake.json').write_bytes(b'x' * 900)
+            self.assertEqual(_stored_intake_size(root, {'asset_id': asset_id}), 900)
+            self.assertEqual(_stored_intake_size(root, {'asset_id': asset_id, 'intake_bytes': 5}), 5)
+            self.assertEqual(_stored_intake_size(root, {'asset_id': '../escape'}), 0)
 
     def test_encrypted_rejected_with_reason(self):
         out = read(set_encrypted(make_zip([('notes/keeper.txt', KEEPER)])))
