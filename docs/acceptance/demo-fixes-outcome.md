@@ -1,0 +1,66 @@
+# Demo weak-spot fixes: outcome (2026-11-07)
+
+Scope: five authoring-guidance fixes for the lighthouse demo (fog, horizon, sea colour, beam, boats) plus the
+beat-5 revise. Engine untouched; only `schemas.py` create_world text, `docs/world-authoring.md` and `RULES.md`
+changed. Checker: `scripts/check_demo_scene.py` (exit 0 pass, 1 fail, 3 unmeasured only).
+
+This is not an artistic acceptance. Frame reviews below are honest notes, not sign-off.
+
+## Offline probes (hand-authored plans, same engine)
+
+- Baseline plan (d42b979): horizon FAIL (square sea, far edge 25 units, slanted hard line), boats FAIL (L/W 2.12).
+- Beam `cone`: emissive tapered cone read as a solid wedge in decoded frames. Rejected per the fallback rule.
+- `shaft2`-`shaft6`: flat soft strip on the water, widening away from the lamp, edge/far fade via
+  `color_pattern`, on the sweeping assembly. shaft2/3 tuned water colour; shaft4-6 tuned exposure and fill.
+  **shaft5 passed all five checker units** (boats L/W 3.02). The RULES.md lines for the five units came from
+  these offline passes.
+- Fog calibration: `fog_density` .012 flattened the frame (luma std .073); guidance now caps it at .006.
+
+## Live runs (Hermes gateway, gpt-6.1-sol, demo-lighthouse folder)
+
+Folder: `<local path>\samples\demo-lighthouse` (prepared sample: copy of e2e-lighthouse plus a deliberately
+corrupt `corrupt.json`). Originals untouched; hashes in `samples/demo-lighthouse.sha256` verify.
+
+### Create, attempt 1 (logs `e2e-fixes`)
+
+- `corrupt.json` got intake_status `rejected`: the demo's rejection beat works live.
+- Agent followed the guidance: disc sea `320*v*v`, colour #1F5888 with rim fade, soft shaft (emission .45) on
+  the sweeping assembly, pointed-loft hulls with mast and lamps, fog .002.
+- Checker: fog PASS (std .148), sea PASS (hue 232), horizon FAIL (edge 282 but rim spread .24: disc centred at
+  the origin, eye ~35 units off-centre), beam FAIL on metric (warm area .08%, travel 11 px), boats UNMEASURED
+  (hand-computed L/W 3.09).
+- Frames: shaft sweep reads clearly across the water; boats small but legible hulls and masts; horizon shows as a
+  wavy hard line against the sky; lamp-room glow weak.
+
+### Revise, beat 5 (logs `e2e-fixes-revise`)
+
+Request: lamp-room glass fogs at dusk, soften the beam, bring the two boats in along it.
+
+- **Pass on the riskiest beat.** One `rekindra_revise_world` call, preview rendered.
+- Sweep rotation `-.8+.15*t` kept; both assemblies copied; lantern 1.8 -> 1.35; shaft emission .45 -> .12;
+  boats translate inward along the beam angle.
+- Frames: softer beam, boats ride in along the shaft through the whole sweep. Reads as intended.
+- Checker: horizon/beam same as create; sea hue 235 at the band edge (FAIL by <1 degree).
+
+### Horizon, attempt 2 (logs `e2e-fixes2`)
+
+Guidance change: give an explicit eye-centred formula (centre of all camera eyes added as constants).
+Review fix in e378932: centre on the midpoint of all eyes, keep scale 1 / no offset.
+
+- Agent centred the disc at (19,27); eyes x 17..21, z 26..28. corrupt.json rejected again.
+- Checker: fog PASS (.144), sea PASS (hue 225), **horizon PASS** (edge 318, rim spread .24 -> .01), beam FAIL on the
+  warm-pixel metric only (warm area .02%; travel now 110 px, passes), boats UNMEASURED (assembly x/z bob).
+- Frames: horizon level; a faint kinked rim line remains, consistent with disc mesh segments (engine resolution,
+  out of scope). Beam sweeps clearly. Boats small and partly behind the headland in this take, weaker than
+  attempt 1. Best-of-N recording covers take-to-take variance.
+- Horizon unit closed at attempt 2 of 3.
+
+## Beam metric note
+
+The checker's beam unit counts warm (lamp-coloured) pixels. The live shaft is pale against the water, so it fails
+that metric while the sweep reads plainly in frames. Per the approved plan ("pick whichever looks better in decoded
+frames"), the shaft is kept; the metric mismatch is recorded, not tuned.
+
+## Recording
+
+Best-of-N recording on Monday (approved): several takes of each beat, the best one used, disclosed in the post.
