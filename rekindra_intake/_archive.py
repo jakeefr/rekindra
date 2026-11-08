@@ -48,7 +48,7 @@ _UNICODE_PATH_EXTRA = 0x7075
 
 _SEPARATORS = re.compile(r'[\\/]')
 _DRIVE = re.compile(r'[A-Za-z]:')
-_CONTROL = re.compile('[\x00-\x1f\x7f-\x9f‎‏‪-‮⁦-⁩]')
+_CONTROL = re.compile('[\x00-\x1f\x7f-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]')
 _RESERVED = {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}
 _NESTED_SUFFIXES = ('.zip', '.jar', '.war', '.apk', '.7z', '.rar', '.tar', '.gz', '.tgz', '.bz2', '.xz', '.cab', '.iso')
 

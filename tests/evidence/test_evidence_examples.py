@@ -15,6 +15,7 @@ from evidence_fixtures import assert_located, assert_matches_retained  # noqa: E
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / 'examples' / 'evidence' / 'synthetic_collection.py'
+EXPECTED = ROOT / 'examples' / 'evidence' / 'expected_results.json'
 
 
 def load_example():
@@ -40,8 +41,19 @@ class Example(unittest.TestCase):
         return next(item for item in self.dossier['sources'] if item['source_id'] == source_id)
 
     def test_matches_the_committed_expected_results(self):
-        committed = json.loads((ROOT / 'examples' / 'evidence' / 'expected_results.json').read_text(encoding='utf-8'))
+        committed = json.loads(example.decode_planted(EXPECTED.read_text(encoding='utf-8')))
         self.assertEqual(json.loads(json.dumps(example.expected())), committed)
+
+    def test_committed_results_keep_planted_phrases_encoded(self):
+        raw = EXPECTED.read_text(encoding='utf-8')
+        self.assertNotIn(example.IGNORE_ALL.lower(), raw.lower())
+        self.assertIn(example.IGNORE_ALL, example.decode_planted(raw))
+
+    def test_print_expected_reproduces_the_committed_file(self):
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            self.assertEqual(example.main(['--print-expected']), 0)
+        self.assertEqual(output.getvalue().strip(), EXPECTED.read_text(encoding='utf-8').strip())
 
     def test_results_are_labelled_synthetic(self):
         self.assertTrue(example.expected()['synthetic'])
