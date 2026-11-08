@@ -112,6 +112,20 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   - Boats, attempt 1 pass: hull already a pointed loft; mast radius .035 -> .07 and #695041 -> #B89A78 makes the mast
     readable so the lamp no longer floats.
   Guidance (schemas.py, docs/world-authoring.md) and RULES.md updated for the beam and mast.
+- New live take `e2e-glow3` with the updated guidance (first launch hit "Gateway starting: deadline" before warmup,
+  kept in `e2e-glow3/failed1`; relaunch ok). Kept as the best lighthouse take. Plan:
+  `projects/35bb301718e240d79eb65796088e9bd7/plans/6a70c3c2a8d14108936f1c3b8ac199e2.json`, export in
+  `logs/e2e-glow3/export`. Decoded frames reviewed: beam eases out with no flat cap, masts #B89A78 read as wood,
+  sea stays blue, no fog washout.
+- `scripts/check_demo_scene.py` on the takes:
+
+  | Take | Fog / sea / horizon | Beam | Boats | Exit |
+  |---|---|---|---|---|
+  | glow2 | PASS | FAIL (fade slope .05) | UNMEASURED | 1 |
+  | glow3 | PASS | PASS | UNMEASURED (assembly parent / tilt / instance rotation) | 3 |
+
+  Still open on glow3: the far rim / corner line (needs the engine fog change above) and sea hue 231, near the top
+  of the band.
 
 ## Recording
 
