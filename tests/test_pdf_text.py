@@ -390,6 +390,10 @@ class PipelineTests(unittest.TestCase):
                        {'return_value': ([start, page], True)},
                        {'return_value': ([start, page], False)},
                        {'return_value': ([start, page, out_of_memory, {'kind': 'done'}], False)},
+                       {'return_value': ([{'kind': 'start', 'page_count': 5},
+                                          {'kind': 'page_failed', 'page': 1, 'code': 'memory_limit'},
+                                          {'kind': 'page_failed', 'page': 2, 'code': 'memory_limit'},
+                                          *[dict(page, page=n) for n in (3, 4, 5)], {'kind': 'done'}], False)},
                        {'return_value': ([{'kind': 'start', 'page_count': 4},
                                           {'kind': 'page_failed', 'page': 1, 'code': 'memory_limit'},
                                           *[dict(page, page=n) for n in (2, 3, 4)], {'kind': 'done'}], False)},
@@ -424,6 +428,42 @@ class PipelineTests(unittest.TestCase):
         with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)):
             out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
         self.assertEqual(out['artifact']['text_members']['read'], 1)
+
+    def saved_pdf_pages(self):
+        return next(a for a in self.store.status(self.pid)['artifacts']
+                    if a.get('asset_id') == self.ids['log.pdf'])['pdf_pages']
+
+    def saved_pages_then_memory_limit(self):
+        pages = self.saved_pdf_pages()
+        return [{'kind': 'start', 'page_count': pages[-1] + 1},
+                *[{'kind': 'page', 'page': n, 'text': f'Text of page {n}.', 'truncated': False} for n in pages],
+                {'kind': 'page_failed', 'page': pages[-1] + 1, 'code': 'memory_limit'}, {'kind': 'done'}]
+
+    def test_the_same_short_read_can_repeat(self):
+        records = [{'kind': 'start', 'page_count': 2},
+                   {'kind': 'page', 'page': 1, 'text': 'First page.', 'truncated': False},
+                   {'kind': 'page_failed', 'page': 2, 'code': 'memory_limit'}, {'kind': 'done'}]
+        with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)):
+            for _ in range(2):
+                out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertEqual(out['artifact']['pdf_pages'], [1])
+
+    def test_a_short_read_keeping_every_saved_page_replaces_the_saved_read(self):
+        self.recover('log.pdf')
+        records = self.saved_pages_then_memory_limit()
+        with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)):
+            out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertEqual(out['artifact']['pdf_pages'], self.saved_pdf_pages())
+
+    def test_a_short_read_is_judged_on_the_pages_that_fit(self):
+        self.recover('log.pdf')
+        assets = self.store.status(self.pid)['assets']
+        room_for_one = sum(a.get('format') in ('text', 'zip', 'pdf') for a in assets) + 1
+        records = self.saved_pages_then_memory_limit()
+        with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)), \
+                mock.patch.object(projects_module, 'MAX_DOSSIER_SOURCES', room_for_one), \
+                self.assertRaises(projects_module.EarlierReadKept):
+            self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
 
     def test_a_short_read_that_got_further_replaces_a_shorter_one(self):
         start = {'kind': 'start', 'page_count': 3}

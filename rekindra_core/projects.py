@@ -59,6 +59,10 @@ class ReaderRetry(ProjectError):
     code = 'reader_busy'
 
 
+def _pdf_pages(envelope: dict) -> list:
+    return sorted(m['intake']['pdf_page'] for m in envelope.get('text_members') or [])
+
+
 class EarlierReadKept(ReaderRetry):
     """A re-read got less than the saved read of the same bytes, which was left in place."""
     code = 'earlier_read_kept'
@@ -289,27 +293,21 @@ class ProjectStore:
             current = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
             if not current or current.get('sha256') != asset['sha256']:
                 raise ProjectError('The asset changed while it was being read; recover it again')
-            self._keep_earlier_read(project, current, envelope)
             return self._recover_evidence(project, directory, current, envelope, evidence_reader)
 
     @staticmethod
     def _keep_earlier_read(project: dict, asset: dict, envelope) -> None:
-        # A read the reader could not finish must not replace one of the same bytes. A finished
-        # read may, even with fewer pages, because that is the current verdict on the file.
-        if asset.get('format') != 'pdf' or not isinstance(envelope, dict):
+        # A read the reader could not finish must not lose a page already saved from the same
+        # bytes. A finished read may, because that is the current verdict on the file.
+        if asset.get('format') != 'pdf':
             return
         saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
                       and a.get('source_sha256') == asset.get('sha256')), None)
-        saved_pages = ((saved or {}).get('text_members') or {}).get('read', 0)
         refused = (envelope.get('text_member_report') or {}).get('refused') or {}
         causes = [refused.get('reason')] if refused.get('code') in _READER_SHORTFALLS else [
             w.get('message') for w in envelope.get('warnings') or [] if w.get('code') in _READER_SHORTFALLS]
-        if not saved_pages or not causes:
-            return
-        # Two short reads: the one that got further wins, so retrying can make progress.
-        if _READER_SHORTFALLS.intersection(saved.get('warnings') or []) and len(envelope.get('text_members') or []) > saved_pages:
-            return
-        raise EarlierReadKept(f'The evidence read earlier was kept because this read fell short: {causes[0]}')
+        if causes and saved and set(saved.get('pdf_pages') or ()) - set(_pdf_pages(envelope)):
+            raise EarlierReadKept(f'The evidence read earlier was kept because this read fell short: {causes[0]}')
 
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']
@@ -346,6 +344,7 @@ class ProjectStore:
         byte_room = member_byte_room(envelope, sum(_stored_intake_size(artifacts_dir, a) for a in others),
                                      sum((a.get('text_members') or {}).get('member_bytes', 0) for a in others))
         envelope = fit_members(envelope, asset['source_path'], max(0, slots - used), byte_room)
+        self._keep_earlier_read(project, asset, envelope)  # after fitting: only pages that fit are kept
         blob = json.dumps(envelope, ensure_ascii=False, sort_keys=True).encode('utf-8')
         warnings = [w.get('code') for w in envelope.get('warnings') or [] if isinstance(w, dict)]
         artifact = {'asset_id': asset_id, 'kind': 'evidence', 'format': 'intake-json',
@@ -358,6 +357,8 @@ class ProjectStore:
         report = envelope.get('text_member_report')
         if isinstance(report, dict):
             artifact['text_members'] = report
+        if asset.get('format') == 'pdf':
+            artifact['pdf_pages'] = _pdf_pages(envelope)
         artifacts = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         paths = {a['asset_id']: a['source_path'] for a in project['assets']}
         records = []
