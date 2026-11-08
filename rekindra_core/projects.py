@@ -27,6 +27,8 @@ _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip', 'pdf')
+# These outcomes describe the reader or the machine's load, not the file's contents.
+_READER_SIDE_REFUSALS = frozenset({'pdf_reader_unavailable', 'pdf_reader_stopped', 'pdf_memory_limit', 'pdf_timeout'})
 
 
 def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
@@ -50,6 +52,10 @@ _EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules'
 
 class ProjectError(ValueError):
     """Actionable input or project-integrity failure."""
+
+
+class ReaderRetry(ProjectError):
+    """The reader could not run or finish; the request itself was fine and can be retried."""
 
 
 @dataclass(frozen=True)
@@ -270,14 +276,27 @@ class ProjectStore:
         try:
             envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         except ReaderBusy as exc:   # a load problem, so whatever was saved earlier stays
-            raise ProjectError(str(exc)) from exc
+            raise ReaderRetry(str(exc)) from exc
         with _STORE_LOCK:
             project = self.status(project_id)
             directory = self._project(project_id)
             current = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
             if not current or current.get('sha256') != asset['sha256']:
                 raise ProjectError('The asset changed while it was being read; recover it again')
+            self._keep_earlier_read(project, asset_id, envelope)
             return self._recover_evidence(project, directory, current, envelope, evidence_reader)
+
+    @staticmethod
+    def _keep_earlier_read(project: dict, asset_id: str, envelope) -> None:
+        # The bytes are unchanged, so a reader-side failure must not erase pages already read.
+        # A first read has nothing to protect and keeps its honest status instead.
+        report = envelope.get('text_member_report') if isinstance(envelope, dict) else None
+        refused = report.get('refused') if isinstance(report, dict) else None
+        if not isinstance(refused, dict) or refused.get('code') not in _READER_SIDE_REFUSALS:
+            return
+        if any(a.get('asset_id') == asset_id and (a.get('text_members') or {}).get('read', 0) > 0
+               for a in project['artifacts']):
+            raise ReaderRetry('The reader could not finish this time, so the evidence read earlier was kept; recover it again.')
 
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']

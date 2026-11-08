@@ -372,6 +372,34 @@ class PipelineTests(unittest.TestCase):
             self.store.recover(self.pid, self.ids['log.pdf'], reader)
         self.assertEqual(saved.read_bytes(), before)
 
+    def own_reader(self):
+        reader = dict(rt.plugin.handlers.evidence_reader())
+        reader['intake'] = lambda fmt, data, name: pdf_text.read_pdf_text(data, name, inspect_text)
+        return reader
+
+    def test_reader_failure_on_a_later_read_keeps_saved_evidence(self):
+        saved = Path(self.recover('log.pdf')['dossier_path'])
+        before = saved.read_bytes()
+        for effect in ({'side_effect': OSError('no handles')}, {'return_value': ([], False)}):
+            with self.subTest(effect=effect), mock.patch.object(pdf_text, '_run_worker', **effect), \
+                    self.assertRaises(ProjectError):
+                self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+            self.assertEqual(saved.read_bytes(), before)
+
+    def test_reader_failure_on_a_first_read_is_reported_not_raised(self):
+        with mock.patch.object(pdf_text, '_run_worker', side_effect=OSError('no handles')):
+            out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertEqual(out['artifact']['status'], 'unsupported')
+        self.assertEqual(out['artifact']['text_members']['refused']['code'], 'pdf_reader_unavailable')
+
+    def test_retryable_reader_failure_has_its_own_error_code(self):
+        handlers = rt.plugin.handlers
+        store = mock.Mock()
+        store.recover.side_effect = handlers.ReaderRetry('recover it again')
+        tool = handlers.make_handlers(store_factory=lambda: store)['rekindra_recover']
+        answer = json.loads(tool({'project_id': 'a', 'asset_id': 'b'}))
+        self.assertEqual(answer['error']['code'], 'reader_busy')
+
     def test_asset_changed_during_the_read_is_not_committed(self):
         status = self.store.status
         calls = []
