@@ -27,8 +27,6 @@ _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip', 'pdf')
-# These outcomes describe the reader or the machine's load, not the file's contents.
-_READER_SIDE_REFUSALS = frozenset({'pdf_reader_unavailable', 'pdf_reader_stopped', 'pdf_memory_limit', 'pdf_timeout'})
 
 
 def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
@@ -55,7 +53,13 @@ class ProjectError(ValueError):
 
 
 class ReaderRetry(ProjectError):
-    """The reader could not run or finish; the request itself was fine and can be retried."""
+    """No reader process could be started in time; the request itself was fine."""
+    code = 'reader_busy'
+
+
+class EarlierReadKept(ReaderRetry):
+    """A re-read got less than the saved read of the same bytes, which was left in place."""
+    code = 'earlier_read_kept'
 
 
 @dataclass(frozen=True)
@@ -283,20 +287,24 @@ class ProjectStore:
             current = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
             if not current or current.get('sha256') != asset['sha256']:
                 raise ProjectError('The asset changed while it was being read; recover it again')
-            self._keep_earlier_read(project, asset_id, envelope)
+            self._keep_earlier_read(project, current, envelope)
             return self._recover_evidence(project, directory, current, envelope, evidence_reader)
 
     @staticmethod
-    def _keep_earlier_read(project: dict, asset_id: str, envelope) -> None:
-        # The bytes are unchanged, so a reader-side failure must not erase pages already read.
-        # A first read has nothing to protect and keeps its honest status instead.
-        report = envelope.get('text_member_report') if isinstance(envelope, dict) else None
-        refused = report.get('refused') if isinstance(report, dict) else None
-        if not isinstance(refused, dict) or refused.get('code') not in _READER_SIDE_REFUSALS:
+    def _keep_earlier_read(project: dict, asset: dict, envelope) -> None:
+        # Same bytes but fewer pages means the reader fell short (load, memory, a broken
+        # install), so what it read before stands. A first read has nothing to protect.
+        if asset.get('format') != 'pdf' or not isinstance(envelope, dict):
             return
-        if any(a.get('asset_id') == asset_id and (a.get('text_members') or {}).get('read', 0) > 0
-               for a in project['artifacts']):
-            raise ReaderRetry('The reader could not finish this time, so the evidence read earlier was kept; recover it again.')
+        saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
+                      and a.get('source_sha256') == asset.get('sha256')), None)
+        members = envelope.get('text_members')
+        if ((saved or {}).get('text_members') or {}).get('read', 0) <= (len(members) if isinstance(members, list) else 0):
+            return
+        report = envelope.get('text_member_report') or {}
+        warnings = envelope.get('warnings') or [{}]
+        why = (report.get('refused') or {}).get('reason') or warnings[0].get('message') or 'It returned fewer pages.'
+        raise EarlierReadKept(f'The evidence read earlier was kept because this read fell short: {why}')
 
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']

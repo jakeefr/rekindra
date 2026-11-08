@@ -368,7 +368,7 @@ class PipelineTests(unittest.TestCase):
         reader = dict(rt.plugin.handlers.evidence_reader())
         reader['intake'] = lambda fmt, data, name: pdf_text.read_pdf_text(data, name, inspect_text)
         with mock.patch.object(pdf_text, '_WORKER_SLOTS', slots), mock.patch.object(pdf_text, 'TIMEOUT_SECONDS', 0.01), \
-                self.assertRaises(ProjectError):
+                self.assertRaises(projects_module.ReaderRetry):
             self.store.recover(self.pid, self.ids['log.pdf'], reader)
         self.assertEqual(saved.read_bytes(), before)
 
@@ -380,11 +380,31 @@ class PipelineTests(unittest.TestCase):
     def test_reader_failure_on_a_later_read_keeps_saved_evidence(self):
         saved = Path(self.recover('log.pdf')['dossier_path'])
         before = saved.read_bytes()
-        for effect in ({'side_effect': OSError('no handles')}, {'return_value': ([], False)}):
+        start = {'kind': 'start', 'page_count': 2}
+        page = {'kind': 'page', 'page': 1, 'text': 'Only the first page this time.', 'truncated': False}
+        out_of_memory = {'kind': 'page_failed', 'page': 2, 'code': 'memory_limit'}
+        for effect in ({'side_effect': OSError('no handles')},
+                       {'return_value': ([], False)},
+                       {'return_value': ([], True)},
+                       {'return_value': ([start], False)},
+                       {'return_value': ([start, page], True)},
+                       {'return_value': ([start, page], False)},
+                       {'return_value': ([start, page, out_of_memory, {'kind': 'done'}], False)},
+                       {'return_value': ([{'kind': 'refused', 'code': 'memory_limit'}], False)}):
             with self.subTest(effect=effect), mock.patch.object(pdf_text, '_run_worker', **effect), \
-                    self.assertRaises(ProjectError):
+                    self.assertRaises(projects_module.EarlierReadKept):
                 self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
             self.assertEqual(saved.read_bytes(), before)
+
+    def test_reader_dying_after_opening_is_not_blamed_on_the_file(self):
+        with mock.patch.object(pdf_text, '_run_worker', return_value=([{'kind': 'start', 'page_count': 2}], False)):
+            out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertEqual(out['artifact']['status'], 'unsupported')
+        self.assertEqual(out['artifact']['text_members']['refused']['code'], 'pdf_reader_stopped')
+
+    def test_a_full_reread_still_replaces_the_saved_read(self):
+        self.recover('log.pdf')
+        self.assertEqual(self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())['artifact']['status'], 'ok')
 
     def test_reader_failure_on_a_first_read_is_reported_not_raised(self):
         with mock.patch.object(pdf_text, '_run_worker', side_effect=OSError('no handles')):
@@ -399,6 +419,9 @@ class PipelineTests(unittest.TestCase):
         tool = handlers.make_handlers(store_factory=lambda: store)['rekindra_recover']
         answer = json.loads(tool({'project_id': 'a', 'asset_id': 'b'}))
         self.assertEqual(answer['error']['code'], 'reader_busy')
+        store.recover.side_effect = handlers.EarlierReadKept('kept')
+        answer = json.loads(tool({'project_id': 'a', 'asset_id': 'b'}))
+        self.assertEqual(answer['error']['code'], 'earlier_read_kept')
 
     def test_asset_changed_during_the_read_is_not_committed(self):
         status = self.store.status

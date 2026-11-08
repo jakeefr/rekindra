@@ -174,6 +174,9 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
                      'OCR is not available.', skipped)
     if not members and out_of_memory:
         return _stop(envelope, *_REFUSALS['memory_limit'], skipped)
+    if not members and not finished and not timed_out:
+        return _stop(envelope, 'unsupported', 'pdf_reader_stopped',
+                     'The PDF reader stopped before any page gave text, so its contents are unknown.', skipped)
     if not members:
         code, reason = (('pdf_timeout', f'Reading stopped after {TIMEOUT_SECONDS:g} seconds before any page gave text.')
                         if timed_out else ('malformed_pdf', 'No page of this PDF could be decoded.'))
