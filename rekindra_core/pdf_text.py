@@ -120,7 +120,9 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
     if start is None:
         if timed_out:
             return _stop(envelope, 'rejected', 'pdf_timeout', f'Reading stopped after {TIMEOUT_SECONDS:g} seconds.')
-        return _stop(envelope, 'rejected', 'malformed_pdf', 'The PDF reader stopped before opening this file.')
+        # No verdict from the reader, so this says nothing about whether the file is damaged.
+        return _stop(envelope, 'unsupported', 'pdf_reader_stopped',
+                     'The PDF reader stopped before opening this file, so its contents are unknown.')
 
     members, skipped, failed = [], [], 0
     seen = set()
@@ -145,7 +147,8 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
     page_count = start.get('page_count') if type(start.get('page_count')) is int else 0
     readable_limit = min(page_count, MAX_PDF_PAGES)
     finished = any(r.get('kind') == 'done' for r in records)
-    envelope['facts'].update(page_count=page_count, pages_read=len(members),
+    # How many pages became evidence is text_member_report.read, which stays true after fitting.
+    envelope['facts'].update(page_count=page_count,
                              encrypted_readable_without_password=bool(start.get('encrypted')))
     if not members and finished and not failed:
         return _stop(envelope, 'rejected', 'no_extractable_text',

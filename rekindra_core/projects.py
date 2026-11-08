@@ -262,33 +262,45 @@ class ProjectStore:
                 data = inp.read(self.limits.max_file_bytes+1)
             if len(data) > self.limits.max_file_bytes or hashlib.sha256(data).hexdigest() != asset.get('sha256'):
                 raise ProjectError('Snapshot integrity check failed; original copy changed')
-            if asset.get('format') in _EVIDENCE_FORMATS and evidence_reader is not None:
-                return self._recover_evidence(project, directory, asset, data, evidence_reader)
-            if asset.get('format') not in ('tga', 'tga_candidate'):
-                raise ProjectError('Recovery supports the documented TGA subset, plus text, ZIP and PDF text')
-            try:
-                raster = decode_tga(data)
-                png = encode_png(raster)
-            except RecoveryError as exc:
-                raise ProjectError(str(exc)) from exc
-            target = directory / 'artifacts' / (asset_id + '.png')
-            _no_links(target)
-            _atomic(target, png)
-            artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
-                        'path': str(target), 'source_sha256': asset['sha256'],
-                        'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
-                        'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
-            project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
-            project['stage'] = 'recovered'
-            self._save(directory, project)
-            return artifact
+            if asset.get('format') not in _EVIDENCE_FORMATS or evidence_reader is None:
+                return self._recover_tga(project, directory, asset, data)
+        # A reader can wait on a child process for seconds, so the store stays free meanwhile;
+        # what it read is only committed if the asset is still the one that was verified.
+        envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
+        with _STORE_LOCK:
+            project = self.status(project_id)
+            directory = self._project(project_id)
+            current = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
+            if not current or current.get('sha256') != asset['sha256']:
+                raise ProjectError('The asset changed while it was being read; recover it again')
+            return self._recover_evidence(project, directory, current, envelope, evidence_reader)
 
-    def _recover_evidence(self, project: dict, directory: Path, asset: dict, data: bytes, reader) -> dict:
+    def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
+        asset_id = asset['asset_id']
+        if asset.get('format') not in ('tga', 'tga_candidate'):
+            raise ProjectError('Recovery supports the documented TGA subset, plus text, ZIP and PDF text')
+        try:
+            raster = decode_tga(data)
+            png = encode_png(raster)
+        except RecoveryError as exc:
+            raise ProjectError(str(exc)) from exc
+        target = directory / 'artifacts' / (asset_id + '.png')
+        _no_links(target)
+        _atomic(target, png)
+        artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
+                    'path': str(target), 'source_sha256': asset['sha256'],
+                    'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
+                    'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
+        project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
+        project['stage'] = 'recovered'
+        self._save(directory, project)
+        return artifact
+
+    def _recover_evidence(self, project: dict, directory: Path, asset: dict, envelope, reader) -> dict:
         # Everything is built and checked in memory first; nothing is written unless the
         # combined dossier is valid, so one bad source cannot replace a good evidence.json.
         asset_id = asset['asset_id']
         artifacts_dir = directory / 'artifacts'
-        envelope = reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         if not isinstance(envelope, dict):
             raise ProjectError('Evidence intake returned no result')
         # Every evidence asset keeps its own slot; members share what is left.

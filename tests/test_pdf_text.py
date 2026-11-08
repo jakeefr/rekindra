@@ -1,7 +1,11 @@
 import importlib.util
 import io
+import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -10,7 +14,8 @@ import test_recover_evidence as rt
 from test_tga import fixture
 from rekindra_core.compositions import CompositionStore
 from rekindra_core.identify import identify
-from rekindra_core.projects import ProjectStore
+from rekindra_core import projects as projects_module
+from rekindra_core.projects import ProjectError, ProjectStore
 from rekindra_core import pdf_text
 from rekindra_intake import inspect_text
 
@@ -182,8 +187,24 @@ class WorkerControlTests(unittest.TestCase):
 
     def test_crashing_reader_is_reported(self):
         out = self.run_script('sys.exit(9)\n')
-        self.assertEqual(out['status'], 'rejected')
-        self.assertEqual(out['text_member_report']['refused']['code'], 'malformed_pdf')
+        self.assertEqual(out['status'], 'unsupported')
+        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_reader_stopped')
+
+    def test_broken_reader_install_is_not_blamed_on_the_file(self):
+        package = self.dir / 'pypdf'
+        package.mkdir()
+        (package / '__init__.py').write_text('raise RuntimeError("broken install")\n', encoding='utf-8')
+        out = read(b'%PDF-1.4\n')
+        self.assertEqual(out['status'], 'unsupported')
+        self.assertEqual(out['text_member_report']['refused']['code'], 'pdf_reader_unavailable')
+
+    def test_worker_memory_is_capped(self):
+        code = ('import sys\nsys.path.insert(0, sys.argv[1])\nimport _pdf_worker as w\n'
+                'w._MEMORY_BYTES = 128 * 1024 * 1024\nw._limit_resources()\n'
+                'try:\n    b = bytearray(512 * 1024 * 1024)\nexcept MemoryError:\n    print("capped")\n')
+        done = subprocess.run([sys.executable, '-I', '-S', '-B', '-c', code, str(pdf_text.WORKER.parent)],
+                              capture_output=True, timeout=30)
+        self.assertEqual(done.stdout.strip(), b'capped', done.stderr)
 
     def test_missing_reader_is_unsupported(self):
         with mock.patch.object(pdf_text, '_reader_dir', return_value=None):
@@ -262,6 +283,48 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(summary['text_members']['refused']['code'], code)
             self.assertEqual(summary['evidence_count'], 0, name)
             self.assertIn(code, summary['warnings'], name)
+
+    def test_pages_past_the_project_budget_are_not_claimed_as_read(self):
+        with mock.patch.object(projects_module, 'MAX_DOSSIER_SOURCES', 6):  # 4 PDFs leave 2 page slots
+            out = self.recover('log.pdf')
+        summary = rt.plugin.handlers.evidence_summary(out)
+        self.assertEqual(summary['text_members']['read'], 2)
+        self.assertEqual({e['page_number'] for e in summary['evidence']}, {1, 2})
+        stored = json.loads(Path(out['artifact']['path']).read_text(encoding='utf-8'))
+        self.assertEqual(stored['text_member_report']['read'], 2)
+        self.assertNotIn('pages_read', stored['facts'])
+
+    def test_store_is_free_while_a_pdf_is_being_read(self):
+        reader = dict(rt.plugin.handlers.evidence_reader())
+        real, got = reader['intake'], []
+
+        def intake(*args):
+            def probe():
+                got.append(projects_module._STORE_LOCK.acquire(timeout=2))
+                if got[-1]:
+                    projects_module._STORE_LOCK.release()
+            thread = threading.Thread(target=probe)
+            thread.start()
+            thread.join()
+            return real(*args)
+
+        reader['intake'] = intake
+        self.store.recover(self.pid, self.ids['log.pdf'], reader)
+        self.assertEqual(got, [True])
+
+    def test_asset_changed_during_the_read_is_not_committed(self):
+        status = self.store.status
+        calls = []
+
+        def changing(project_id):
+            calls.append(project_id)
+            project = status(project_id)
+            if len(calls) > 1:
+                project['assets'] = [a for a in project['assets'] if a['asset_id'] != self.ids['log.pdf']]
+            return project
+
+        with mock.patch.object(self.store, 'status', changing), self.assertRaises(ProjectError):
+            self.recover('log.pdf')
 
     def test_source_file_is_never_modified(self):
         self.recover('log.pdf')
