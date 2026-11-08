@@ -73,8 +73,9 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   the reflector. Optional and revisable; omitting it keeps the old render path.
 - Pass conditions (`scripts/browser_glow_test.cjs`): no pixel darker than the scene without it, visible added light,
   opaque control does shadow, a wall in front hides it exactly (same pixel shows it with the wall removed), a planar
-  reflector mirrors it without darkening anything, centre brighter than silhouette. Passed at attempt 1; the occlusion
-  sample point was corrected after review (the first one missed the tube).
+  reflector mirrors it without darkening anything, centre brighter than silhouette. The original conditions passed at
+  attempt 1; after review the occlusion point was corrected (the first one missed the tube) and the wall-removed and
+  reflector cases (each with a control) were added; the re-run passed.
   `tests/test_glow.py` covers validation, the reflector rule and revise set/remove.
 - Offline probe (`glow1`-`glow3`, same base plan): attempt 1 at glow .9-1.3 saturated to a white wedge; attempt 2 at
   .12 reads as a soft beam leaving the lamp in all six frames and hidden by the tower when it points away. Guidance and

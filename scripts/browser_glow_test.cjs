@@ -38,7 +38,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   let mirrorDarker=0;for(let i=0;i<r.mirror.px.length;i+=4)if(lum(r.mirrorGlow,i)<lum(r.mirror,i)-3)mirrorDarker++;
   const d=(p,a=r.glow,b=r.none)=>lum(a,at(p))-lum(b,at(p));
   const metrics={darker,brighter,shadowed,behindWall:d(r.pts.behindWall),behindWallControl:d(r.pts.behindWall,r.bareGlow,r.bare),
-   centre:d(r.pts.centre),edge:d(r.pts.edge),reflected:d(r.pts.reflected,r.mirrorGlow,r.mirror),mirrorDarker};
+   centre:d(r.pts.centre),edge:d(r.pts.edge),reflected:d(r.pts.reflected,r.mirrorGlow,r.mirror),reflectedControl:d(r.pts.reflected,r.bareGlow,r.bare),mirrorDarker};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(metrics,null,2));console.log(metrics);
   assert.ok(shadowed>500,'Control: the opaque tube must visibly shadow or cover the scene');
   assert.equal(darker,0,'Glow must never darken any pixel (additive, no shadow)');
@@ -46,6 +46,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.ok(metrics.behindWallControl>30,'Control: without the wall this pixel must show the glow');
   assert.ok(Math.abs(metrics.behindWall)<=3,'Opaque wall in front must hide the glow');
   assert.ok(metrics.reflected>20,'A planar reflector must show the glow mirrored below the plane');
+  assert.ok(Math.abs(metrics.reflectedControl)<=3,'Control: without the reflector that pixel must not brighten');
   assert.equal(metrics.mirrorDarker,0,'Glow must not darken a reflective scene');
   assert.ok(metrics.centre>metrics.edge+20,'Glow must be brighter facing the camera than at its silhouette');
  }finally{await browser.close()}
