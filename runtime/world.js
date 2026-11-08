@@ -158,7 +158,9 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
 }`).join('\n');
     const controlledAmbient=(scene.environment.ambient_strength??1)!==1||(scene.environment.ground_strength??0)>0;
     const canvas=document.createElement('canvas');canvas.width=scene.width;canvas.height=scene.height;
-    const gl=canvas.getContext('webgl2',{alpha:false,antialias:true,preserveDrawingBuffer:true});
+    // No MSAA: hardware multisample resolve of overlapping additive (glow) layers is not bit-stable between identical
+    // draws, which breaks deterministic seeking. Edges are smoothed by the sampleScale supersample instead.
+    const gl=canvas.getContext('webgl2',{alpha:false,antialias:false,preserveDrawingBuffer:true});
     if(!gl)throw Error('This generated world needs WebGL2. Use a browser with graphics acceleration.');
     // Four spatial samples per output pixel; no temporal state or material changes.
     // Keep the public canvas at authored resolution, including export/preview callers.
@@ -336,10 +338,8 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
-// One layer per pixel (front faces only, doubled gain): overlapping additive layers sum in driver order under MSAA.
-// The mirrored reflection pass flips winding, so it keeps the other side.
-{if(gl_FrontFacing==${reflector?'(reflectionPass>.5)':'false'})discard;float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
-${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow*2).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
+{float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
+${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
