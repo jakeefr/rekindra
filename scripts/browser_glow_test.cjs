@@ -14,7 +14,10 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    const wall={id:'wall',segments:[2,2],color:'#305070',color_high:'#305070',roughness:1,metalness:0,emission:0};
    const P={ground:{position:['(u-.5)*30.','0.','(v-.5)*30.'],color_mix:'0.'},tube:{position:['cos(u*2.*pi)','.5+v*2.5','sin(u*2.*pi)'],color_mix:'0.'},wall:{position:['-2.5+u*2.4','v*4.','2.5'],color_mix:'0.'},ghost:{position:['cos(u*2.*pi)','v','40.+sin(u*2.*pi)'],color_mix:'0.'}};
    // Any glow surface switches the renderer off MSAA, so every control carries one behind the camera: compare like with like.
-   const ghost={...tube,id:'ghost',glow:1};
+   const ghost={...tube,id:'ghost',glow:1},ghostDark={...ghost,color:'#000000',color_high:'#000000'};
+   // Record the MSAA state each renderer actually got.
+   const aa=[],getContext=HTMLCanvasElement.prototype.getContext;
+   HTMLCanvasElement.prototype.getContext=function(type,options){const g=getContext.call(this,type,options);if(type==='webgl2'&&g)aa.push(g.getContextAttributes().antialias);return g};
    function capture(objs){
     const scene={width:W,height:H,camera:[camera,{...camera,at:12}],environment:env,objects:objs};
     const rr=RekindraWorld.createRenderer(scene,objs.map(o=>P[o.id])),c=document.createElement('canvas');c.width=W;c.height=H;
@@ -23,7 +26,11 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
    }
    const proj=p=>RekindraWorld.projectPoint(p,camera,W,H).map(Math.round);
    const mirror={...ground,position:{y:'0'},reflection:{strength:.8,blur:0}};
-   return{W,none:capture([ground,wall,ghost]),glow:capture([ground,{...tube,glow:1},wall]),opaque:capture([ground,tube,wall,ghost]),
+   const sameAs=(a,b)=>{let n=0;for(let i=0;i<a.px.length;i++)if(a.px[i]!==b.px[i])n++;return n};
+   // The ghost must add no light: a black-albedo twin takes the same render path and adds exactly zero.
+   const ghostLight=sameAs(capture([ground,ghost]),capture([ground,ghostDark]))+sameAs(capture([mirror,ghost]),capture([mirror,ghostDark]));
+   aa.length=0;capture([ground]);capture([ground,ghost]);const msaa={plain:aa[0],glow:aa[1]};
+   return{W,ghostLight,msaa,none:capture([ground,wall,ghost]),glow:capture([ground,{...tube,glow:1},wall]),opaque:capture([ground,tube,wall,ghost]),
     bare:capture([ground,ghost]),bareGlow:capture([ground,{...tube,glow:1}]),
     mirror:capture([mirror,ghost]),mirrorGlow:capture([mirror,{...tube,glow:1}]),
     pts:{behindWall:proj([-.6,1.75,.8]),centre:proj([0,1.75,1]),edge:proj([.95,1.75,.31]),reflected:proj([0,-1.75,1])}};
@@ -40,8 +47,10 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   let mirrorDarker=0;for(let i=0;i<r.mirror.px.length;i+=4)if(lum(r.mirrorGlow,i)<lum(r.mirror,i)-3)mirrorDarker++;
   const d=(p,a=r.glow,b=r.none)=>lum(a,at(p))-lum(b,at(p));
   const metrics={darker,brighter,shadowed,behindWall:d(r.pts.behindWall),behindWallControl:d(r.pts.behindWall,r.bareGlow,r.bare),
-   centre:d(r.pts.centre),edge:d(r.pts.edge),reflected:d(r.pts.reflected,r.mirrorGlow,r.mirror),reflectedControl:d(r.pts.reflected,r.bareGlow,r.bare),mirrorDarker};
+   centre:d(r.pts.centre),edge:d(r.pts.edge),reflected:d(r.pts.reflected,r.mirrorGlow,r.mirror),reflectedControl:d(r.pts.reflected,r.bareGlow,r.bare),mirrorDarker,ghostLight:r.ghostLight,msaa:r.msaa};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(metrics,null,2));console.log(metrics);
+  assert.equal(r.ghostLight,0,'Control: the off-camera ghost glow must add no light');
+  assert.deepEqual(r.msaa,{plain:true,glow:false},'MSAA must be on without glow and off with glow');
   assert.ok(shadowed>500,'Control: the opaque tube must visibly shadow or cover the scene');
   assert.equal(darker,0,'Glow must never darken any pixel (additive, no shadow)');
   assert.ok(brighter>500,'Glow must visibly add light');

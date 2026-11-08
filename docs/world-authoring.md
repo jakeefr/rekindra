@@ -313,7 +313,8 @@ Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_d
   length. Put it on the rotating assembly whose pivot is the lamp centre so it sweeps from the lamp. Light the lamp room
   (small emissive sphere, emission ~2) inside a `glow` sphere halo (radius ~1, glow ~.06). An optional faint water glint
   goes on the same assembly, under the beam, starting a few units out from the tower. Check in the preview that the
-  beam leaves the lamp in every frame.
+  beam leaves the lamp in every frame. A scene with any `glow` surface renders without hardware MSAA (deterministic
+  seeking) and relies on the 2x supersample for smooth edges.
 - **Boats:** a disc or squashed sphere reads as a flat blob. Loft a pointed-bow hull (7-point outline, length at least
   2.5x the beam) and add mast and lamp surfaces on the same assembly and instances.
 - **Revising:** when replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to

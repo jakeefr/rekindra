@@ -13,6 +13,7 @@ const fs=require('node:fs'),path=require('node:path'),{pathToFileURL}=require('n
  if(mode==='no-dither')source=source.replace('const owned=[];let lost=false;','gl.disable(gl.DITHER);const owned=[];let lost=false;');
  if(mode==='explicit-target'){
   // Diagnostic only: remove browser-owned scene attachments from the draw path.
+  if(!source.includes('antialias:true'))throw Error('Antialias anchor changed');
   source=source.replace('antialias:true','antialias:false'); // Single-sample blit needs a single-sample destination.
   source=source.replace('const owned=[];let lost=false;',`const owned=[];let lost=false;
 const target=gl.createFramebuffer(),color=gl.createRenderbuffer(),depth=gl.createRenderbuffer();
