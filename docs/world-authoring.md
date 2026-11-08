@@ -298,18 +298,20 @@ Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_d
 - **Fog:** `fog_density` above about .006 washes the whole frame to one tone. Get depth from color and light instead.
 - **Horizon:** a square sea plane shows its far edge as a slanted hard line. Use a disc of radius ~320 (`320*v*v`) centred
   under the camera eyes, not at the origin: add the centre of all eyes (midway between min and max eye x, and z) as
-  constants (eyes x 18..23, z 24..30 give `20.5+320*v*v*cos(u*2*pi)`, `27+320*v*v*sin(u*2*pi)`). Keep the water scale 1
+  constants (eyes x 16..22, z 30..31 give `19+320*v*v*cos(u*2*pi)`, `30.5+320*v*v*sin(u*2*pi)`). Keep the water scale 1
   with no offset or assembly translation, or put the centre in the offset instead. Keep every eye within ~10 units of the
-  centre (rim spread is about 2*offset/radius), or raise the radius. Then the rim projects as a level line. Fade the rim into the sky with
-  `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`.
-- **Hide the far edge:** final coordinates clamp to +/-100, so a sea of any radius really ends at a square edge 70-130
-  units out, and its straight sides and corner show against the sky. Fog and rim color do not remove it. Put a low
+  centre. Also set `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`. `check_horizon` samples the
+  unclamped disc and asks for this radius and rim color, but neither makes a level horizon in the render.
+- **Hide the far edge:** final coordinates clamp to +/-100, so a 320 disc only fills that box and the sea really ends at a
+  square edge, `100-c` and `100+c` units from a centre at `c` on each axis (70-130 along z for the centre above), and its
+  straight sides and corner show against the sky. Fog and rim color do not remove it. Put a low
   headland or island ring around the scene, on the sea's centre (cx,cz), with radius `R = 100 - max(|cx|,|cz|) - 2`,
   props inside it. For centre (19,30.5), R is 67.5: `x` `19+67.5*cos(u*2*pi)`,
   `y` `-.2+v*(12+1.2*sin(u*2*pi*5)+.6*sin(u*2*pi*13+1))`, `z` `30.5+67.5*sin(u*2*pi)`, segments [128,4], matte (roughness
   .9), a hazy dusk tone such as #5A6480. Its lowest top must be at least `eye_height*(1-R/D)+1`, where `eye_height` is
   the highest eye and `D` is `sqrt((100+|cx|)^2+(100+|cz|)^2)`, the distance to the farthest corner: about 10 units for a
-  14 unit eye here. Record the landform as invented in `references`.
+  14 unit eye here. `check_demo_scene.py` does not test the ring or its height, so confirm in the preview that no sea edge
+  shows above it. Record the landform as invented in `references`.
 - **Disc seams:** on a disc every `u` frequency (waves, color, bump) must be an integer multiple of `2*pi`, e.g.
   `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
 - **Sea color:** keep the water albedo mid-blue (about `#1F5888`) at default roughness. Dark albedo or roughness .5 lets
