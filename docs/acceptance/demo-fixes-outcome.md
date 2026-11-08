@@ -139,17 +139,23 @@ Offline probes on a scratch copy of glow3, decoded export frames, the option imp
 | 2 | attempt 1 + density .006 | 25.8 / 33.7 | 261 FAIL | pass | FAIL |
 | 3 | attempt 1 + rim `color_high` #FFB9D1 | 46.2 / 56.0 | 231 pass | pass | FAIL |
 
-- Attempt 2 reaches about 85% fog at the rim. The remaining 15% still shows about 26 levels after display gamma, and the
-  haze covers the near sea and turns it violet.
-- A larger disc cannot raise rim fog at low density: the far plane is fixed at 400 (`runtime/world.js`), so a wider rim
-  clips into a new hard edge. Moving the far plane was outside the approved change.
-- Attempt 3 came from inferring the albedo that would equal the sky; red needed 1.44 linear, so it was clipped. It also
-  failed the existing horizon check, and made no measurable difference to the rim.
+- Cause, corrected after review: final coordinates clamp to +/-100 (`runtime/world.js`), so the radius-320 disc really
+  ends at a square edge about 70-130 units from the eye. The earlier explanations here (fog at distance 320, the 400
+  far plane) used a distance the renderer never produces. Fog is only about 23% at 130 units at density .002 and about
+  54% at .006, which is why the line stayed; attempt 2 pushed the haze far enough to turn the near sea violet.
+- Attempt 3 changed `color_high`, but it only applies past v=.9 (radius ~259), all clamped onto the square perimeter.
+  That is why it made no measurable difference. It also failed the existing horizon check.
+- `check_horizon` samples the expressions without the clamp, so its 318 "far edge" and level-rim pass on the disc do
+  not describe the rendered edge. Left as is.
 - Engine reverted: `runtime/world.js` is byte-identical to 36c3cf9. Because nothing shipped, the bit-identity proof on
   the rain scene and the Violet Hour Gate was not needed and was not run post-change; only the pre-change controls exist
   (decoded frames 8/8 identical, WebM bytes equal between repeat exports). No RULES.md line, no new take.
-- Fallback per the approved plan: guidance for a low headland or island silhouette in front of the rim (`schemas.py`,
-  `docs/world-authoring.md`). Not rendered or tested in a live take.
+- Fallback per the approved plan: guidance for a low headland or island ring inside the +/-100 box (`schemas.py`,
+  `docs/world-authoring.md`). Offline probe on a scratch copy of glow3, one render, condition fixed first: ring inside
+  the box; from every camera key at 720 azimuths the ridge's lowest top is above the clamped sea edge (worst margin
+  +.021 rad); sea hue 231 and luma .107 pass; decoded frames show no sea line or corner against the sky. Pass.
+  `check_rim.py` reports 118.7 on this take because it measures the ridge itself, so its rim line does not apply. The
+  ridge is fairly tall in frame. Not yet tried in a live, agent-authored take.
 
 ## Recording
 
