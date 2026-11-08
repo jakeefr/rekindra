@@ -25,7 +25,7 @@ _STORE_LOCK = threading.RLock()
 _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
-_EVIDENCE_FORMATS = ('text', 'zip')
+_EVIDENCE_FORMATS = ('text', 'zip', 'pdf')
 
 
 def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
@@ -242,7 +242,7 @@ class ProjectStore:
     def recover(self, project_id: str, asset_id: str, evidence_reader=None) -> dict:
         """Recover one saved asset.
 
-        TGA decodes to PNG. Text and ZIP go through ``evidence_reader`` (a dict with
+        TGA decodes to PNG. Text, ZIP and PDF go through ``evidence_reader`` (a dict with
         ``intake(format, data, name)`` and ``dossier(records)``) when the caller
         supplies one; their result is quoted observation, never interpretation.
         """
@@ -265,7 +265,7 @@ class ProjectStore:
             if asset.get('format') in _EVIDENCE_FORMATS and evidence_reader is not None:
                 return self._recover_evidence(project, directory, asset, data, evidence_reader)
             if asset.get('format') not in ('tga', 'tga_candidate'):
-                raise ProjectError('Recovery supports the documented TGA subset, plus text and ZIP inventory')
+                raise ProjectError('Recovery supports the documented TGA subset, plus text, ZIP and PDF text')
             try:
                 raster = decode_tga(data)
                 png = encode_png(raster)
@@ -304,7 +304,8 @@ class ProjectStore:
                     'path': str(artifacts_dir / (asset_id + '.intake.json')), 'source_sha256': asset['sha256'],
                     'sha256': hashlib.sha256(blob).hexdigest(), 'intake_bytes': len(blob),
                     'decoder': 'rekindra-intake-v1',
-                    'intake_format': envelope.get('format'), 'status': envelope.get('status'),
+                    'intake_format': envelope.get('document_format') or envelope.get('format'),
+                    'status': envelope.get('status'),
                     'warnings': warnings}
         report = envelope.get('text_member_report')
         if isinstance(report, dict):

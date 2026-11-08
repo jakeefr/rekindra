@@ -16,11 +16,13 @@ All project code, dependencies, fixtures, temporary files, and development cache
 
 Five-day target: November 5-9, 2026. The implementation plan and evidence log live in `docs/`.
 
-Run the dependency-free core tests:
+Run the core tests:
 
 ```text
 python -m unittest discover -s tests -v
 ```
+
+One runtime dependency, pinned in `plugin.yaml`: `pypdf` 6.16.1 (BSD-3-Clause) reads PDF text in a separate, killable process. It is a decoder, not a creative engine. Hermes asks before installing it (`hermes plugins install`, or `hermes pm repair` for an enabled plugin, then restart). Without it PDFs are reported as unsupported and everything else works; PDF reader tests skip with a reason.
 
 On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launch Hermes with all development storage and caches directed to `<local path>`. To configure a model, run `scripts/Start-Rekindra.ps1 setup` and complete the provider's own sign-in. Never put a credential in this repository.
 
@@ -55,7 +57,7 @@ Four input limits to know up front. Each is reported by the agent; none crashes.
 - A notes-only folder cannot produce a world. At least one image is required.
 - Text inside ZIP archives is not read.
 - JPEG and PNG files are visual references only. They are not recovered assets.
-- PDF is not supported.
+- PDF text is read page by page, up to 32 pages. There is no OCR: a scanned or image-only PDF is reported as having no extractable text, and an encrypted one as encrypted.
 
 ## Verification
 
