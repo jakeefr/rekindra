@@ -144,6 +144,15 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertIs(False, check.check_boats({'objects': [hull, shrunk]}, 'boat')[0])
         bound = dict(mast(.07, '#B89A78'), position={'x': 'r*cos(u*2*pi)', 'y': 'v', 'z': 'r*sin(u*2*pi)'})
         self.assertIsNone(check.check_boats({'objects': [hull, bound]}, 'boat')[0])
+        thin = mast(.035, '#695041')
+        self.assertIs(False, check.check_boats({'objects': [hull, dict(bound, id='mast_b'), thin]}, 'boat')[0])
+        home = {'id': 'home', 'rotation': {'x': '0', 'y': '0', 'z': '0'}, 'scale': [.5, 1, .5]}
+        self.assertIs(False, check.check_boats({'objects': [hull, mast(.07, '#B89A78')], 'assemblies': [home]},
+                                               'boat')[0])
+        flag = dict(mast(.0, '#FF0000'), id='mast_flag')
+        lamp = dict(mast(.03, '#FFD18A'), id='masthead_lamp')
+        ok, detail = check.check_boats({'objects': [hull, mast(.07, '#B89A78'), flag, lamp]}, 'boat')
+        self.assertTrue(ok, detail)
 
     def test_beam_fade_needs_eased_end(self):
         self.assertTrue(check.beam_fade({'color_pattern': 'u*u*(3-2*u)'})[0])
@@ -163,6 +172,9 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertTrue(check.check_beam(scene, frames, 'beam')[0])
         scene['objects'][0]['color_pattern'] = 'u'
         self.assertIs(False, check.check_beam(scene, frames, 'beam')[0])
+        scene['objects'][0]['color_pattern'] = 'nosuchname(u)'
+        self.assertIsNone(check.check_beam(scene, frames, 'beam')[0])
+        self.assertIs(False, check.check_beam(scene, frames[:1], 'beam')[0])  # no travel: a real failure
 
     def test_instance_scale_uses_least_elongated_copy(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]

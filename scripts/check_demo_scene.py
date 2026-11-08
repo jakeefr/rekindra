@@ -242,6 +242,13 @@ def surface_extent(o):
     return float(np.ptp(pts[:, 0])), float(np.ptp(pts[:, 2])), 'sampled'
 
 
+def is_mast(oid):
+    """A mast part by id token (boat_masts, mast_2), not a lamp, flag or pennant hung on it."""
+    tokens = re.split(r'[^a-z0-9]+', oid.lower())
+    return any(t in ('mast', 'masts') for t in tokens) and not any(
+        w in t for t in tokens for w in ('lamp', 'light', 'flag', 'pennant', 'sail'))
+
+
 def check_boats(scene, boat_id):
     o = find(scene, boat_id) if boat_id else None
     if not o:
@@ -264,7 +271,7 @@ def check_boats(scene, boat_id):
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
     masts, mast_ok, mast_unmeasured = [], True, False
     for p in scene['objects']:
-        if p['id'] in peers and 'mast' in p['id'] and p.get('position'):
+        if p['id'] in peers and is_mast(p['id']) and p.get('position'):
             mx, mz, _ = surface_extent(p)
             if mx is None:
                 mast_unmeasured = True
