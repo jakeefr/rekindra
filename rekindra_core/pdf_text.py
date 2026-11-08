@@ -196,7 +196,7 @@ def read_pdf_text(data: bytes, name: str, inspect_text) -> dict:
         skipped.append({'name': f'pages {MAX_PDF_PAGES + 1}-{page_count}', 'code': 'page_limit', 'reason': reason})
     if out_of_memory:
         warnings.append({'code': 'pdf_memory_limit',
-                         'message': f'{out_of_memory} page(s) hit the memory limit; see text_member_report.'})
+                         'message': f'{out_of_memory} page(s) hit the memory limit, so their contents are unknown.'})
     no_text = sum(s['code'] in ('page_no_text', 'page_failed') for s in skipped)
     if no_text:
         warnings.append({'code': 'pages_without_text',

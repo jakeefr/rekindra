@@ -390,6 +390,9 @@ class PipelineTests(unittest.TestCase):
                        {'return_value': ([start, page], True)},
                        {'return_value': ([start, page], False)},
                        {'return_value': ([start, page, out_of_memory, {'kind': 'done'}], False)},
+                       {'return_value': ([{'kind': 'start', 'page_count': 4},
+                                          {'kind': 'page_failed', 'page': 1, 'code': 'memory_limit'},
+                                          *[dict(page, page=n) for n in (2, 3, 4)], {'kind': 'done'}], False)},
                        {'return_value': ([{'kind': 'refused', 'code': 'memory_limit'}], False)}):
             with self.subTest(effect=effect), mock.patch.object(pdf_text, '_run_worker', **effect), \
                     self.assertRaises(projects_module.EarlierReadKept):
@@ -401,6 +404,34 @@ class PipelineTests(unittest.TestCase):
             out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
         self.assertEqual(out['artifact']['status'], 'unsupported')
         self.assertEqual(out['artifact']['text_members']['refused']['code'], 'pdf_reader_stopped')
+
+    def test_the_reason_given_is_the_shortfall_not_the_page_cap(self):
+        self.recover('log.pdf')
+        records = [{'kind': 'start', 'page_count': 40},
+                   {'kind': 'page', 'page': 1, 'text': 'First page.', 'truncated': False},
+                   {'kind': 'page_failed', 'page': 2, 'code': 'memory_limit'}, {'kind': 'done'}]
+        with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)), \
+                self.assertRaises(projects_module.EarlierReadKept) as caught:
+            self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertIn('memory limit', str(caught.exception))
+        self.assertNotIn('text_member_report', str(caught.exception))
+
+    def test_a_finished_shorter_read_replaces_the_saved_read(self):
+        self.recover('log.pdf')
+        records = [{'kind': 'start', 'page_count': 2},
+                   {'kind': 'page', 'page': 1, 'text': 'Only this page has text now.', 'truncated': False},
+                   {'kind': 'page', 'page': 2, 'text': ' ', 'truncated': False}, {'kind': 'done'}]
+        with mock.patch.object(pdf_text, '_run_worker', return_value=(records, False)):
+            out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+        self.assertEqual(out['artifact']['text_members']['read'], 1)
+
+    def test_a_short_read_that_got_further_replaces_a_shorter_one(self):
+        start = {'kind': 'start', 'page_count': 3}
+        pages = [{'kind': 'page', 'page': n, 'text': f'Text of page {n}.', 'truncated': False} for n in (1, 2)]
+        for records, read in (([start, pages[0]], 1), ([start, *pages], 2)):
+            with mock.patch.object(pdf_text, '_run_worker', return_value=(records, True)):
+                out = self.store.recover(self.pid, self.ids['log.pdf'], self.own_reader())
+            self.assertEqual(out['artifact']['text_members']['read'], read)
 
     def test_a_full_reread_still_replaces_the_saved_read(self):
         self.recover('log.pdf')

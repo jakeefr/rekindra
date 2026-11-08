@@ -27,6 +27,8 @@ _ID = re.compile(r'^[0-9a-f]{32}$')
 _HASH = re.compile(r'^[0-9a-f]{64}$')
 _ARTIFACT_KINDS = {('recovered', 'png'), ('evidence', 'intake-json')}
 _EVIDENCE_FORMATS = ('text', 'zip', 'pdf')
+# These say the reader fell short, as opposed to a finished read's verdict on the file.
+_READER_SHORTFALLS = frozenset({'pdf_reader_unavailable', 'pdf_reader_stopped', 'pdf_memory_limit', 'pdf_timeout'})
 
 
 def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
@@ -292,19 +294,22 @@ class ProjectStore:
 
     @staticmethod
     def _keep_earlier_read(project: dict, asset: dict, envelope) -> None:
-        # Same bytes but fewer pages means the reader fell short (load, memory, a broken
-        # install), so what it read before stands. A first read has nothing to protect.
+        # A read the reader could not finish must not replace one of the same bytes. A finished
+        # read may, even with fewer pages, because that is the current verdict on the file.
         if asset.get('format') != 'pdf' or not isinstance(envelope, dict):
             return
         saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
                       and a.get('source_sha256') == asset.get('sha256')), None)
-        members = envelope.get('text_members')
-        if ((saved or {}).get('text_members') or {}).get('read', 0) <= (len(members) if isinstance(members, list) else 0):
+        saved_pages = ((saved or {}).get('text_members') or {}).get('read', 0)
+        refused = (envelope.get('text_member_report') or {}).get('refused') or {}
+        causes = [refused.get('reason')] if refused.get('code') in _READER_SHORTFALLS else [
+            w.get('message') for w in envelope.get('warnings') or [] if w.get('code') in _READER_SHORTFALLS]
+        if not saved_pages or not causes:
             return
-        report = envelope.get('text_member_report') or {}
-        warnings = envelope.get('warnings') or [{}]
-        why = (report.get('refused') or {}).get('reason') or warnings[0].get('message') or 'It returned fewer pages.'
-        raise EarlierReadKept(f'The evidence read earlier was kept because this read fell short: {why}')
+        # Two short reads: the one that got further wins, so retrying can make progress.
+        if _READER_SHORTFALLS.intersection(saved.get('warnings') or []) and len(envelope.get('text_members') or []) > saved_pages:
+            return
+        raise EarlierReadKept(f'The evidence read earlier was kept because this read fell short: {causes[0]}')
 
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']
