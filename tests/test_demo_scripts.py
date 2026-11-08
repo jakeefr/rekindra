@@ -140,11 +140,29 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertIs(False, check.check_boats({'objects': [hull, mast(.07, '#695041')]}, 'boat')[0])
         ok, detail = check.check_boats({'objects': [hull, mast(.07, '#B89A78')]}, 'boat')
         self.assertTrue(ok, detail)
+        shrunk = dict(mast(.07, '#B89A78'), instances=[{'offset': [0, 0, 0], 'scale': [.5, 1, .5]}])
+        self.assertIs(False, check.check_boats({'objects': [hull, shrunk]}, 'boat')[0])
+        bound = dict(mast(.07, '#B89A78'), position={'x': 'r*cos(u*2*pi)', 'y': 'v', 'z': 'r*sin(u*2*pi)'})
+        self.assertIsNone(check.check_boats({'objects': [hull, bound]}, 'boat')[0])
 
     def test_beam_fade_needs_eased_end(self):
         self.assertTrue(check.beam_fade({'color_pattern': 'u*u*(3-2*u)'})[0])
         self.assertIs(False, check.beam_fade({'color_pattern': 'u'})[0])
         self.assertIs(False, check.beam_fade({})[0])
+        self.assertTrue(check.beam_fade({'color_mix': 'u*u*(3-2*u)'})[0])
+        self.assertIsNone(check.beam_fade({'color_pattern': 'nosuchname(u)'})[0])
+
+    def test_check_beam_fails_on_linear_fade_when_motion_passes(self):
+        frames = []
+        for x0 in (0, 40):
+            f = np.zeros((40, 80, 3))
+            f[10:20, x0:x0 + 20] = [1, .8, .4]
+            frames.append(f)
+        scene = {'assemblies': [{'id': 'sweep', 'rotation': {'x': '0', 'y': 't', 'z': '0'}}],
+                 'objects': [{'id': 'beam', 'assembly': 'sweep', 'color_pattern': 'u*u*(3-2*u)'}]}
+        self.assertTrue(check.check_beam(scene, frames, 'beam')[0])
+        scene['objects'][0]['color_pattern'] = 'u'
+        self.assertIs(False, check.check_beam(scene, frames, 'beam')[0])
 
     def test_instance_scale_uses_least_elongated_copy(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]

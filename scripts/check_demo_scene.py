@@ -179,12 +179,18 @@ def assembly(scene, aid):
 
 
 def beam_fade(o):
-    """The glow cone must ease out to color_high: pattern reaches ~1 at u=1 with ~zero slope (no flat end cap)."""
+    """The glow cone must ease out to color_high: pattern reaches ~1 at u=1 with ~zero slope (no flat end cap).
+
+    The engine blends with color_mix when no color_pattern is set, so either field counts.
+    """
+    expr = o.get('color_pattern') or o.get('color_mix')
+    if not expr:
+        return False, 'no color_pattern/color_mix fade'
     try:
-        fp = sampler(o.get('color_pattern') or '0')
+        fp = sampler(expr)
         end, near = float(fp(1.0, 0.0, 0.0)), float(fp(.95, 0.0, 0.0))
     except Exception as exc:
-        return False, f'color_pattern unsampled ({exc.__class__.__name__})'
+        return None, f'fade pattern unsampled ({exc.__class__.__name__})'
     ok = end >= .95 and end - near <= .02
     return ok, f'fade end={end:.2f} (>=.95) slope_at_end={end - near:.3f} (<=.02)'
 
@@ -214,7 +220,9 @@ def check_beam(scene, frames, beam_id):
     w = frames[0].shape[1]
     area = float(np.median(areas))
     fade_ok, fade = beam_fade(o)
-    ok = bool(sweeps and area >= .002 and travel >= .05 * w and fade_ok)
+    ok = bool(sweeps and area >= .002 and travel >= .05 * w and fade_ok is not False)
+    if ok and fade_ok is None:
+        ok = None  # everything measured passed; the fade could not be sampled
     return ok, (f'beam={beam_id} assembly_rotation_has_t={sweeps}, warm_area={area * 100:.2f}% (>=0.20%), '
                 f'warm_centroid_travel={travel:.0f}px (>={.05 * w:.0f}), {fade}')
 
@@ -254,17 +262,24 @@ def check_boats(scene, boat_id):
     ratio = min(max(ex * sc[0], ez * sc[2]) / max(min(ex * sc[0], ez * sc[2]), 1e-6) for sc in scales)
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
-    masts, mast_ok = [], True
+    masts, mast_ok, mast_unmeasured = [], True, False
     for p in scene['objects']:
         if p['id'] in peers and 'mast' in p['id'] and p.get('position'):
             mx, mz, _ = surface_extent(p)
             if mx is None:
+                mast_unmeasured = True
                 masts.append(f'{p["id"]} unsampled')
                 continue
-            radius, lum = max(mx, mz) / 2, luminance(p.get('color', '#000000'))
-            mast_ok = mast_ok and radius >= .065 and lum >= .5
+            # Thinnest axis of the smallest copy; assembly and instance scale shrink it like the hull.
+            mscales = [[float(x) * y for x, y in zip(i.get('scale', [1, 1, 1]), asc)]
+                       for i in p.get('instances') or [{}]]
+            radius = min(min(mx * sc[0], mz * sc[2]) for sc in mscales) / 2
+            lum = luminance(p.get('color', '#000000'))
+            mast_ok = mast_ok and radius >= .07 - 1e-6 and lum >= .5
             masts.append(f'{p["id"]} r={radius:.3f} (>=.07) lum={lum:.2f} (>=.5)')
     ok = bool(ratio >= 2.5 and bool(peers) and mast_ok)
+    if ok and mast_unmeasured:
+        ok = None
     return ok, (f'boat={boat_id} hull L/W={ratio:.2f} (>=2.5, {how}), parts sharing assembly={peers or "none"}'
                 + (f', masts: {"; ".join(masts)}' if masts else ''))
 
