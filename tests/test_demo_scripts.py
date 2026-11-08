@@ -128,6 +128,24 @@ class BeamAndBoatTests(unittest.TestCase):
         ok, detail = check.check_boats({'objects': [disc, mast]}, 'boat')
         self.assertIs(False, ok, detail)
 
+    def test_thin_dark_mast_fails_and_wood_mast_passes(self):
+        pts = [[0, -1.4], [.32, -.7], [.45, .2], [.36, 1.0], [-.36, 1.0], [-.45, .2], [-.32, -.7]]
+        hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
+                'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'}}
+        def mast(r, color):
+            return {'id': 'boat_masts', 'assembly': 'home', 'color': color,
+                    'position': {'x': f'{r}*cos(u*2*pi)', 'y': '.36+1.8*v', 'z': f'{r}*sin(u*2*pi)'}}
+        ok, detail = check.check_boats({'objects': [hull, mast(.035, '#695041')]}, 'boat')
+        self.assertIs(False, ok, detail)
+        self.assertIs(False, check.check_boats({'objects': [hull, mast(.07, '#695041')]}, 'boat')[0])
+        ok, detail = check.check_boats({'objects': [hull, mast(.07, '#B89A78')]}, 'boat')
+        self.assertTrue(ok, detail)
+
+    def test_beam_fade_needs_eased_end(self):
+        self.assertTrue(check.beam_fade({'color_pattern': 'u*u*(3-2*u)'})[0])
+        self.assertIs(False, check.beam_fade({'color_pattern': 'u'})[0])
+        self.assertIs(False, check.beam_fade({})[0])
+
     def test_instance_scale_uses_least_elongated_copy(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]
         hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
