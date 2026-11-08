@@ -1,6 +1,6 @@
 """Program-checkable pass conditions for the five demo weak-spot units.
 
-Reads a saved world plan plus rendered frames and reports each unit as PASS/FAIL
+Reads a saved world plan plus rendered frames and reports each unit as PASS/FAIL/UNMEASURED
 with the measured numbers. It judges nothing aesthetic; frame review stays manual.
 
 Frames are single-frame PNGs, or a decoded review grid with --grid COLSxROWS
@@ -92,12 +92,13 @@ def check_horizon(scene, water_id):
     o = find(scene, water_id) if water_id else None
     if not o:
         return False, f'water object {water_id!r} not found'
-    if unmeasurable(scene, o):
-        return False, f'water={water_id} unmeasured ({", ".join(unmeasurable(scene, o))})'
+    why = unmeasurable(scene, o)
+    if why:
+        return None, f'water={water_id} unmeasured ({", ".join(why)})'
     try:
         fx, fz = sampler(o['position']['x']), sampler(o['position']['z'])
     except Exception as exc:
-        return False, f'water={water_id} unsampled ({exc.__class__.__name__})'
+        return None, f'water={water_id} unmeasured (unsampled: {exc.__class__.__name__})'
     g = np.linspace(0, 1, 49)
     insts = o.get('instances') or [{}]
     offs = [i.get('offset', [0, 0, 0]) for i in insts]
@@ -216,9 +217,17 @@ def check_boats(scene, boat_id):
         return False, f'boat object {boat_id!r} not found'
     ex, ez, how = surface_extent(o)
     if ex is None:
-        return False, f'boat={boat_id} extent {how}'
-    # Instance scale stretches each copy; the least elongated copy decides.
-    scales = [i.get('scale', [1, 1, 1]) for i in o.get('instances') or []] or [[1, 1, 1]]
+        return None, f'boat={boat_id} unmeasured (extent {how})'
+    a = assembly(scene, o.get('assembly')) or {}
+    rot = a.get('rotation') or {}
+    tilted = any(str(rot.get(k, '0')).strip() not in ('0', '0.0') for k in 'xz')
+    inst_rot = any(i.get('rotation') and any(float(x) for x in i['rotation']) for i in o.get('instances') or [])
+    if a.get('parent') or tilted or inst_rot:
+        return None, f'boat={boat_id} unmeasured (assembly parent / x-z tilt / instance rotation)'
+    asc = [float(x) for x in a.get('scale', [1, 1, 1])]
+    # Assembly and instance scale stretch each copy; the least elongated copy decides.
+    scales = [[float(x) * y for x, y in zip(i.get('scale', [1, 1, 1]), asc)]
+              for i in o.get('instances') or [{}]]
     ratio = min(max(ex * sc[0], ez * sc[2]) / max(min(ex * sc[0], ez * sc[2]), 1e-6) for sc in scales)
     peers = [p['id'] for p in scene['objects']
              if p['id'] != boat_id and o.get('assembly') and p.get('assembly') == o.get('assembly')]
@@ -250,8 +259,10 @@ def main(argv=None):
         'boats': check_boats(scene, a.boat_id),
     }
     for name, (ok, detail) in results.items():
-        print(f'{"PASS" if ok else "FAIL"} {name}: {detail}')
-    return 0 if all(ok for ok, _ in results.values()) else 1
+        print(f'{"UNMEASURED" if ok is None else "PASS" if ok else "FAIL"} {name}: {detail}')
+    states = [ok for ok, _ in results.values()]
+    # 1 = a unit failed; 2 = nothing failed but the checker could not measure a unit.
+    return 1 if False in states else 2 if None in states else 0
 
 
 if __name__ == '__main__':

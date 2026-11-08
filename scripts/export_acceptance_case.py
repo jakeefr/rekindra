@@ -15,10 +15,13 @@ def world_html(item):
         for parent in Path(item['path']).parents:
             if parent.name == item['project_id']:
                 html = parent / 'artifacts' / f"{item['plan_id']}.html"
-                plan = parent / 'plans' / f"{item['plan_id']}.json"
+                plan = Path(item['plan_path']) if item.get('plan_path') else parent / 'plans' / f"{item['plan_id']}.json"
                 if not (html.is_file() and plan.is_file()):
                     return None  # e.g. a review_camera preview of a plan that was never built
-                scene = json.loads(plan.read_text(encoding='utf-8')).get('scene', {})
+                try:
+                    scene = json.loads(plan.read_text(encoding='utf-8')).get('scene', {})
+                except (ValueError, OSError):
+                    return None  # unreadable plan is not a world to export
                 return str(html) if scene.get('schema_version') == 2 else None
     return None
 
@@ -30,7 +33,7 @@ def main():
     parser.add_argument('output', type=Path)
     args = parser.parse_args()
     row = summarize(args.events)
-    worlds = [dict(a, path=world_html(a)) for a in row['artifacts'] if world_html(a)]
+    worlds = [dict(a, path=p) for a in row['artifacts'] if (p := world_html(a))]
     args.output.mkdir(parents=True, exist_ok=True)
     record = {'selection': 'last created or previewed world, not a quality acceptance decision', 'case': row['case']}
     if not worlds:

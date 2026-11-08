@@ -25,6 +25,10 @@ EYES = [{'at': 0, 'eye': [12, 10, 24], 'target': [0, 3, 0], 'fov': 46}]
 ENV = {'fog_density': .003, 'fog_color': '#B88198', 'sky_bottom': '#B88198'}
 
 
+def two_sections(pts):
+    return [{'height': 0, 'points': [[x * .8, z * .9] for x, z in pts]}, {'height': .3, 'points': pts}]
+
+
 def water(position, **extra):
     return dict({'id': 'sea', 'position': position}, **extra)
 
@@ -57,8 +61,28 @@ class HorizonTests(unittest.TestCase):
         scene['assemblies'] = [{'id': 'drift', 'translation': {'x': 't', 'y': '0', 'z': '0'},
                                 'rotation': {'x': '0', 'y': '0', 'z': '0'}, 'pivot': [0, 0, 0], 'scale': [1, 1, 1]}]
         ok, detail = check.check_horizon(scene, 'sea')
-        self.assertFalse(ok)
+        self.assertIsNone(ok)
         self.assertIn('unmeasured', detail)
+
+    def test_parent_or_static_rotation_or_instance_rotation_is_unmeasured(self):
+        base = {'id': 'drift', 'translation': {'x': '0', 'y': '0', 'z': '0'},
+                'rotation': {'x': '0', 'y': '0', 'z': '0'}, 'pivot': [0, 0, 0], 'scale': [1, 1, 1]}
+        disc = water({'x': '320*v*v*cos(u*2*pi)', 'y': '0', 'z': '320*v*v*sin(u*2*pi)'}, assembly='drift')
+        for change in ({'parent': 'root'}, {'rotation': {'x': '0', 'y': '0.3', 'z': '0'}}):
+            scene = self.scene(dict(disc))
+            scene['assemblies'] = [dict(base, **change)]
+            self.assertIsNone(check.check_horizon(scene, 'sea')[0], change)
+        rotated = water(disc['position'], instances=[{'offset': [0, 0, 0], 'rotation': [0, .5, 0]}])
+        self.assertIsNone(check.check_horizon(self.scene(rotated), 'sea')[0])
+
+    def test_instance_scale_moves_the_rim(self):
+        disc = water({'x': '12+150*v*v*cos(u*2*pi)', 'y': '0', 'z': '24+150*v*v*sin(u*2*pi)'},
+                     color_high='#B88198', color_pattern='clamp((v-.9)*10,0,1)')
+        self.assertFalse(check.check_horizon(self.scene(disc), 'sea')[0])  # rim ~150 from the eye
+        big = dict(disc, position={'x': '150*v*v*cos(u*2*pi)', 'y': '0', 'z': '150*v*v*sin(u*2*pi)'},
+                   instances=[{'offset': [12, 0, 24], 'scale': [2, 1, 2]}])
+        ok, detail = check.check_horizon(self.scene(big), 'sea')
+        self.assertTrue(ok, detail)
 
 
 class BeamAndBoatTests(unittest.TestCase):
@@ -73,9 +97,14 @@ class BeamAndBoatTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn('not found', detail)
 
+    def test_beam_without_assembly_is_named(self):
+        ok, detail = check.check_beam({'objects': [{'id': 'beam'}], 'assemblies': []}, [np.zeros((4, 4, 3))], 'beam')
+        self.assertFalse(ok)
+        self.assertIn('no assembly', detail)
+
     def test_pointed_loft_passes_and_disc_fails(self):
         pts = [[0, -1.4], [.32, -.7], [.45, .2], [.36, 1.0], [-.36, 1.0], [-.45, .2], [-.32, -.7]]
-        hull = {'id': 'boat', 'assembly': 'home', 'loft': [{'height': 0, 'points': pts}],
+        hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
                 'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'}}
         mast = {'id': 'mast', 'assembly': 'home'}
         ok, detail = check.check_boats({'objects': [hull, mast]}, 'boat')
@@ -87,11 +116,28 @@ class BeamAndBoatTests(unittest.TestCase):
 
     def test_instance_scale_uses_least_elongated_copy(self):
         pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]
-        hull = {'id': 'boat', 'assembly': 'home', 'loft': [{'height': 0, 'points': pts}],
+        hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
                 'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'},
                 'instances': [{'offset': [0, 0, 0], 'scale': [1, 1, 1]}, {'offset': [3, 0, 0], 'scale': [2.5, 1, 1]}]}
         ok, detail = check.check_boats({'objects': [hull, {'id': 'mast', 'assembly': 'home'}]}, 'boat')
         self.assertFalse(ok, detail)  # the second copy is stretched almost square
+
+    def test_deformed_loft_is_unmeasured_not_failed(self):
+        pts = [[0, -1.4], [.45, 0], [0, 1.4], [-.45, 0]]
+        hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
+                'position': {'x': 'loft_x*1.1', 'y': 'loft_y', 'z': 'loft_z'}}
+        ok, detail = check.check_boats({'objects': [hull, {'id': 'mast', 'assembly': 'home'}]}, 'boat')
+        self.assertIsNone(ok, detail)
+
+    def test_assembly_scale_and_tilt(self):
+        pts = [[0, -1.4], [.32, -.7], [.45, .2], [.36, 1.0], [-.36, 1.0], [-.45, .2], [-.32, -.7]]
+        hull = {'id': 'boat', 'assembly': 'home', 'loft': two_sections(pts),
+                'position': {'x': 'loft_x', 'y': 'loft_y', 'z': 'loft_z'}}
+        objs = [hull, {'id': 'mast', 'assembly': 'home'}]
+        flat = {'id': 'home', 'rotation': {'x': '0', 'y': 't', 'z': '0'}, 'scale': [3, 1, 1]}
+        self.assertFalse(check.check_boats({'objects': objs, 'assemblies': [flat]}, 'boat')[0])
+        tilt = {'id': 'home', 'rotation': {'x': '0.1*sin(t)', 'y': '0', 'z': '0'}, 'scale': [1, 1, 1]}
+        self.assertIsNone(check.check_boats({'objects': objs, 'assemblies': [tilt]}, 'boat')[0])
 
 
 class FrameTests(unittest.TestCase):
@@ -126,6 +172,12 @@ class ExportSelectionTests(unittest.TestCase):
             self.assertIsNone(export.world_html(self.project(tmp, html=False)))
         with tempfile.TemporaryDirectory() as tmp:
             self.assertIsNone(export.world_html(self.project(tmp, schema_version=1)))
+
+    def test_corrupt_plan_is_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            item = self.project(tmp)
+            (Path(tmp) / 'projects' / 'p1' / 'plans' / 'plan2.json').write_text('{"scene": ')
+            self.assertIsNone(export.world_html(item))
 
     def test_create_world_path_is_used_directly(self):
         self.assertEqual(export.world_html({'tool': 'rekindra_create_world', 'path': 'x.html'}), 'x.html')
