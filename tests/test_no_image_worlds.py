@@ -8,7 +8,7 @@ import test_recover_evidence as recover_tests
 from rekindra_core.compositions import CompositionStore
 from rekindra_core.revisions import revise_world
 from rekindra_core.scenes import SceneError
-from rekindra_core.worlds import validate_world, WORLD_SCHEMA
+from rekindra_core.worlds import validate_world, UndeclaredWorldSource, WORLD_SCHEMA
 
 SCHEMAS = recover_tests.plugin.schemas.SCHEMAS
 
@@ -77,6 +77,11 @@ class ShapeTests(unittest.TestCase):
         self.assertEqual(create['parameters']['properties']['asset_ids']['minItems'], 0)
         self.assertIn('text_references', create['description'])
         self.assertIn('no image', create['description'].lower())
+        guidance = create['parameters']['properties']['asset_ids']['description']
+        self.assertIn('only', guidance.lower())
+        self.assertIn('text-only', guidance)
+        self.assertIn('every', guidance.lower())
+        self.assertIn('scene.references', guidance)
         for name in ('rekindra_compose', 'rekindra_plan'):
             self.assertIn('asset_ids', SCHEMAS[name]['parameters']['required'])
             self.assertEqual(SCHEMAS[name]['parameters']['properties']['asset_ids']['minItems'], 1)
@@ -128,6 +133,73 @@ class NoImageProjectTests(recover_tests.RecoverEvidenceTests):
         out = self.create(text_only(self.cited()), asset_ids=[self.ids['photo.tga']])
         self.assertFalse(out['ok'], out)
         self.assertIn('references', out['error']['message'])
+
+    def plans(self):
+        return sorted(p.name for p in (self.store._project(self.project['project_id']) / 'plans').glob('*.json'))
+
+    def test_omitted_asset_ids_with_an_image_reference_names_the_available_ids(self):
+        photo = self.ids['photo.tga']
+        for extra in ({}, {'asset_ids': []}):
+            with self.subTest(extra=extra):
+                before = self.plans()
+                out = self.create(world(photo), **extra)
+                self.assertFalse(out['ok'], out)
+                message = out['error']['message']
+                self.assertIn(f"scene references asset '{photo}' but asset_ids is empty", message)
+                self.assertIn(f"Pass asset_ids: ['{photo}']", message)
+                self.assertIn(f"Available recovered assets: ['{photo}']", message)
+                # Only images are offered, and nothing was saved under an inferred list.
+                self.assertNotIn(self.ids['notes.txt'], message)
+                self.assertEqual(self.plans(), before)
+
+    def test_the_same_scene_succeeds_once_it_lists_the_image(self):
+        photo = self.ids['photo.tga']
+        out = self.create(world(photo), asset_ids=[photo])
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(out['result']['source_ids'], [photo])
+
+    def test_a_reference_outside_a_nonempty_list_names_what_is_missing(self):
+        photo, unknown = self.ids['photo.tga'], 'c' * 32
+        scene = world(photo); scene['references'][0]['asset_id'] = unknown
+        out = self.create(scene, asset_ids=[photo])
+        self.assertFalse(out['ok'], out)
+        message = out['error']['message']
+        self.assertIn(f"scene references asset '{unknown}' but asset_ids does not list it", message)
+        self.assertIn(f"Pass asset_ids: ['{photo}']", message)
+        self.assertIn(f"Available recovered assets: ['{photo}']", message)
+
+    def test_every_undeclared_reference_is_named_at_once(self):
+        photo, unknown = self.ids['photo.tga'], 'c' * 32
+        scene = world(photo); scene['references'].append(dict(scene['references'][0], asset_id=unknown))
+        message = self.create(scene)['error']['message']
+        self.assertIn(f"scene references assets '{photo}', '{unknown}' but asset_ids is empty", message)
+
+    def test_a_cited_id_is_clipped_in_the_error(self):
+        scene = world(self.ids['photo.tga']); scene['references'][0]['asset_id'] = 'z' * 5000
+        out = self.create(scene)
+        self.assertFalse(out['ok'], out)
+        self.assertLess(len(out['error']['message']), 600)
+
+    def test_a_project_without_images_points_to_a_text_only_world(self):
+        exc = UndeclaredWorldSource(['c' * 32])
+        message = recover_tests.plugin.handlers.undeclared_source_message(exc, [], [])
+        self.assertIn('has no image assets', message)
+        self.assertIn('text_references', message)
+        self.assertNotIn('Pass asset_ids', message)
+
+    def test_a_long_asset_list_is_bounded(self):
+        available = [f'{i:032x}' for i in range(100)]
+        message = recover_tests.plugin.handlers.undeclared_source_message(UndeclaredWorldSource(['z']), [], available)
+        self.assertIn("Pass asset_ids: ['<id>']", message)
+        self.assertIn('(and 60 more; see rekindra_status)', message)
+        self.assertNotIn(available[40], message)
+
+    def test_repeated_references_keep_their_own_error(self):
+        photo = self.ids['photo.tga']
+        scene = world(photo); scene['references'].append(dict(scene['references'][0]))
+        out = self.create(scene, asset_ids=[photo])
+        self.assertFalse(out['ok'], out)
+        self.assertEqual(out['error']['message'], 'Invalid or repeated world source')
 
     def test_no_image_and_no_text_is_refused(self):
         out = self.create(text_only())
