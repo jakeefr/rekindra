@@ -10,6 +10,7 @@ try:
 except ImportError:
     Image = None
 
+from rekindra_core.compositions import CompositionStore
 from rekindra_core.image_recovery import ImageRefused, clean_palette, read_image
 from rekindra_core.projects import ProjectStore
 
@@ -142,6 +143,18 @@ class StorePaletteTests(unittest.TestCase):
         project_id, artifact = self.recover('old.tga', fixture())
         self.assertTrue(artifact['palette'])
         self.assertEqual(self.store.status(project_id)['artifacts'][0]['palette'], artifact['palette'])
+
+    def test_building_never_measures_and_keeps_the_saved_palette(self):
+        good = [{'hex': '#AABBCC', 'location': 'middle', 'coverage': 100.0}]
+        with mock.patch('rekindra_core.projects.read_image', return_value={'header': {'palette': good}}):
+            project_id, artifact = self.recover('old.tga', fixture())
+        self.assertEqual(artifact['palette'], good)
+        with mock.patch('rekindra_core.projects.read_image', side_effect=ImageRefused('image_timeout', 'no')) as reader:
+            CompositionStore(self.store).sources(project_id, [artifact['asset_id']])
+            again = self.store.recover(project_id, artifact['asset_id'])
+        reader.assert_not_called()
+        self.assertEqual(again['palette'], good)
+        self.assertEqual(self.store.status(project_id)['artifacts'][0]['palette'], good)
 
     def test_a_tga_recovery_survives_a_palette_failure(self):
         with mock.patch('rekindra_core.projects.read_image', side_effect=ImageRefused('image_timeout', 'no')):

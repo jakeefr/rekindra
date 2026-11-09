@@ -265,13 +265,14 @@ class ProjectStore:
             destination.unlink(missing_ok=True)
             raise
 
-    def recover(self, project_id: str, asset_id: str, evidence_reader=None) -> dict:
+    def recover(self, project_id: str, asset_id: str, evidence_reader=None, measure_palette: bool = True) -> dict:
         """Recover one saved asset.
 
         TGA decodes to PNG with the original decoder and other images with Pillow in a child
         process. Text, ZIP and PDF go through ``evidence_reader`` (a dict with
         ``intake(format, data, name)`` and ``dossier(records)``) when the caller
-        supplies one; their result is quoted observation, never interpretation.
+        supplies one; their result is quoted observation, never interpretation. A caller that
+        only needs the recovered file passes ``measure_palette=False`` to spare a TGA the child.
         """
         with _STORE_LOCK:
             if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
@@ -295,6 +296,8 @@ class ProjectStore:
             else:
                 recovered = None
         if recovered is not None:
+            if not measure_palette or recovered['palette'] is not None:
+                return recovered
             return self._add_tga_palette(project_id, recovered)
         # A reader can wait on a child process for seconds, so the store stays free meanwhile;
         # what it read is only committed if the asset is still the one that was verified.
@@ -346,11 +349,19 @@ class ProjectStore:
         artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
                     'path': str(target), 'source_sha256': asset['sha256'],
                     'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
-                    'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
+                    'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings),
+                    'palette': self._saved_palette(project, asset)}
         project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         project['stage'] = 'recovered'
         self._save(directory, project)
         return artifact
+
+    @staticmethod
+    def _saved_palette(project: dict, asset: dict):
+        # The same bytes decode to the same picture, so an earlier measurement still holds.
+        saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
+                      and a.get('source_sha256') == asset['sha256']), None)
+        return saved.get('palette') if saved else None
 
     def _add_tga_palette(self, project_id: str, artifact: dict) -> dict:
         # Measured from the PNG we wrote, in the child and outside the store lock like any other
