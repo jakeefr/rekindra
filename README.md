@@ -29,17 +29,17 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 ## Working now
 
 - `rekindra_inspect`: bounded folder inventory, source snapshots, hashes and explicit skips. Files no recovery route accepts are named from their leading bytes ("identified as RAR archive, not supported yet") without being opened or run.
-- `rekindra_recover`: original TGA type 2/10 true-color decoding to PNG, and JPEG, PNG, BMP, GIF, TIFF, PCX, ICO, WebP, PPM, QOI, SGI and DDS through Pillow to normalized PNG copies with dimensions, format and EXIF date, all with provenance.
+- `rekindra_recover`: original TGA type 2/10 true-color decoding to PNG, and JPEG, PNG, BMP, GIF, TIFF, PCX, ICO, WebP, PPM, QOI, SGI and DDS through Pillow to normalized PNG copies with dimensions, format and EXIF date. A damaged image keeps only the pixels that really decoded and is marked partial. Text, Markdown, JSON and CSV become quoted evidence with citable IDs. ZIP archives have their text members read in memory under size, ratio and time caps; nothing is extracted. PDFs have their text read page by page in a separate process, with no OCR. All of it carries provenance.
 - `rekindra_status`: saved inventory and recovered artifacts.
 - `rekindra_compose`: validate an agent-authored scene and build a portable, offline HTML player with ASCII mode and silent WebM export.
 - `rekindra_plan`: optional separate host-owned structured model call to infer mood and save a scene plan.
 - `rekindra_build`: rebuild a saved plan after verifying source integrity.
-- `rekindra_preview`: render a saved scene into a timed PNG contact sheet in an isolated local browser so the active agent can inspect and revise it. Requires installed Chrome/Chromium/Edge; no production Playwright dependency.
+- `rekindra_preview`: render a saved scene into a timed PNG contact sheet in an isolated local browser so the active agent can inspect and revise it. World previews also report palette drift against the source and any backdrop edge in frame. Requires installed Chrome/Chromium/Edge; no production Playwright dependency.
 - `rekindra_export`: clear a previewed world for video. Refuses unresolved palette drift or a backdrop edge until they are revised or acknowledged with a reason, allows export with the warnings recorded after three flagged revise and preview cycles, and writes the only world HTML that can save WebM.
-- `rekindra_create_world`: create generated geometry, animated surfaces, atmosphere, materials and a moving perspective camera from source interpretation. No source-image textures or text are drawn in this mode.
+- `rekindra_create_world`: create generated geometry, animated surfaces, atmosphere, materials and a moving perspective camera from the agent's interpretation of recovered images, recovered text, or both. A folder of notes or PDFs with no image can still make a world, citing the evidence it used through `text_references`. No source-image textures or text are drawn in this mode.
 - `rekindra_revise_world`: apply bounded field edits to a new immutable world plan, then review its rendered output.
 
-Recommended flow: inspect the selected folder, recover its images, let the active Hermes agent view selected images with consent, then have it call `rekindra_compose`. Creative output is labelled generated. `rekindra_plan` is an optional route; on the tested native Hermes build, its Python auxiliary model client could not access the working Codex chat sign-in. Do not copy credentials or add a second provider to work around this. Use the active agent route.
+Recommended flow: inspect the selected folder, recover its images and text, let the active Hermes agent view selected images with consent and read the recovered evidence, then have it call `rekindra_compose` or `rekindra_create_world`. A world then goes through `rekindra_preview`, any revisions, and `rekindra_export`. Creative output is labelled generated. `rekindra_plan` is an optional route; on the tested native Hermes build, its Python auxiliary model client could not access the working Codex chat sign-in. Do not copy credentials or add a second provider to work around this. Use the active agent route.
 
 For a new environment rather than picture effects, prefer `rekindra_create_world` after source inspection. The agent records what it observed and what it invented, then authors parametric geometry in scene v2. The original WebGL2 renderer calculates moving geometry and shading at the requested time. The source image remains in the provenance gallery; it is not a texture on a rectangle. Camera and object motion are independent. This is generated interpretation, not recovery of a photograph's true 3D scene. See `docs/world-authoring.md`.
 
@@ -69,6 +69,6 @@ Real Windows Chrome acceptance now verifies original 1280x720 WebM output: nativ
 
 Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 46 Python and 6 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41989227727). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
 
-Next: stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
+Future work: general render checks beyond palette drift and backdrop edges, covering object readability, washout, aliasing, intersections, motion and horizon. Also stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
 
 
