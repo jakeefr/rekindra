@@ -215,7 +215,8 @@ def _describe(data, fields, position, cd_offset):
             found.add('unicode_lookalike_path')
     if not decodable:
         found.add('name_not_decodable')
-    if name.lower().endswith(_NESTED_SUFFIXES):
+    # Windows drops trailing dots and spaces on extraction, so 'a.zip. ' lands as 'a.zip'.
+    if name.rstrip(' .').lower().endswith(_NESTED_SUFFIXES):
         found.add('nested_archive_not_inspected')
     if _has_unicode_path(data[name_start + name_length:name_start + name_length + extra_length]):
         found.add('unicode_path_extra')

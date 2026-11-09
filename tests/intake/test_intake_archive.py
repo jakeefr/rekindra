@@ -542,5 +542,19 @@ class NeverTouchesPayloads(unittest.TestCase):
                         self.assertNotIn(node.attr, forbidden_attributes)
 
 
+class NestedArchiveTrailingCharacters(unittest.TestCase):
+    """Review finding 2: Windows drops trailing dots and spaces when extracting."""
+
+    def test_trailing_dot_and_space_still_flag_nested_archive(self):
+        for name in ('payload.zip.', 'payload.zip ', 'payload.ZIP. .', 'deep/payload.7z..'):
+            with self.subTest(name=name):
+                self.assertIn('nested_archive_not_inspected', flags(name, b'x'))
+
+    def test_name_without_archive_suffix_is_not_flagged(self):
+        for name in ('payload.zipx.', 'payload.txt ', 'notes.zip.txt'):
+            with self.subTest(name=name):
+                self.assertNotIn('nested_archive_not_inspected', flags(name, b'x'))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -149,6 +149,8 @@ Names are returned exactly as stored and are never normalized, so a dangerous pa
 
 `suspicious_expansion` applies when an entry claims at least 1 GiB, claims data with zero compressed bytes, or claims at least 1 MiB at a ratio of 100:1 or more. These are heuristics and legitimate files can trigger them. `suspicious_total_expansion` applies to at least 1 GiB across the inspected entries.
 
+`nested_archive_not_inspected` applies when the name, after trailing dots and spaces are removed (Windows drops them on extraction), ends in an archive suffix such as `.zip`, `.7z` or `.tar`, ignoring case.
+
 Archive-level codes: `input_too_large`, `not_a_zip`, `eocd_missing`, `central_directory_out_of_bounds`, `central_directory_malformed`, `entry_count_mismatch`, `entry_limit_exceeded`, `entry_name_truncated`, `multiple_eocd_candidates`, `trailing_data`, `extension_mismatch`.
 
 ## Limitations
