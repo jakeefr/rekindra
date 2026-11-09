@@ -181,9 +181,9 @@ def _analyze_json(text, decoded_fully, budget, warnings):
     deepest = _json_depth(text)
     if deepest > MAX_JSON_DEPTH:
         warnings.add('json_depth_exceeded', f'Nesting exceeds {MAX_JSON_DEPTH} levels, so the document was not parsed.')
-        root = text.lstrip()[:1]
-        return 'partial', {'valid': None, 'root_type': 'object' if root == '{' else 'array',
-                           'depth_limit': MAX_JSON_DEPTH}
+        # Only the first non-whitespace character is known; anything else is not a container root.
+        root = {'{': 'object', '[': 'array'}.get(text.lstrip()[:1])
+        return 'partial', {'valid': None, 'root_type': root, 'depth_limit': MAX_JSON_DEPTH}
     duplicates = 0
 
     def pairs(items):

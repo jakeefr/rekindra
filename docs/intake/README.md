@@ -93,7 +93,7 @@ All text results include `encoding`, `bom`, `line_count`, `blank_line_count`, `c
 
 **JSON** adds `valid` (`true`, `false`, or `null` when not parsed), `root_type`, and `max_depth` when parsed. Objects add `top_level_keys`, `top_level_key_count` and `top_level_keys_truncated`. Arrays add `array_length`. Values are never reported outside the excerpt.
 
-- Too deep: `partial`, `valid: null`, not parsed. A linear scan checks depth first, so the parser cannot recurse deeply.
+- Too deep: `partial`, `valid: null`, not parsed. A linear scan checks depth first, so the parser cannot recurse deeply. `root_type` is then `object` if the first non-whitespace character is `{`, `array` if it is `[`, and `null` otherwise.
 - `NaN`, `Infinity` or numbers overflowing to infinity such as `1e999`: `rejected`, `valid: false`.
 - Malformed: `partial`, `valid: false`, with `error.line` and `error.column`.
 - Duplicate keys at any depth are counted.

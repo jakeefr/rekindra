@@ -559,5 +559,25 @@ class FormulaLikeCells(unittest.TestCase):
         self.assertEqual(facts['first_row'], [self.DDE[0]])
 
 
+class OverDepthRootType(unittest.TestCase):
+    """Review finding 4: root_type past the depth limit comes from the first character only."""
+
+    def over(self, prefix, body):
+        result = inspect_text(prefix + body * 21, 'a.json')
+        self.assertIn('json_depth_exceeded', codes(result))
+        return result['facts']['root_type']
+
+    def test_object_root(self):
+        self.assertEqual(self.over(b'  \n', b'{"a":'), 'object')
+
+    def test_array_root(self):
+        self.assertEqual(self.over(b'\t', b'['), 'array')
+
+    def test_any_other_first_character_is_none(self):
+        for prefix in (b'"x" ', b'1 ', b'null ', b'x', b'}'):
+            with self.subTest(prefix=prefix):
+                self.assertIsNone(self.over(prefix, b'['))
+
+
 if __name__ == '__main__':
     unittest.main()
