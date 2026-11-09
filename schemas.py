@@ -20,7 +20,7 @@ SCHEMAS = {
     },
     'rekindra_inspect': {
         'name': 'rekindra_inspect',
-        'description': 'Inspect a user-selected local folder and save bounded copies in a Rekindra project. Does not execute input files, call a model, or modify originals. Excludes common credential/development paths. Ask the user to select a folder if none was provided.',
+        'description': 'Inspect a user-selected local folder and save bounded copies in a Rekindra project. Does not execute input files, call a model, or modify originals. Excludes common credential/development paths. A file no recovery route accepts carries an identification from its file signature, such as "identified as RAR archive, not supported yet"; tell the user that instead of attempting recovery. Ask the user to select a folder if none was provided.',
         'parameters': {'type': 'object', 'properties': {'folder': {'type': 'string', 'description': 'Absolute path to the folder the user selected.'}}, 'required': ['folder'], 'additionalProperties': False},
     },
     'rekindra_recover': {

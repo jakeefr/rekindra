@@ -28,7 +28,7 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 
 ## Working now
 
-- `rekindra_inspect`: bounded folder inventory, source snapshots, hashes and explicit skips.
+- `rekindra_inspect`: bounded folder inventory, source snapshots, hashes and explicit skips. Files no recovery route accepts are named from their leading bytes ("identified as RAR archive, not supported yet") without being opened or run.
 - `rekindra_recover`: original TGA type 2/10 true-color decoding to PNG, and JPEG, PNG, BMP, GIF, TIFF, PCX, ICO, WebP, PPM, QOI, SGI and DDS through Pillow to normalized PNG copies with dimensions, format and EXIF date, all with provenance.
 - `rekindra_status`: saved inventory and recovered artifacts.
 - `rekindra_compose`: validate an agent-authored scene and build a portable, offline HTML player with ASCII mode and silent WebM export.
