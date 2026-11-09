@@ -55,6 +55,26 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
     def snapshot(self):
         return {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.source.iterdir())}
 
+    # --- rotated partial image ----------------------------------------------------------
+
+    def test_partial_frame_follows_the_applied_exif_rotation(self):
+        from rekindra_core import reconstruct as module
+        page = module._Page()
+        proposal, _ = self.proposal()
+        project = self.store.status(self.pid)
+        tga = self.ids['photo.tga']
+        assets = {a['asset_id']: a for a in project['assets']}
+        images = module._image_artifacts(project)
+        # A damaged landscape JPEG whose EXIF asked for a quarter turn: the recovered pixels are portrait.
+        images[tga] = dict(images[tga], partial=True, decoded_fraction=0.5, exif_orientation=6,
+                           original_width=400, original_height=300)
+        gaps = {k: [] for k in ('skipped_at_inspect', 'not_recovered', 'intake', 'partial_images',
+                                'unplaced_images', 'unplaced_text')}
+        gaps['inventory_truncated'] = False
+        module._render(page, project, 'T', [{'title': 'S', 'items': [{'type': 'image', 'asset_id': tga}]}], [],
+                       gaps, assets, images, self.store._project(self.pid))
+        self.assertIn('style="aspect-ratio:300/400"', ''.join(page.parts))
+
     # --- happy path, labels, provenance -------------------------------------------------
 
     def test_writes_labeled_offline_page_and_provenance(self):
@@ -120,7 +140,42 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         self.assertTrue(out['ok'], out)
         gaps = out['result']['gaps']
         self.assertEqual([g['source_path'] for g in gaps['unplaced_images']['first']], ['photo.tga'])
-        self.assertTrue(any(g['source_path'] == 'bad.json' for g in gaps['intake']['first']), gaps)
+        listed = gaps['intake']['first'] + gaps['not_recovered']['first']
+        self.assertTrue(any(g['source_path'] == 'bad.json' for g in listed), gaps)
+
+    def test_reconstruct_never_rebuilds_the_evidence_dossier(self):
+        # Text, ZIP and PDF sources the caller did not recover are listed, not recovered here:
+        # recovering one would rebuild evidence.json and could re-id the passages being cited.
+        ids = self.evidence_for('notes.txt')
+        dossier = self.store._project(self.pid) / 'artifacts' / 'evidence.json'
+        before = dossier.read_bytes()
+        out = self.call(title='Notes only', sections=[{'title': 'Note', 'items': [
+            {'type': 'text', 'asset_id': self.ids['notes.txt'], 'evidence_ids': ids[:1]}]}])
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(dossier.read_bytes(), before)
+        missing = out['result']['gaps']['not_recovered']['first']
+        self.assertIn('old.zip', [g['source_path'] for g in missing])
+        self.assertIn('rekindra_recover', next(g['reason'] for g in missing if g['source_path'] == 'old.zip'))
+        self.refused(title='T', sections=[{'title': 'S', 'items': [
+            {'type': 'text', 'asset_id': self.ids['notes.txt'], 'evidence_ids': ['ev-' + '0' * 24]}]}])
+        self.assertEqual(dossier.read_bytes(), before)
+
+    def test_crlf_text_is_quoted_without_replacement_marks(self):
+        (self.source / 'dos.txt').write_bytes(b'First line, 1991.\r\nSecond line.\r\n')
+        self.reinspect()
+        ids = self.evidence_for('dos.txt')
+        out = self.call(title='DOS', sections=[{'title': 'S', 'items': [
+            {'type': 'text', 'asset_id': self.ids['dos.txt'], 'evidence_ids': ids[:1]}]}])
+        self.assertTrue(out['ok'], out)
+        page = Path(out['result']['path']).read_text(encoding='utf-8')
+        self.assertEqual(out['result']['replaced_characters'], 0)
+        self.assertNotIn('�', page)
+        self.assertNotIn('\r', page)
+        self.assertIn('First line, 1991.\nSecond line.', page)
+
+    def test_surrogates_are_refused_by_name(self):
+        proposal, _ = self.proposal()
+        self.assertIn('surrogate', self.refused(**dict(proposal, title='bad \ud800 title')))
 
     # --- validation ---------------------------------------------------------------------
 
@@ -142,10 +197,9 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         # Unknown asset.
         message = self.refused(title='T', sections=section({'type': 'image', 'asset_id': 'f' * 32}))
         self.assertIn('not in this project', message); self.assertIn(tga, message)
-        # Rejected by intake.
-        message = self.refused(title='T', sections=section(image, {'type': 'text', 'asset_id': bad,
-                                                                     'evidence_ids': ['ev-' + '0' * 24]}))
-        self.assertIn('gaps', message)
+        # Text nobody recovered: reconstruct does not recover it, it names the tool that does.
+        rejected = section(image, {'type': 'text', 'asset_id': bad, 'evidence_ids': ['ev-' + '0' * 24]})
+        self.assertIn('rekindra_recover', self.refused(title='T', sections=rejected))
         # Notes alone.
         message = self.refused(title='T', sections=section({'type': 'note', 'text': 'Only my words.'}))
         self.assertIn('at least one recovered', message); self.assertIn(tga, message)
@@ -157,6 +211,9 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         self.assertIn('exactly', self.refused(title='T', sections=section(dict(image, caption='x'))))
         self.assertIn('title', self.refused(sections=section(image)))
         self.assertIn('sections', self.refused(title='T', sections=[]))
+        # Rejected by intake once recovery was tried (last: recovering it rebuilds the dossier).
+        self.recover('bad.json')
+        self.assertIn('gaps', self.refused(title='T', sections=rejected))
         self.assertIn('Unknown fields', self.refused(title='T', sections=section(image), style='dark'))
         self.assertIn('at most 400', self.refused(title='T', sections=section(image, {'type': 'note', 'text': 'x' * 401})))
         # Nothing was written by any refusal.
@@ -280,3 +337,9 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
             {'project_id': self.pid, 'asset_ids': [tga], 'scene': scene, 'reconstruction_id': r['reconstruction_id']}))
         self.assertFalse(out['ok'], out)
         self.assertIn('changed after it was written', out['error']['message'])
+
+
+# The base class only lends its fixture; its own tests already run in test_recover_evidence.
+for _name in dir(recover_tests.RecoverEvidenceTests):
+    if _name.startswith('test_'):
+        setattr(ReconstructTests, _name, None)

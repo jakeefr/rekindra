@@ -12,6 +12,7 @@ import hashlib
 import html
 import json
 import re
+import time
 from pathlib import Path
 
 from .compositions import CompositionStore
@@ -34,8 +35,10 @@ RESULT_GAPS = 12
 _REFUSED = ('rejected', 'unsupported')
 _DATE = re.compile(r'^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$')
 _EVIDENCE_ID = re.compile(r'^ev-[0-9a-f]{24}$')
-# C0 and C1 controls except newline and tab, plus the characters that reorder or hide text.
-_UNSAFE = re.compile(r'[\x00-\x08\x0b-\x1f\x7f-\x9f\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]')
+# C0 and C1 controls except newline and tab, lone surrogates, and the characters that reorder or hide text.
+_UNSAFE = re.compile(r'[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\ud800-\udfff]')
+_LINE_END = re.compile(r'\r\n?')
+AUTO_RECOVER_SECONDS = 45
 OUT_OF_SCOPE = 'Repairing or finishing games or software projects is out of scope.'
 CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
 
@@ -46,7 +49,8 @@ class _Page:
         self.parts, self.replaced = [], 0
 
     def text(self, value) -> str:
-        cleaned, count = _UNSAFE.subn('\ufffd', str(value))
+        # Line endings are layout, not content: CRLF and lone CR become LF without counting as replaced.
+        cleaned, count = _UNSAFE.subn('\ufffd', _LINE_END.sub('\n', str(value)))
         self.replaced += count
         return html.escape(cleaned, quote=True)
 
@@ -63,6 +67,8 @@ def _listed(values: list) -> str:
 def _string(value, limit: int, what: str) -> str:
     if not isinstance(value, str) or not value.strip() or len(value.strip()) > limit:
         raise SceneError(f'{what} must be a nonempty string of at most {limit} characters')
+    if any('\ud800' <= ch <= '\udfff' for ch in value):
+        raise SceneError(f'{what} holds an unpaired surrogate character; pass plain Unicode text')
     return value.strip()
 
 
@@ -71,16 +77,21 @@ def _is_image(asset: dict) -> bool:
 
 
 def _recover_missing(store, project_id: str, reader) -> dict:
-    """Try recovery once for assets nobody recovered, so the gaps list can give the real reason."""
+    """Try recovery for images nobody recovered, so the gaps list can give the real reason.
+
+    Images only: recovering a text, ZIP or PDF source rebuilds the shared evidence dossier and can
+    re-id passages the caller is citing in this very call, so those are left for rekindra_recover.
+    The work is bounded by count and by wall time; what is left over says so.
+    """
     project = store.status(project_id)
     have = {a.get('asset_id') for a in project['artifacts']}
-    reasons, attempts = {}, 0
+    reasons, attempts, deadline = {}, 0, time.monotonic() + AUTO_RECOVER_SECONDS
     for asset in project['assets']:
         aid = asset['asset_id']
-        if aid in have:
+        if aid in have or not _is_image(asset):
             continue
-        if attempts >= MAX_AUTO_RECOVER:
-            reasons[aid] = 'recovery not attempted (more unrecovered files than one reconstruct call tries); run rekindra_recover on it'
+        if attempts >= MAX_AUTO_RECOVER or time.monotonic() >= deadline:
+            reasons[aid] = 'recovery not attempted (one reconstruct call only tries a bounded number of unrecovered images); run rekindra_recover on it'
             continue
         attempts += 1
         try:
@@ -312,6 +323,10 @@ def reconstruct(store, project_id: str, args: dict, reader=None) -> dict:
                          'interpretation': 'dated in a reconstruction'})
     quotes = (compositions.text_provenance(project_id, refs) or {}).get('recovered_evidence', []) if refs else []
     quoted = {(q['asset_id'], q['evidence_id']): q for q in quotes}
+    for quote in quotes:
+        number = dossier.get(quote['evidence_id'], {}).get('page_number')
+        if type(number) is int:
+            quote['page_number'] = number
     for section in sections:
         for item in section['items']:
             if item['type'] == 'text':
@@ -470,7 +485,9 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
         for entry in timeline:
             name = t(assets[entry['asset_id']]['source_path'])
             if entry['backing']['kind'] == 'exif':
-                backing = f'{rec}capture date {t(entry["backing"]["capture_date"])} stored in <code>{name}</code>'
+                kind = ('capture date' if entry['backing'].get('tag') == 'DateTimeOriginal'
+                        else 'file date (EXIF DateTime, which editing can change)')
+                backing = f'{rec}{kind} {t(entry["backing"]["capture_date"])} stored in <code>{name}</code>'
             else:
                 backing = (f'{rec}the year {t(entry["date"][:4])} appears in a passage of <code>{name}</code> '
                            f'(<code>{t(entry["evidence_id"])}</code>)')
@@ -487,9 +504,8 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
                 name = assets[item['asset_id']]['source_path']
                 for quote in item['quotes']:
                     where = [f'<code>{t(quote.get("source_path") or name)}</code>']
-                    locator = quote.get('locator')
-                    if isinstance(locator, dict) and isinstance(locator.get('page_number'), int):
-                        where.append(f'page {locator["page_number"]}')
+                    if type(quote.get('page_number')) is int:
+                        where.append(f'page {quote["page_number"]}')
                     if quote.get('clipped'):
                         where.append('clipped: the passage continues in the source')
                     page.add(f'<blockquote><pre>{t(quote.get("text") or "")}</pre>'
@@ -517,6 +533,8 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
                 alt = f'Recovered image from {t(name)}'
                 if artifact.get('partial') and artifact.get('original_width') and artifact.get('original_height'):
                     ow, oh = artifact['original_width'], artifact['original_height']
+                    if artifact.get('exif_orientation') in (5, 6, 7, 8):
+                        ow, oh = oh, ow   # the stored size predates the quarter turn the recovered pixels got
                     width = max(1.0, min(100.0, 100.0 * artifact['width'] / ow))
                     fraction = artifact.get('decoded_fraction')
                     percent = f'{100 * fraction:.1f}%' if isinstance(fraction, (int, float)) else 'part'
@@ -538,7 +556,8 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
 
 def _image_bytes(directory: Path, aid: str, artifact: dict, budget: int) -> tuple:
     full = directory / 'artifacts' / (aid + '.png')
-    note = {'shown': 'full', 'full_path': str(full)}
+    # The page may be shared, so it names the file, not the local directory layout.
+    note = {'shown': 'full', 'full_path': 'artifacts/' + full.name}
     data = _read_checked(full, artifact.get('sha256'), min(MAX_INLINE_IMAGE, budget))
     if data is None and artifact.get('scene_sha256'):
         data = _read_checked(directory / 'artifacts' / (aid + '.scene.png'), artifact['scene_sha256'],
