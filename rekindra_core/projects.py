@@ -19,6 +19,7 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
+from .image_recovery import IMAGE_FORMATS, ImageRefused, read_image
 from .pdf_text import ReaderBusy
 from .zip_text import MAX_DOSSIER_SOURCES, fit_members, member_byte_room, member_records
 
@@ -57,6 +58,14 @@ class ProjectError(ValueError):
 class ReaderRetry(ProjectError):
     """No reader process could be started in time; the request itself was fine."""
     code = 'reader_busy'
+
+
+class ImageRefusal(ProjectError):
+    """A decided outcome for an image, with a stable code for the agent."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
 
 
 def _pdf_pages(envelope: dict) -> list:
@@ -259,7 +268,8 @@ class ProjectStore:
     def recover(self, project_id: str, asset_id: str, evidence_reader=None) -> dict:
         """Recover one saved asset.
 
-        TGA decodes to PNG. Text, ZIP and PDF go through ``evidence_reader`` (a dict with
+        TGA decodes to PNG with the original decoder and other images with Pillow in a child
+        process. Text, ZIP and PDF go through ``evidence_reader`` (a dict with
         ``intake(format, data, name)`` and ``dossier(records)``) when the caller
         supplies one; their result is quoted observation, never interpretation.
         """
@@ -279,20 +289,28 @@ class ProjectStore:
                 data = inp.read(self.limits.max_file_bytes+1)
             if len(data) > self.limits.max_file_bytes or hashlib.sha256(data).hexdigest() != asset.get('sha256'):
                 raise ProjectError('Snapshot integrity check failed; original copy changed')
-            if asset.get('format') not in _EVIDENCE_FORMATS or evidence_reader is None:
+            image = asset.get('format') in IMAGE_FORMATS
+            if not image and (asset.get('format') not in _EVIDENCE_FORMATS or evidence_reader is None):
                 return self._recover_tga(project, directory, asset, data)
         # A reader can wait on a child process for seconds, so the store stays free meanwhile;
         # what it read is only committed if the asset is still the one that was verified.
         try:
-            envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
+            if image:
+                decoded = read_image(data, asset['format'])
+            else:
+                envelope = evidence_reader['intake'](asset['format'], data, asset['source_path'].rsplit('/', 1)[-1])
         except ReaderBusy as exc:   # a load problem, so whatever was saved earlier stays
             raise ReaderRetry(str(exc)) from exc
+        except ImageRefused as exc:
+            raise ImageRefusal(exc.code, str(exc)) from exc
         with _STORE_LOCK:
             project = self.status(project_id)
             directory = self._project(project_id)
             current = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
             if not current or current.get('sha256') != asset['sha256']:
                 raise ProjectError('The asset changed while it was being read; recover it again')
+            if image:
+                return self._commit_image(project, directory, current, decoded)
             return self._recover_evidence(project, directory, current, envelope, evidence_reader)
 
     @staticmethod
@@ -312,7 +330,7 @@ class ProjectStore:
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']
         if asset.get('format') not in ('tga', 'tga_candidate'):
-            raise ProjectError('Recovery supports the documented TGA subset, plus text, ZIP and PDF text')
+            raise ProjectError('Recovery supports common image formats, the documented TGA subset, and text, ZIP and PDF text')
         try:
             raster = decode_tga(data)
             png = encode_png(raster)
@@ -325,6 +343,35 @@ class ProjectStore:
                     'path': str(target), 'source_sha256': asset['sha256'],
                     'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
                     'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
+        project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
+        project['stage'] = 'recovered'
+        self._save(directory, project)
+        return artifact
+
+    def _commit_image(self, project: dict, directory: Path, asset: dict, decoded: dict) -> dict:
+        asset_id, header = asset['asset_id'], decoded['header']
+        target = directory / 'artifacts' / (asset_id + '.png')
+        scene_target = directory / 'artifacts' / (asset_id + '.scene.png')
+        _no_links(target)
+        _no_links(scene_target)
+        _atomic(target, decoded['full'])
+        if decoded['scene']:
+            _atomic(scene_target, decoded['scene'])
+        else:
+            scene_target.unlink(missing_ok=True)
+        artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
+                    'path': str(target), 'source_sha256': asset['sha256'],
+                    'sha256': hashlib.sha256(decoded['full']).hexdigest(),
+                    'decoder': f"pillow-{header.get('pillow')}", 'source_format': header.get('source_format'),
+                    'width': header.get('width'), 'height': header.get('height'), 'partial': header.get('partial') is True,
+                    'original_width': header.get('original_width'), 'original_height': header.get('original_height'),
+                    'decoded_fraction': header.get('decoded_fraction'), 'exif_date': header.get('exif_date'),
+                    'exif_date_tag': header.get('exif_date_tag'), 'exif_orientation': header.get('exif_orientation'),
+                    'multi_frame': header.get('multi_frame') is True,
+                    'warnings': [str(note) for note in header.get('warnings') or []],
+                    'scene_path': str(scene_target) if decoded['scene'] else None,
+                    'scene_sha256': hashlib.sha256(decoded['scene']).hexdigest() if decoded['scene'] else None,
+                    'scene_width': header.get('scene_width'), 'scene_height': header.get('scene_height')}
         project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         project['stage'] = 'recovered'
         self._save(directory, project)

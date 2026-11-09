@@ -8,7 +8,8 @@ from pathlib import Path
 import struct
 import uuid
 
-from .projects import ProjectStore, ProjectError, _no_links, _atomic, _ID, _MAX_INTAKE_BYTES
+from .image_recovery import IMAGE_FORMATS
+from .projects import ProjectStore, ProjectError, ReaderRetry, _no_links, _atomic, _ID, _MAX_INTAKE_BYTES
 from .scenes import validate_scene, SceneError
 
 RUNTIME = Path(__file__).resolve().parents[1] / 'runtime'
@@ -109,11 +110,11 @@ class CompositionStore:
                 with path.open('rb') as inp: data = inp.read(2_000_001)
                 if hashlib.sha256(data).hexdigest() != recovered['sha256']:
                     raise ProjectError('Recovered image integrity check failed')
-                mime = 'image/png'
-            elif asset['format'] in ('png', 'jpeg'):
-                data, mime = original, 'image/' + asset['format']
+                mime, kind = 'image/png', 'recovered'
+            elif asset['format'] in IMAGE_FORMATS:
+                data, mime, kind = self._image_source(project_id, project, asset, original)
             else:
-                raise SceneError('Creative scenes currently accept PNG, JPEG, or recovered TGA images')
+                raise SceneError('Creative scenes accept common image formats and recovered TGA images')
             total += len(data)
             if len(data) > 2_000_000 or total > 8_000_000:
                 raise SceneError('Image budget exceeded: 2 MB per image, 8 MB total')
@@ -127,8 +128,37 @@ class CompositionStore:
                 jpeg_dimensions(data)
             result.append({'asset_id': aid, 'name': asset['source_path'], 'mime_type': mime,
                            'data': data, 'source_sha256': asset['sha256'], 'image_sha256': hashlib.sha256(data).hexdigest(),
-                           'kind': 'recovered' if asset['format'].startswith('tga') else 'original'})
+                           'kind': kind})
         return result
+
+    def _image_source(self, project_id: str, project: dict, asset: dict, original: bytes) -> tuple:
+        """(bytes, mime, kind) for one image: the original when it is whole and fits, else the recovered copy."""
+        plain = asset['format'] in ('png', 'jpeg')
+        if asset['format'] == 'jpeg':
+            jpeg_dimensions(original)   # a header-only check, before any decoder sees the file
+        saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
+                      and a.get('kind') == 'recovered' and a.get('source_sha256') == asset['sha256']), None)
+        if saved is None:
+            try:
+                saved = self.projects.recover(project_id, asset['asset_id'])
+            except ReaderRetry:
+                raise
+            except ProjectError as exc:
+                # PNG and JPEG worked before there was a decoder; its absence must not end that.
+                if plain and getattr(exc, 'code', None) in ('image_reader_unavailable', 'image_reader_stopped', 'image_too_large'):
+                    return original, 'image/' + asset['format'], 'original'
+                raise SceneError(str(exc)) from exc
+        if plain and not saved.get('partial') and len(original) <= 2_000_000:
+            return original, 'image/' + asset['format'], 'original'
+        path = Path(saved.get('scene_path') or saved['path'])
+        _no_links(path)
+        if path.stat().st_size > 2_000_000:
+            raise SceneError('Image budget exceeded: 2 MB per image, 8 MB total')
+        with path.open('rb') as inp:
+            data = inp.read(2_000_001)
+        if hashlib.sha256(data).hexdigest() != (saved.get('scene_sha256') or saved['sha256']):
+            raise ProjectError('Recovered image integrity check failed')
+        return data, 'image/png', 'recovered'
 
     def text_provenance(self, project_id: str, refs, parent: dict | None = None) -> dict | None:
         """Resolve text_references against the saved dossier.
