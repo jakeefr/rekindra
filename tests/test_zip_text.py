@@ -426,6 +426,19 @@ class PipelineTests(unittest.TestCase):
         self.assertGreater(len(stored['text_member_report']['skipped']), handlers.SUMMARY_SKIPPED)
         self.assertTrue(all(s.get('reason') for s in stored['text_member_report']['skipped']))
 
+    def test_reply_cap_drops_warnings_and_names_before_evidence(self):
+        handlers = rt.plugin.handlers
+        recovered = self.recover('archive.zip')
+        kept = len(handlers.evidence_summary(recovered)['evidence'])
+        self.assertTrue(kept)
+        recovered['artifact']['warnings'] = [f'synthetic_warning_code_number_{i:04d}' for i in range(400)]
+        summary = handlers.evidence_summary(recovered)
+        self.assertLessEqual(len(json.dumps({'ok': True, 'result': summary}, ensure_ascii=False)),
+                             handlers.SUMMARY_MAX_CHARS)
+        self.assertEqual(len(summary['evidence']), kept)
+        self.assertEqual(len(summary['warnings']), handlers.SUMMARY_WARNINGS + 1)
+        self.assertEqual(summary['warnings'][-1], f'truncated, {400 - handlers.SUMMARY_WARNINGS} more')
+
     def test_text_reference_resolves_and_survives_reload(self):
         out = self.recover('archive.zip')
         sid = self.ids['archive.zip']

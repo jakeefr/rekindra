@@ -139,7 +139,11 @@ def _withhold(envelope: dict, ambiguous: bool = False) -> dict:
     """
     codes = sorted({str(w.get('code')) for w in envelope.get('warnings') or []
                     if isinstance(w, dict) and w.get('code')})
-    if ambiguous or 'multiple_eocd_candidates' in codes:
+    if ambiguous:
+        code, reason = 'ambiguous_archive', ('The last end-record signature in the archive is not the record the '
+                                             'inventory used, so readers could disagree about its directory. '
+                                             'No member was read.')
+    elif 'multiple_eocd_candidates' in codes:
         code, reason = 'ambiguous_archive', ('The archive has more than one end record, so its members could '
                                              'come from a directory that was not inventoried. None was read.')
     else:
