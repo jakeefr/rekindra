@@ -291,42 +291,24 @@ Review the open state as well as the docked state. A bracket can disappear behin
 
 Worlds now use2x spatial sampling per axis by default and resolve to the same1280x720 preview/export frame. This reduces narrow specular-edge aliasing without changing roughness or scene time. Reflection blur retains its output-pixel scale. A graphics-limited device can fall back to standard quality; the artifact reports that condition and exposes requested/actual sampling in review diagnostics. This adds GPU work and does not make arbitrarily fine patterns stable, add motion blur, or repair geometry. Keep the existing work budgets and preview deadline.
 
-## Open water, horizon, beams and small boats
+## Readable objects, from any source
 
-Found while fixing the lighthouse demo (2026-11-07). Checked by `scripts/check_demo_scene.py`.
+These principles hold whatever a folder contains. Work out from the evidence what each main object is, then build that thing.
 
-- **Fog:** `fog_density` above about .006 washes the whole frame to one tone. Get depth from color and light instead.
-- **Horizon:** a square sea plane shows its far edge as a slanted hard line. Use a disc of radius ~320 (`320*v*v`) centred
-  under the camera eyes, not at the origin: add the centre of all eyes (midway between min and max eye x, and z) as
-  constants (eyes x 16..22, z 30..31 give `19+320*v*v*cos(u*2*pi)`, `30.5+320*v*v*sin(u*2*pi)`). Keep the water scale 1
-  with no offset or assembly translation, or put the centre in the offset instead. Keep every eye within ~10 units of the
-  centre. Also set `color_high` = `sky_bottom` and `color_pattern` `clamp((v-.9)*10,0,1)`. `check_horizon` samples the
-  unclamped disc and asks for this radius and rim color, but neither makes a level horizon in the render.
-- **Hide the far edge:** final coordinates clamp to +/-100, so a 320 disc only fills that box and the sea really ends at a
-  square edge, `100-c` and `100+c` units from a centre at `c` on each axis (70-130 along z for the centre above), and its
-  straight sides and corner show against the sky. Fog and rim color do not remove it. Put a low
-  headland or island ring around the scene, on the sea's centre (cx,cz), with radius `R = 100 - max(|cx|,|cz|) - 2`,
-  props inside it. For centre (19,30.5), R is 67.5: `x` `19+67.5*cos(u*2*pi)`,
-  `y` `-.2+v*(12+1.2*sin(u*2*pi*5)+.6*sin(u*2*pi*13+1))`, `z` `30.5+67.5*sin(u*2*pi)`, segments [128,4], matte (roughness
-  .9), a hazy dusk tone such as #5A6480. Its lowest top must be at least `eye_height*(1-R/D)+1`, where `eye_height` is
-  the highest eye and `D` is `sqrt((100+|cx|)^2+(100+|cz|)^2)`, the distance to the farthest corner: about 10 units for a
-  14 unit eye here. `check_demo_scene.py` does not test the ring or its height, so confirm in the preview that no sea edge
-  shows above it. Record the landform as invented in `references`.
-- **Disc seams:** on a disc every `u` frequency (waves, color, bump) must be an integer multiple of `2*pi`, e.g.
-  `u*2*pi*7`. A non-integer frequency like `u*40` leaves a visible seam line at u=0/1.
-- **Sea color:** keep the water albedo mid-blue (about `#1F5888`) at default roughness. Dark albedo or roughness .5 lets
-  the pink sky sheen turn the sea purple.
-- **Beams:** every light effect must start at its source. An opaque or emissive cone reads as a solid wedge and casts
-  a shadow; use a `glow` cone instead (additive, see-through, no shadow, soft silhouette). Apex at the lamp centre,
-  axis outward and slightly down, radius ~.1 at the lamp widening to ~1.5 over ~20 units, no caps, `glow` ~.12
-  (.08-.25; higher saturates to white), warm `color`, `color_high` `#000000`, `color_pattern` and `color_mix`
-  `u*u*(3-2*u)` so it fades smoothly to nothing along its length (plain `u` leaves a bright flat end cap). Put it on the rotating assembly whose pivot is the lamp centre so it sweeps from the lamp. Light the lamp room
-  (small emissive sphere, emission ~2) inside a `glow` sphere halo (radius ~1, glow ~.06). An optional faint water glint
-  goes on the same assembly, under the beam, starting a few units out from the tower. Check in the preview that the
-  beam leaves the lamp in every frame. A scene with any `glow` surface renders without hardware MSAA (deterministic
-  seeking) and relies on the 2x supersample for smooth edges.
-- **Boats:** a disc or squashed sphere reads as a flat blob. Loft a pointed-bow hull (7-point outline, length at least
-  2.5x the beam) and add mast and lamp surfaces on the same assembly and instances. Mast radius at least .07 in a light wood color (about
-  `#B89A78`); a .035 dark mast vanishes against the sea and the lamp seems to float.
-- **Revising:** when replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to
-  soften a beam is not a request to stop its sweep.
+- **Silhouette:** the outline should identify the object at frame size. Loft or sweep its characteristic shape rather than standing in a disc, blob or squashed sphere.
+- **Proportions:** take them from the references and evidence, measuring the source image or using what the text states. Where neither says, use the usual proportions of that kind of object and record that as invented in `references`.
+- **Color:** draw it from the source palette, or from colors the text evidence names. Where neither gives one, choose it and record that as invented.
+- **Close the geometry:** solids need caps or meeting surfaces, parts seat into each other with no gaps or floating pieces, and parts that move together share an assembly and instances.
+- **Readable at frame size:** each main object must be large enough and contrast enough with what is behind it. Thicken or lighten a thin part that vanishes.
+- **An effect starts at its cause:** light, flame, smoke or spray must visibly leave its source in every frame and ride on the assembly of whatever moves it.
+- **Large surfaces:** sky, water, ground and backdrop take their colors from the source palette (`palette` in the `rekindra_recover` result: hex, rough location, coverage %), or from colors named in text evidence. Check your preview against the source before revising anything else.
+- **Effects and secondary objects:** they must be big enough to read at frame size. If you cannot tell what something is in the preview, enlarge it, add a distinguishing feature, or cut it.
+- **Scenery must never show its ends or float:** backdrops span the full frame width, extend past the fog distance, and meet the ground or water.
+
+Renderer facts that apply to every scene:
+
+- `fog_density` above about .006 washes the whole frame to one tone. Get depth from color and light instead.
+- Final coordinates clamp to +/-100, so a surface meant to reach the distance really ends at a square edge. Keep that edge out of frame or hide it behind something.
+- On a surface that wraps in `u`, keep every `u` frequency an integer multiple of `2*pi` or a seam shows at u=0/1.
+- A `glow` surface is additive, see-through and casts no shadow; above about .25 it saturates to white. To fade one along its length, mix toward `color_high` `#000000` with a smooth curve such as `u*u*(3-2*u)`, because plain `u` leaves a bright flat end. A scene with any `glow` surface renders without hardware MSAA and relies on the 2x supersample for smooth edges.
+- When replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to soften or recolor something is not a request to stop its motion.

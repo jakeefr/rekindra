@@ -105,7 +105,7 @@ class CompositionStore:
             if len(original) > self.projects.limits.max_file_bytes or hashlib.sha256(original).hexdigest() != asset['sha256']:
                 raise ProjectError('Source integrity check failed before creative processing')
             if asset['format'] in ('tga', 'tga_candidate'):
-                recovered = self.projects.recover(project_id, aid)
+                recovered = self.projects.recover(project_id, aid, measure_palette=False)
                 path = Path(recovered['path']); _no_links(path)
                 with path.open('rb') as inp: data = inp.read(2_000_001)
                 if hashlib.sha256(data).hexdigest() != recovered['sha256']:

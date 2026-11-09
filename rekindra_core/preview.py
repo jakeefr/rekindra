@@ -16,6 +16,7 @@ import time
 import uuid
 
 from .compositions import CompositionStore
+from .palette_drift import measure_drift
 from .projects import _atomic, _no_links
 from .scenes import SceneError
 
@@ -179,13 +180,17 @@ def preview_scene(store, project_id, plan_id, review_camera=None):
         target = project / 'artifacts' / f'{plan_id}-review-{review_id}.png'
         _no_links(target)
         _atomic(target, png)
+        drift = measure_drift(store, project_id, plan, png, review_camera)
+        next_step = 'Inspect this PNG with native vision under the user image-sharing consent. Review source faithfulness, composition, lighting, silhouettes and spatial conflicts; revise observed defects. These are rendered scene samples, not decoded video or proof of collision-free motion.'
+        if drift['status'] == 'drift':
+            flags = ' '.join(row['flag'] + '.' for row in drift['regions'] if row['over_threshold'])
+            next_step = f'Rendered colors drifted from the source: revise before exporting. {flags} {next_step}'
         return {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(),
-                'html_sha256': artifact['sha256'],
-                'next_step': 'Inspect this PNG with native vision under the user image-sharing consent. Review source faithfulness, composition, lighting, silhouettes and spatial conflicts; revise observed defects. These are rendered scene samples, not decoded video or proof of collision-free motion.'}
+                'html_sha256': artifact['sha256'], 'palette_drift': drift, 'next_step': next_step}
     finally:
         try:
             if working is not None and project is not None:

@@ -2,6 +2,7 @@
 
 stdin carries the image. argv is: reader_dir, format tag, pixel cap, scene byte budget.
 stdout carries one JSON line, then the full PNG, then an optional smaller PNG for scenes.
+The tag ``review-sheet`` instead measures a rendered preview sheet and writes only the JSON line.
 
 A damaged image keeps only the pixels its decoder really produced. Each pixel is proved
 by decoding twice onto opposite backgrounds: a pixel that differs between the two runs
@@ -21,6 +22,17 @@ PILLOW_FORMATS = {'png': 'PNG', 'jpeg': 'JPEG', 'bmp': 'BMP', 'gif': 'GIF', 'tif
 PARTIAL_FORMATS = frozenset({'png', 'jpeg', 'bmp', 'gif', 'pcx', 'ppm', 'tiff'})
 SCENE_EDGES = (2048, 1600, 1280, 1024, 800, 640)
 _EXIF_DATE = re.compile(r'^\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}$')
+PALETTE_COLORS = 6
+PALETTE_EDGE = 128
+PALETTE_FLOOR = 0.5    # percent; rarer colors are noise at this size
+_BAND_NAMES = ('top band', 'middle', 'bottom band')
+REVIEW_SHEET = 'review-sheet'
+SHEET_SIZE = (1280, 1128)
+SHEET_FRAMES = 6
+SHEET_FRAME = (640, 360)
+SHEET_ROW = 376     # each frame plus its time label, which must not be measured
+SHEET_SHRINK = (128, 72)
+SHEET_COLORS = 4
 
 
 class Refuse(Exception):
@@ -197,6 +209,69 @@ def _scene_copy(Image, image, png: bytes, budget: int):
     return None, None
 
 
+def _location(counts: list) -> str:
+    """Each band holding at least a quarter of this color's pixels."""
+    named = [name for name, count in zip(_BAND_NAMES, counts) if count * 4 >= sum(counts)]
+    return 'throughout' if len(named) == 3 else ' and '.join(named)
+
+
+def _palette(Image, image) -> list:
+    """The dominant colors of the decoded pixels, measured, in an order that never varies."""
+    small = (_high_bytes(Image, image) if image.mode == 'I;16' else image).copy()
+    small.thumbnail((PALETTE_EDGE, PALETTE_EDGE), Image.Resampling.NEAREST)     # blends nothing, so no invented colors
+    raw = small.convert('RGBA').tobytes()
+    width, height = small.size
+    kept, rows = bytearray(), []
+    for start in range(0, len(raw), 4):
+        if raw[start + 3]:      # a transparent pixel is a hole, not a color
+            kept += raw[start:start + 3]
+            rows.append(start // 4 // width)
+    if not rows:
+        return []
+    strip = Image.frombytes('RGB', (len(rows), 1), bytes(kept))
+    quantized = strip.quantize(colors=PALETTE_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    table = quantized.getpalette()
+    colors = {}
+    for slot, row in zip(quantized.tobytes(), rows):
+        name = '#%02X%02X%02X' % tuple(table[slot * 3:slot * 3 + 3])
+        colors.setdefault(name, [0, 0, 0])[row * 3 // height] += 1
+    measured = sorted(colors.items(), key=lambda item: (-sum(item[1]), item[0]))
+    entries = [{'hex': name, 'location': _location(counts), 'coverage': round(sum(counts) * 100 / len(rows), 1)}
+               for name, counts in measured]
+    return [entry for entry in entries if entry['coverage'] >= PALETTE_FLOOR]
+
+
+def measure_review_sheet(data: bytes, max_pixels: int) -> dict:
+    """The dominant rendered colors of each thirds band, over all six frames of a preview sheet."""
+    from PIL import Image
+    Image.MAX_IMAGE_PIXELS = max_pixels
+    sheet = Image.open(io.BytesIO(data), formats=['PNG'])
+    if sheet.size != SHEET_SIZE:
+        raise Refuse('damaged')
+    sheet = sheet.convert('RGB')
+    bands = [bytearray() for _ in _BAND_NAMES]
+    width, height = SHEET_SHRINK
+    for index in range(SHEET_FRAMES):
+        left, top = index % 2 * SHEET_FRAME[0], index // 2 * SHEET_ROW
+        box = (left, top, left + SHEET_FRAME[0], top + SHEET_FRAME[1])
+        raw = sheet.crop(box).resize(SHEET_SHRINK, Image.Resampling.NEAREST).tobytes()     # blends nothing
+        for row in range(height):
+            bands[row * 3 // height] += raw[row * width * 3:(row + 1) * width * 3]
+    regions = []
+    for name, raw in zip(_BAND_NAMES, bands):
+        pixels = len(raw) // 3
+        quantized = Image.frombytes('RGB', (pixels, 1), bytes(raw)).quantize(
+            colors=SHEET_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+        table, counts = quantized.getpalette(), {}
+        for slot in quantized.tobytes():
+            color = '#%02X%02X%02X' % tuple(table[slot * 3:slot * 3 + 3])
+            counts[color] = counts.get(color, 0) + 1
+        ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        regions.append({'region': name, 'colors': [{'hex': color, 'coverage': round(count * 100 / pixels, 1)}
+                                                   for color, count in ranked]})
+    return {'kind': 'ok', 'regions': regions}
+
+
 def recover(data: bytes, tag: str, max_pixels: int, scene_budget: int) -> tuple:
     import PIL
     from PIL import Image, ImageChops, ImageFile
@@ -227,6 +302,10 @@ def recover(data: bytes, tag: str, max_pixels: int, scene_budget: int) -> tuple:
                                  8: Image.Transpose.ROTATE_90}[facts['orientation']])
         notes.append(f"EXIF orientation {facts['orientation']} was applied.")
     full = _png(out)
+    try:
+        palette = _palette(Image, out)
+    except Exception:   # MemoryError included: the palette is optional, the pixels are not
+        palette = None
     small, scene = _scene_copy(Image, out, full, scene_budget)
     if small is not None:
         notes.append(f'A {small.size[0]}x{small.size[1]} copy was made for scene models; the full recovery is unchanged.')
@@ -237,7 +316,7 @@ def recover(data: bytes, tag: str, max_pixels: int, scene_budget: int) -> tuple:
               'exif_date_tag': facts['exif_date_tag'], 'exif_orientation': facts['orientation'],
               'multi_frame': facts['multi_frame'], 'warnings': notes, 'full_bytes': len(full),
               'scene_bytes': len(scene or b''), 'scene_width': small.size[0] if small is not None else None,
-              'scene_height': small.size[1] if small is not None else None}
+              'scene_height': small.size[1] if small is not None else None, 'palette': palette}
     return header, full, scene or b''
 
 
@@ -248,7 +327,10 @@ def main() -> None:
     data = sys.stdin.buffer.read()
     full = scene = b''
     try:
-        header, full, scene = recover(data, tag, max_pixels, scene_budget)
+        if tag == REVIEW_SHEET:
+            header = measure_review_sheet(data, max_pixels)
+        else:
+            header, full, scene = recover(data, tag, max_pixels, scene_budget)
     except Refuse as exc:
         header = {'kind': 'refused', 'code': exc.code}
     except MemoryError:

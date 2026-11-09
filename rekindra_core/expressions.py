@@ -52,20 +52,42 @@ _SAMPLERS={'sin':math.sin,'cos':math.cos,'abs':abs,
            'mix':lambda a,b,c:a+(b-a)*min(max(c,0.0),1.0)}
 
 
+def _run(node,env):
+    if isinstance(node,ast.Constant):return float(node.value)
+    if isinstance(node,ast.Name):return env[node.id]
+    if isinstance(node,ast.UnaryOp):
+        x=_run(node.operand,env);return -x if isinstance(node.op,ast.USub) else x
+    if isinstance(node,ast.BinOp):
+        a,b=_run(node.left,env),_run(node.right,env)
+        if isinstance(node.op,ast.Div):
+            return _bound(a/(b if abs(b)>=.0001 else (-.0001 if b<0 else .0001)))
+        return _bound(a+b if isinstance(node.op,ast.Add) else a-b if isinstance(node.op,ast.Sub) else a*b)
+    return _bound(_SAMPLERS[node.func.id](*[_run(arg,env) for arg in node.args]))
+
+
 def sampler(source):
     """Return f(u,v,t) mirroring the shader helpers for an already-compiled
     binding-free expression. Walks the parsed tree; never evaluates input code."""
     compile_expression(source)
     body=ast.parse(source.strip(),mode='eval').body
-    def run(node,env):
-        if isinstance(node,ast.Constant):return float(node.value)
-        if isinstance(node,ast.Name):return env[node.id]
-        if isinstance(node,ast.UnaryOp):
-            x=run(node.operand,env);return -x if isinstance(node.op,ast.USub) else x
-        if isinstance(node,ast.BinOp):
-            a,b=run(node.left,env),run(node.right,env)
-            if isinstance(node.op,ast.Div):
-                return _bound(a/(b if abs(b)>=.0001 else (-.0001 if b<0 else .0001)))
-            return _bound(a+b if isinstance(node.op,ast.Add) else a-b if isinstance(node.op,ast.Sub) else a*b)
-        return _bound(_SAMPLERS[node.func.id](*[run(arg,env) for arg in node.args]))
-    return lambda u,v,t:run(body,{'u':u,'v':v,'t':t,'pi':math.pi})
+    return lambda u,v,t:_run(body,{'u':u,'v':v,'t':t,'pi':math.pi})
+
+
+def surface_sampler(position,bindings=()):
+    """Return f(u,v,t) giving the position tuple of a surface, evaluating its
+    ordered local bindings first. f.cost is the expression nodes one call walks."""
+    names={};steps=[];cost=0
+    for binding in bindings:
+        cost+=compile_expression(binding['expression'],names)['cost']
+        steps.append((binding['name'],ast.parse(binding['expression'].strip(),mode='eval').body))
+        names[binding['name']]=binding['name']
+    bodies=[]
+    for source in position:
+        cost+=compile_expression(source,names)['cost']
+        bodies.append(ast.parse(source.strip(),mode='eval').body)
+    def sample(u,v,t):
+        env={'u':u,'v':v,'t':t,'pi':math.pi}
+        for name,body in steps:env[name]=_run(body,env)
+        return tuple(_run(body,env) for body in bodies)
+    sample.cost=cost
+    return sample
