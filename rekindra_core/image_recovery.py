@@ -55,6 +55,21 @@ def clean_palette(palette) -> list | None:
     return palette
 
 
+def _clean_regions(regions) -> list | None:
+    """The measured preview bands if they have exactly the promised shape."""
+    if not isinstance(regions, list) or [item.get('region') if isinstance(item, dict) else None for item in regions] != ['top band', 'middle', 'bottom band']:
+        return None
+    for item in regions:
+        colors = item.get('colors')
+        if not isinstance(colors, list) or not 1 <= len(colors) <= 4:
+            return None
+        for color in colors:
+            if (not isinstance(color, dict) or not isinstance(color.get('hex'), str) or not _HEX.fullmatch(color['hex'])
+                    or type(color.get('coverage')) is not float):
+                return None
+    return regions
+
+
 def _reader_dir() -> str | None:
     """The directory holding Pillow, found without importing it into the gateway."""
     try:
@@ -84,6 +99,27 @@ def _run_worker(python: str, reader_dir: str, data: bytes, tag: str) -> tuple[by
 def _stopped() -> ImageRefused:
     # No verdict from the reader, so this says nothing about whether the file is damaged.
     return ImageRefused('image_reader_stopped', 'The image reader stopped before finishing, so the contents of this file are unknown.')
+
+
+def measure_review_sheet(png: bytes) -> list | None:
+    """Rendered colors per band of a preview sheet, or None when they could not be measured."""
+    reader_dir, python = _reader_dir(), _python()
+    if reader_dir is None or python is None or not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS):
+        return None
+    try:
+        output, timed_out = _run_worker(python, reader_dir, png, 'review-sheet')
+    except OSError:
+        return None
+    finally:
+        _WORKER_SLOTS.release()
+    line, newline, _ = output.partition(b'\n')
+    if timed_out or not newline:
+        return None
+    try:
+        header = json.loads(line)
+    except ValueError:
+        return None
+    return _clean_regions(header.get('regions')) if isinstance(header, dict) and header.get('kind') == 'ok' else None
 
 
 def read_image(data: bytes, tag: str) -> dict:

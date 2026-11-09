@@ -122,7 +122,11 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 saved = compositions.save_plan(args['project_id'], scene, args.get('asset_ids'),
                                                {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
                 result = compositions.build(args['project_id'], saved['plan_id'])
+                if operation == 'world':
+                    from .rekindra_core.backdrop import backdrop_warnings
+                    result = {**result, 'warnings': backdrop_warnings(scene)}
             elif operation == 'revise':
+                from .rekindra_core.backdrop import backdrop_warnings
                 from .rekindra_core.revisions import revise_world
                 compositions = CompositionStore(store)
                 parent = compositions.load_plan(args['project_id'], args['plan_id'])
@@ -132,6 +136,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                      'parent_plan_id': parent['plan_id'], 'changed_fields': changed}, parent=parent)
                 result = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
                           'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
+                          'warnings': backdrop_warnings(scene),
                           'next_step': 'Use rekindra_preview with this new plan_id; saving is not visual acceptance.'}
             elif operation == 'build':
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'])
