@@ -16,6 +16,7 @@ import time
 import uuid
 
 from .compositions import CompositionStore
+from .export_gate import preview_gate
 from .palette_drift import measure_drift
 from .projects import _atomic, _no_links
 from .scenes import SceneError
@@ -114,7 +115,7 @@ def _stop_process(process):
     process.wait(timeout=10)
 
 
-def preview_scene(store, project_id, plan_id, review_camera=None):
+def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
     if not _PREVIEW_LOCK.acquire(blocking=False):
         raise SceneError('Another local scene preview is running. Retry after it finishes.')
     working = None
@@ -125,7 +126,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None):
         browser = find_browser()
         # Never execute an existing potentially modified HTML file: regenerate it
         # from validated plan/source data and the bundled renderer immediately.
-        artifact = compositions.build(project_id, plan_id, review_camera=review_camera)
+        artifact = compositions.build(project_id, plan_id, review_camera=review_camera, draft=draft)
         project = store._project(project_id).resolve()
         working = Path(tempfile.mkdtemp(prefix='preview-work-', dir=project)).resolve()
         _no_links(working)
@@ -185,12 +186,17 @@ def preview_scene(store, project_id, plan_id, review_camera=None):
         if drift['status'] == 'drift':
             flags = ' '.join(row['flag'] + '.' for row in drift['regions'] if row['over_threshold'])
             next_step = f'Rendered colors drifted from the source: revise before exporting. {flags} {next_step}'
+        gate = preview_gate(store, project_id, plan, drift, review_camera)
+        if gate is not None:
+            if gate['warnings']:
+                next_step += ' rekindra_export will refuse this plan until every item in export_gate.warnings is revised away or acknowledged with a reason.'
+            next_step += ' When satisfied, call rekindra_export with this plan_id; only its HTML can save video.'
         return {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(),
-                'html_sha256': artifact['sha256'], 'palette_drift': drift, 'next_step': next_step}
+                'html_sha256': artifact['sha256'], 'palette_drift': drift, 'export_gate': gate, 'next_step': next_step}
     finally:
         try:
             if working is not None and project is not None:

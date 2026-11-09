@@ -312,7 +312,7 @@ class CompositionStore:
         except (OSError, json.JSONDecodeError) as exc:
             raise SceneError('Cannot load this scene plan') from exc
 
-    def build(self, project_id: str, plan_id: str, review_camera=None) -> dict:
+    def build(self, project_id: str, plan_id: str, review_camera=None, draft=False, export_provenance=None) -> dict:
         plan = self.load_plan(project_id, plan_id)
         if plan['scene'].get('text_references'):
             # load_plan stays lenient so a revise can drop the citation, but nothing
@@ -337,6 +337,8 @@ class CompositionStore:
                      'url': f"data:{s['mime_type']};base64," + base64.b64encode(s['data']).decode('ascii')} for s in sources]
         content={'scene': plan['scene'], 'sources': embedded, 'model': plan.get('model', {})}
         if inspection:content.update(inspection_only=True,inspection_of=plan_id)
+        if export_provenance is not None:content['export_provenance']=export_provenance
+        elif draft and not inspection and plan['scene']['schema_version']==2:content['export_locked']=True
         if plan['scene']['schema_version']==2:
             from .worlds import compile_world
             content['programs']=compile_world(plan['scene'])
@@ -350,7 +352,7 @@ class CompositionStore:
                         '/*PLAYER_RUNTIME*/': (RUNTIME / 'player.js').read_text(encoding='utf-8')}
         # One substitution pass: input can never become another template directive.
         document = re.sub('|'.join(map(re.escape, replacements)), lambda m: replacements[m[0]], template)
-        filename=plan_id+('-inspection-'+uuid.uuid4().hex if inspection else '')+'.html'
+        filename=plan_id+('-inspection-'+uuid.uuid4().hex if inspection else '-export' if export_provenance is not None else '')+'.html'
         target = self.projects._project(project_id) / 'artifacts' / filename
         _no_links(target); _atomic(target, document.encode('utf-8'))
         return {'kind': 'generated', 'plan_id': plan_id, 'project_id': project_id,

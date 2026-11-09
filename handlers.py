@@ -4,6 +4,7 @@ from pathlib import Path
 from .rekindra_core.projects import ProjectStore, ProjectError, ReaderRetry, EarlierReadKept, ImageRefusal  # noqa: F401
 from .rekindra_core.scenes import SceneError, validate_scene, enforce_text_preference
 from .rekindra_core.compositions import CompositionStore
+from .rekindra_core.export_gate import ExportBlocked, MAX_FLAGGED_CYCLES, export_world
 from .rekindra_core.planner import plan_scene
 
 
@@ -89,7 +90,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
             required = {'inspect': ('folder',), 'recover': ('project_id','asset_id'),
                         'plan': ('project_id','intent'), 'build': ('project_id','plan_id'), 'compose': ('project_id',), 'world': ('project_id',),
                         'status': ('project_id',), 'preview': ('project_id','plan_id'),
-                        'revise': ('project_id','plan_id')}[operation]
+                        'revise': ('project_id','plan_id'), 'export': ('project_id','plan_id')}[operation]
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in required):
                 raise ToolInputError('Provide nonempty string values for: ' + ', '.join(required))
             if operation == 'inspect' and not Path(args['folder']).is_absolute():
@@ -123,7 +124,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 enforce_text_preference(scene, args.get('allow_text', False))
                 saved = compositions.save_plan(args['project_id'], scene, selected,
                                                {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
-                result = compositions.build(args['project_id'], saved['plan_id'])
+                result = compositions.build(args['project_id'], saved['plan_id'], draft=True)
                 if operation == 'world':
                     from .rekindra_core.backdrop import backdrop_warnings
                     result = {**result, 'warnings': backdrop_warnings(scene)}
@@ -139,17 +140,22 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
                           'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
                           'warnings': backdrop_warnings(scene),
-                          'next_step': 'Use rekindra_preview with this new plan_id; saving is not visual acceptance.'}
+                          'next_step': 'Use rekindra_preview with this new plan_id, then rekindra_export once it is right; saving is not visual acceptance.'}
             elif operation == 'build':
-                result = CompositionStore(store).build(args['project_id'], args['plan_id'])
+                result = CompositionStore(store).build(args['project_id'], args['plan_id'], draft=True)
             elif operation == 'preview':
                 from .rekindra_core.preview import preview_scene
-                result = preview_scene(store, args['project_id'], args['plan_id'], review_camera=args.get('review_camera'))
+                result = preview_scene(store, args['project_id'], args['plan_id'], review_camera=args.get('review_camera'), draft=True)
+            elif operation == 'export':
+                result = export_world(store, args['project_id'], args['plan_id'], args.get('acknowledgments'))
             else:
                 result = store.status(args['project_id'])
             return json.dumps({'ok': True, 'result': result}, ensure_ascii=False)
         except (ReaderRetry, ImageRefusal) as exc:
             return json.dumps({'ok': False, 'error': {'code': exc.code, 'message': str(exc)}})
+        except ExportBlocked as exc:
+            return json.dumps({'ok': False, 'error': {'code': 'export_blocked', 'message': str(exc), 'warnings': exc.warnings,
+                                                      'revise_preview_cycles': exc.cycles, 'cycle_cap': MAX_FLAGGED_CYCLES}}, ensure_ascii=False)
         except (ProjectError, SceneError, ToolInputError) as exc:
             return json.dumps({'ok': False, 'error': {'code': 'invalid_input', 'message': str(exc)}})
         except OSError:
@@ -184,6 +190,9 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
     def revise(args, **kwargs):
         return invoke('revise', args)
 
+    def export(args, **kwargs):
+        return invoke('export', args)
+
     return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status,
             'rekindra_plan': plan, 'rekindra_build': build, 'rekindra_compose': compose, 'rekindra_create_world':world,
-            'rekindra_preview':preview, 'rekindra_revise_world':revise}
+            'rekindra_preview':preview, 'rekindra_revise_world':revise, 'rekindra_export':export}

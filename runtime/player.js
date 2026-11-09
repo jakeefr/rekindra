@@ -35,6 +35,7 @@
   function tick(now){try{if(playing&&!exporting)display(((now-start)/1000)%scene.duration)}catch(e){stop();$('status').textContent=e.message;$('export').disabled=true}requestAnimationFrame(tick)}
   async function exportVideo({download=true}={}){
     if(data.inspection_only)throw Error('Inspection view only. Export from the saved presentation scene.');
+    if(data.export_locked)throw Error('Draft preview. Run rekindra_export to clear this scene for video export.');
     if(exporting)throw Error('An export is already running');
     if(!globalThis.VideoEncoder)throw Error('This browser does not provide WebCodecs. Use a supported Chromium browser.');
     // Preserve smooth gradients in opening keyframes; 3 Mbps produced visible blocks.
@@ -80,6 +81,7 @@
     }
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
     if(data.inspection_only){$('status').textContent='Inspection view only. Saved scene and presentation camera are unchanged.';$('export').disabled=true;}
+    if(data.export_locked){$('status').textContent='Draft preview. Use rekindra_export to get the file that can save video.';$('export').disabled=true;}
     $('status').textContent+=qualityNotice();
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};
     $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=()=>display(time);

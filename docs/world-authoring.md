@@ -43,7 +43,7 @@ This is the current primary-side scene system. The second developer's isolated s
 2. Obtain consent for the chosen agent's image input and view selected references using Hermes's native vision route.
 3. Describe concrete observed features: palette, silhouette, repeated forms, depth relationships, texture, mood cues. Separate invented scene elements from observations.
 4. Author `rekindra_create_world` scene v2. Choose geometry and motion that express those features; do not default every source to ocean/torus imagery.
-5. Call `rekindra_preview(project_id, plan_id)` and inspect its returned PNG with native vision under the user image-sharing consent. Use the HTML video exporter and decoded-video review when export-specific inspection is needed. A valid schema and successful export are not creative acceptance. Check silhouette, framing, foreground obstruction, lighting, independent movement, and temporal progression.
+5. Call `rekindra_preview(project_id, plan_id)` and inspect its returned PNG with native vision under the user image-sharing consent. Then call `rekindra_export(project_id, plan_id)`: tool-built world HTML is a draft that plays but cannot save video, and only the exported HTML can. Use its video exporter and decoded-video review when export-specific inspection is needed. A valid schema and successful export are not creative acceptance. Check silhouette, framing, foreground obstruction, lighting, independent movement, and temporal progression.
 6. Critique actual rendered frames and submit a revised world if needed. Revisions are new immutable plans. Keep the returned plan ID and artifact path: the current project status inventory still lists original/recovered artifacts, not generated plans.
 
 ### When the folder has no image
@@ -143,7 +143,9 @@ The filmstrip is sampled decoded video, not proof of human-like continuous viewi
 
 ## Native preview workflow
 
-`rekindra_preview` regenerates a validated plan, copies the exact hash-checked HTML into an isolated work directory, and launches installed Chrome/Chromium/Edge headlessly. The original player draws six samples at `(i + .5) * duration / 6` into a 1280x1128 PNG with timestamps outside the frames. A completed JSON marker is required; waiting alone is never accepted as success. The returned result includes plan/project IDs, times, PNG hash and reviewed HTML hash.
+`rekindra_preview` regenerates a validated plan, copies the exact hash-checked HTML into an isolated work directory, and launches installed Chrome/Chromium/Edge headlessly. The original player draws six samples at `(i + .5) * duration / 6` into a 1280x1128 PNG with timestamps outside the frames. A completed JSON marker is required; waiting alone is never accepted as success. The returned result includes plan/project IDs, times, PNG hash, reviewed HTML hash, and `export_gate`, the warnings `rekindra_export` will hold against the plan.
+
+`rekindra_export` reads the latest presentation preview of that exact plan. Palette drift over threshold or a backdrop edge in frame refuses the export until revised, or until `acknowledgments: [{warning_id, reason}]` answers every warning; reasons are stored in `<plan_id>-export.json` and in the exported HTML. After three revised plans in a lineage have each been previewed and still flag, export is allowed with status `cycle_cap` and the warnings recorded. Previewing one plan repeatedly does not count.
 
 This local tool does not call a model or send the image externally. The active agent can then use native vision under the user's image-sharing consent, name concrete defects, create an immutable revision and preview again. It must not claim to have watched or decoded video from this sheet. Do not iterate indefinitely: report remaining defects candidly if revisions do not improve them.
 
