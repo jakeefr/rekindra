@@ -25,8 +25,8 @@ def region(name, over, flag=WARM):
 
 
 DRIFT = {'status': 'drift', 'reference': 'source-palette',
-         'regions': [region('top band', False, ''), region('bottom band', True)]}
-CLEAN = {'status': 'ok', 'reference': 'source-palette', 'regions': [region('bottom band', False, '')]}
+         'regions': [region('top band', False, None), region('bottom band', True)]}
+CLEAN = {'status': 'ok', 'reference': 'source-palette', 'regions': [region('bottom band', False, None)]}
 BOTTOM = 'palette:bottom-band'
 REASON = 'water deliberately shifted warm per the notes'
 
@@ -130,6 +130,12 @@ class ExportGateTests(recover_tests.RecoverEvidenceTests):
         self.assertIn(REASON, document)
         self.assertNotIn('"export_locked"', document)
         self.assertIn('"export_provenance"', document)
+
+    def test_flag_shape_matches_the_real_report(self):
+        self.assertIsNone(DRIFT['regions'][0]['flag'])
+        self.assertTrue(gate._well_formed(DRIFT))
+        broken = {'status': 'drift', 'regions': [region('top band', True, None)]}
+        self.assertFalse(gate._well_formed(broken))
 
     def test_bad_overrides_are_refused(self):
         plan_id = self.create(hills(self.ids['photo.tga']))

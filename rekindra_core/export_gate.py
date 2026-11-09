@@ -37,8 +37,8 @@ def _well_formed(drift):
         return True
     rows = drift.get('regions')
     return isinstance(rows, list) and all(
-        isinstance(row, dict) and isinstance(row.get('region'), str) and isinstance(row.get('flag'), str)
-        and isinstance(row.get('over_threshold'), bool) for row in rows)
+        isinstance(row, dict) and isinstance(row.get('region'), str) and isinstance(row.get('over_threshold'), bool)
+        and (not row['over_threshold'] or isinstance(row.get('flag'), str)) for row in rows)
 
 
 def _read_drift(store, project_id, plan_id):
