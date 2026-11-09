@@ -84,7 +84,7 @@ Known limits. Input limits are reported by the agent; none crashes.
 
 ## Verification
 
-Latest local core verification: 674 Python tests pass with 1 skipped, and 15 Node tests pass. The current plugin declares ten tools including native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
+Latest local core verification: 705 Python tests pass with 1 skipped, and 15 Node tests pass. The current plugin declares ten tools including native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
 
 Tested models: end-to-end runs (inspect, recover, create world, preview, revise, export) were verified with gpt-6.1-sol and glm-5.3 (z.ai, high reasoning). Model choice affects visual quality: both models completed the flow, but the rendered worlds differed in how closely they matched the source. The export gate records acknowledged drift, so a world exported past a palette warning carries that warning in its provenance, along with the agent's reason when one was given. After three flagged revise and preview cycles a reason is not required.
 
