@@ -65,7 +65,7 @@ Known limits. Input limits are reported by the agent; none crashes.
 
 **Network.** Rekindra makes no network calls of its own and has no telemetry. Tool results, including recovered text and file names, go to your active Hermes model like any other tool result, so they reach whichever provider you use. `rekindra_plan` sends selected image bytes to that model only when called with `send_images=true`. If the agent opens a recovered image or preview with Hermes' own vision tools, that image goes to the model too.
 
-**Files it reads.** Only the folder you name, read-only, working from snapshots. It skips `.git`, `.ssh`, `.aws`, `.azure`, `.gnupg`, `.venv`, `node_modules`, `__pycache__`, `.env` and `.env.*`. Your source files are never modified.
+**Files it reads.** Only the folder you name, read-only, working from snapshots. In that folder it skips files and directories named `.git`, `.ssh`, `.aws`, `.azure`, `.gnupg`, `.venv`, `node_modules`, `__pycache__`, `.env` and `.env.*`. That filter applies to names on disk only: text files inside a ZIP are not filtered by name, so do not point Rekindra at an archive that holds secrets. Your source files are never modified.
 
 **Files it writes.** Only under `$HERMES_HOME/plugin-data/rekindra`.
 
