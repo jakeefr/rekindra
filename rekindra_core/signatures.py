@@ -40,6 +40,7 @@ _PREFIXES = (
 )
 _HEIF_BRANDS = (b'heic', b'heix', b'hevc', b'hevx', b'heim', b'heis')
 _HEIF_CONTAINER_BRANDS = (b'mif1', b'msf1')
+_MP4_BRANDS = (b'isom', b'iso2', b'iso3', b'iso4', b'iso5', b'iso6', b'mp41', b'mp42', b'avc1', b'M4V ', b'M4VH', b'M4VP', b'dash', b'f4v ')
 
 
 def _is_pe(header):
@@ -64,9 +65,13 @@ def _iso_media_kind(header):
         return 'HEIC/HEIF image'
     if major == b'qt  ':
         return 'QuickTime video'
-    if major in (b'M4A ', b'M4B '):
+    if major in (b'M4A ', b'M4B ', b'M4P '):
         return 'M4A audio'
-    return 'MP4 video'
+    if major == b'crx ':
+        return 'Canon CR3 raw image'
+    if major in _MP4_BRANDS or major[:3] in (b'3gp', b'3g2'):
+        return 'MP4 video'
+    return 'ISO media file'
 
 
 def _matroska_kind(header):

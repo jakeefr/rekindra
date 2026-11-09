@@ -72,6 +72,17 @@ class FileKindTests(unittest.TestCase):
             with self.subTest(data[:12]):
                 self.assertIsNone(file_kind(data))
 
+    def test_ftyp_brands_are_not_all_mp4(self):
+        self.assertEqual(file_kind(ftyp(b'crx ')), 'Canon CR3 raw image')
+        self.assertEqual(file_kind(ftyp(b'M4P ')), 'M4A audio')
+        self.assertEqual(file_kind(ftyp(b'3gp5')), 'MP4 video')
+        self.assertEqual(file_kind(ftyp(b'zzzz')), 'ISO media file')
+
+    def test_ftyp_box_size_must_fit(self):
+        for size in (8, 15, 100000):
+            with self.subTest(size):
+                self.assertIsNone(file_kind(struct.pack('>I', size) + b'ftypisom' + bytes(4) + TAIL))
+
     def test_pe_pointer_outside_header_is_handled(self):
         far = b'MZ' + bytes(58) + struct.pack('<I', 0xFFFFFFFF) + TAIL
         self.assertIsNone(file_kind(far))
