@@ -135,6 +135,27 @@ class MeasureDriftTests(unittest.TestCase):
         self.assertEqual(report['regions'][2]['intended'], '#3F6B3A')
         store.recover.assert_not_called()
 
+    def test_a_settled_empty_palette_is_not_measured_again(self):
+        artifacts = [{'asset_id': 'image-1', 'kind': 'recovered', 'palette': PALETTE},
+                     {'asset_id': 'image-2', 'kind': 'recovered', 'palette': None},
+                     {'asset_id': 'image-3', 'kind': 'recovered', 'palette': []}]
+        store = SimpleNamespace(status=lambda project_id: {'artifacts': artifacts}, recover=mock.Mock())
+        plan = {'scene': SCENE, 'source_ids': ['image-1', 'image-2', 'image-3', 'never-recovered']}
+        with mock.patch.object(drift, 'measure_review_sheet', return_value=regions()):
+            report = drift.measure_drift(store, 'p', plan, b'png')
+        store.recover.assert_not_called()
+        self.assertEqual(report['source_asset_ids'], ['image-1'])
+
+    def test_an_older_artifact_is_measured_and_a_failure_costs_that_source(self):
+        artifacts = [{'asset_id': 'image-1', 'kind': 'recovered', 'palette': PALETTE},
+                     {'asset_id': 'older', 'kind': 'recovered'}]
+        store = SimpleNamespace(status=lambda project_id: {'artifacts': artifacts}, recover=mock.Mock(side_effect=OSError('busy')))
+        plan = {'scene': SCENE, 'source_ids': ['image-1', 'older']}
+        with mock.patch.object(drift, 'measure_review_sheet', return_value=regions()):
+            report = drift.measure_drift(store, 'p', plan, b'png')
+        store.recover.assert_called_once_with('p', 'older')
+        self.assertEqual((report['status'], report['source_asset_ids']), ('ok', ['image-1']))
+
     def test_saved_palette_is_compared(self):
         with mock.patch.object(drift, 'measure_review_sheet', return_value=regions(bottom='#6B4F4A')):
             report = drift.measure_drift(self.store(), 'p', self.PLAN, b'png')

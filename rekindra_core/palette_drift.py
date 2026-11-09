@@ -183,11 +183,14 @@ def _reference(store, project_id: str, plan: dict) -> dict | None:
     palettes, asset_ids = [], []
     for asset_id in plan.get('source_ids') or []:
         saved = next((item for item in artifacts if item.get('asset_id') == asset_id and item.get('kind') == 'recovered'), None)
-        palette = clean_palette(saved.get('palette')) if saved else None
-        if not palette:
+        if saved is None:
+            continue
+        if 'palette' in saved:      # None or [] is a settled answer: previewing must not decode the source again
+            palette = clean_palette(saved['palette'])
+        else:                       # recovered before palettes were saved
             try:
                 palette = clean_palette(store.recover(project_id, asset_id).get('palette'))
-            except ProjectError:    # not an image, or a measurement that cannot be made: try the next source
+            except (ProjectError, OSError):
                 palette = None
         if palette:
             palettes.append(palette)
