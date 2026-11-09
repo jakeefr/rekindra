@@ -1,7 +1,7 @@
 """Thin JSON boundary; failures never escape into the Hermes tool loop."""
 import json
 from pathlib import Path
-from .rekindra_core.projects import ProjectStore, ProjectError, ReaderRetry, EarlierReadKept  # noqa: F401
+from .rekindra_core.projects import ProjectStore, ProjectError, ReaderRetry, EarlierReadKept, ImageRefusal  # noqa: F401
 from .rekindra_core.scenes import SceneError, validate_scene, enforce_text_preference
 from .rekindra_core.compositions import CompositionStore
 from .rekindra_core.planner import plan_scene
@@ -141,7 +141,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
             else:
                 result = store.status(args['project_id'])
             return json.dumps({'ok': True, 'result': result}, ensure_ascii=False)
-        except ReaderRetry as exc:
+        except (ReaderRetry, ImageRefusal) as exc:
             return json.dumps({'ok': False, 'error': {'code': exc.code, 'message': str(exc)}})
         except (ProjectError, SceneError, ToolInputError) as exc:
             return json.dumps({'ok': False, 'error': {'code': 'invalid_input', 'message': str(exc)}})
