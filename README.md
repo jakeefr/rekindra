@@ -53,16 +53,17 @@ Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited direct
 
 ## Limitations
 
-Four input limits to know up front. Each is reported by the agent; none crashes.
+Known limits. Input limits are reported by the agent; none crashes.
 
-- A notes-only folder cannot produce a world. At least one image is required.
-- Text inside ZIP archives is not read.
-- JPEG and PNG files are visual references only. They are not recovered assets.
 - PDF text is read page by page, up to 32 pages. There is no OCR: a scanned or image-only PDF is reported as having no extractable text, and an encrypted one as encrypted.
+- A file Rekindra cannot read is named from its file signature ("identified as X, not supported yet") when the signature is known, and otherwise reported as having no known file signature. Its contents are not used.
+- Worlds built only from notes have no tamper check yet. The player's integrity check hashes embedded images, so a world with no image has nothing for it to verify.
+- A world that selects images is refused only when `references` is empty. If some selected images have a reference and others do not, the world still builds; the unreferenced image ships with no observed or created record and still counts toward palette drift.
+- Palette drift compares the rendered frame with the source in horizontal bands. A 3D view of flat art can flag a band that changed on purpose, such as ground where the source had sky. The agent must give a reason per warning to export past a flag, and the reason is stored in provenance. After three revise and preview cycles that still flag, export is allowed without reasons and the warnings are recorded as unresolved.
 
 ## Verification
 
-Latest local core verification: 86 Python and 10 Node tests pass. The current plugin declares nine tools including native preview and immutable revision; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
+Latest local core verification: 675 Python and 15 Node tests pass. The current plugin declares ten tools including native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
 
 Real Windows Chrome acceptance now verifies original 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Playwright is development-only. Reproduce with `scripts/make_scene_fixture.py`, then `scripts/browser_scene_test.cjs` (requires a development Playwright installation and Chrome).
 
