@@ -37,7 +37,11 @@ _LINE_END = re.compile(r'\r\n|\r|\n')
 _CONTROL = re.compile('[\x00-\x08\x0b\x0e-\x1f\x7f]')
 _ATX = re.compile(r' {0,3}(#{1,6})(?:[ \t](.*))?')
 _FENCE = re.compile(r' {0,3}(`{3,}|~{3,})(.*)')
-_FORMULA = re.compile(r'[=@]|[+-][^\d.\s]')
+# A cell is formula-like when it starts with =, @, tab or carriage return, or when it
+# starts with + or - and the whole cell is not a plain number. ASCII digits only.
+_FORMULA_PREFIXES = ('=', '@', '\t', '\r')
+_SIGN_PREFIXES = ('+', '-')
+_PLAIN_NUMBER = re.compile(r'[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
 _SURROGATE = re.compile('[\ud800-\udfff]')
 
 
@@ -223,8 +227,20 @@ def _analyze_json(text, decoded_fully, budget, warnings):
     return 'ok', facts
 
 
+def _formula_like(cell):
+    """True for a cell starting with =, @, tab or carriage return, or with + or - unless
+    the whole cell is a plain number: optional sign, ASCII digits, optional decimal part
+    of one or more digits, optional exponent."""
+    if cell.startswith(_FORMULA_PREFIXES):
+        return True
+    return cell.startswith(_SIGN_PREFIXES) and _PLAIN_NUMBER.fullmatch(cell) is None
+
+
 def _analyze_csv(text, budget, warnings):
-    """Comma-delimited, double-quoted rows. No header is inferred; no cell is evaluated."""
+    """Comma-delimited, double-quoted rows. No header is inferred; no cell is evaluated.
+
+    formula_like_cell_count counts every cell for which _formula_like is true.
+    """
     reader = csv.reader(io.StringIO(text, newline=''), strict=True)
     preview, columns_cut, cells_cut = [], False, False
     rows = blank = formulas = 0
@@ -238,7 +254,7 @@ def _analyze_csv(text, budget, warnings):
             rows += 1
             widest = max(widest, len(row))
             narrowest = len(row) if narrowest is None else min(narrowest, len(row))
-            formulas += sum(1 for cell in row if _FORMULA.match(cell))
+            formulas += sum(1 for cell in row if _formula_like(cell))
             if len(preview) < MAX_CSV_ROWS and budget.remaining:
                 cells = []
                 for cell in row[:MAX_CSV_COLUMNS]:

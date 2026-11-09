@@ -518,5 +518,46 @@ class Inert(unittest.TestCase):
         self.assertEqual(cell['facts']['first_row'][0], self.INSTRUCTION)
 
 
+class FormulaLikeCells(unittest.TestCase):
+    """Review finding 1: every cell a spreadsheet could evaluate is counted."""
+
+    # Assembled at run time so no whole DDE payload sits in the repository.
+    PIPE_TAIL = "|' /C " + 'calc' + "'!A0"
+    DDE = ('-2+3+' + 'cmd' + PIPE_TAIL, '+1+' + 'cmd' + PIPE_TAIL)
+
+    def count(self, cell):
+        quoted = '"' + cell.replace('"', '""') + '"'
+        return inspect_text((quoted + '\n').encode(), 'a.csv')['facts']['formula_like_cell_count']
+
+    def test_signed_digit_dde_payloads_are_counted(self):
+        for cell in self.DDE:
+            with self.subTest(cell=cell):
+                self.assertEqual(self.count(cell), 1)
+
+    def test_leading_tab_and_carriage_return_are_counted(self):
+        for cell in ('\t=1+1', '\tplain', '\r=1+1', '\rplain'):
+            with self.subTest(cell=cell):
+                self.assertEqual(self.count(cell), 1)
+
+    def test_equals_and_at_are_counted(self):
+        for cell in ('=SUM(A1)', '@SUM(A1)'):
+            with self.subTest(cell=cell):
+                self.assertEqual(self.count(cell), 1)
+
+    def test_signed_cells_that_are_not_plain_numbers_are_counted(self):
+        for cell in ('-', '+', '-.5', '+cmd', '- 5', '-1-1', '+1e', '-1.', '-٣'):
+            with self.subTest(cell=cell):
+                self.assertEqual(self.count(cell), 1)
+
+    def test_plain_numbers_and_words_are_not_counted(self):
+        for cell in ('-12', '+3.5', '1e-3', '-1E+10', '+0.25e-4', '42', 'plain', 'a=b', ' =x', ''):
+            with self.subTest(cell=cell):
+                self.assertEqual(self.count(cell), 0)
+
+    def test_counted_cells_are_still_returned_verbatim(self):
+        facts = inspect_text(('"' + self.DDE[0].replace('"', '""') + '"\n').encode(), 'a.csv')['facts']
+        self.assertEqual(facts['first_row'], [self.DDE[0]])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -101,6 +101,7 @@ All text results include `encoding`, `bom`, `line_count`, `blank_line_count`, `c
 **CSV** adds `row_count`, `column_count` (widest row), `min_column_count`, `blank_row_count`, `first_row`, `next_rows`, `formula_like_cell_count` and three `preview_*_truncated` flags. `error_line` is added when parsing stops.
 
 - The delimiter is always a comma; no dialect is sniffed.
+- `formula_like_cell_count` counts cells starting with `=`, `@`, tab or carriage return, and cells starting with `+` or `-` unless the whole cell is a plain number. See rule 5 in `integration-notes.md`.
 - `first_row` is only the first row. No header is inferred.
 - Cells beginning `=` or `@`, or `+`/`-` before a non-number, are counted and stay inert text. Do not paste them into a spreadsheet.
 - Bad quoting is `partial` and parsing stops at that row. Uneven rows are `ok` with a warning.

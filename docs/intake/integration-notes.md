@@ -25,7 +25,7 @@ There are no imports from `rekindra_core`, Hermes or the runtime, so the package
 2. **Keep recovery and interpretation separate.** Intake output is observation. Record it as such in world authoring, alongside invented forms, and never as recovered history.
 3. **Never treat `status: ok` as safe to extract.** It means the inventory finished. No extraction feature exists. If one is ever added, it needs its own design and must refuse flagged entries and any `partial` archive, since entries past 256 are unexamined.
 4. **Never reuse an entry name as a path.** Names are returned unmodified so that danger stays visible.
-5. **Do not put CSV cells in a spreadsheet export** without neutralizing `formula_like_cell_count` cells.
+5. **Do not put CSV cells in a spreadsheet export** without neutralizing `formula_like_cell_count` cells. A cell is counted when it starts with `=`, `@`, a tab or a carriage return, or when it starts with `+` or `-` and the whole cell is not a plain number (optional sign, ASCII digits, optional decimal part, optional exponent, as in `-12`, `+3.5` or `-1E+10`). Cells are matched exactly as parsed, with no trimming, so a cell starting with a space is not counted. Apply the same rule when neutralizing, rather than recounting with a different one.
 6. **Claimed sizes are not measurements.** `claimed_sizes_verified` is `false` for a reason.
 7. **Strings are safe for UTF-8.** Results survive `json.dumps(..., allow_nan=False, ensure_ascii=False).encode('utf-8')`, which `ProjectStore._save` relies on. They may still contain control characters, so escape them for terminals and HTML.
 
