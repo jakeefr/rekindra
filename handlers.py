@@ -175,7 +175,8 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
             required = {'inspect': ('folder',), 'recover': ('project_id','asset_id'),
                         'plan': ('project_id','intent'), 'build': ('project_id','plan_id'), 'compose': ('project_id',), 'world': ('project_id',),
                         'status': ('project_id',), 'preview': ('project_id','plan_id'),
-                        'revise': ('project_id','plan_id'), 'export': ('project_id','plan_id')}[operation]
+                        'revise': ('project_id','plan_id'), 'export': ('project_id','plan_id'),
+                        'reconstruct': ('project_id',)}[operation]
             if any(not isinstance(args.get(k), str) or not args[k].strip() for k in required):
                 raise ToolInputError('Provide nonempty string values for: ' + ', '.join(required))
             if operation == 'inspect' and not Path(args['folder']).is_absolute():
@@ -210,8 +211,11 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                     raise SceneError(undeclared_source_message(exc, selected, compositions.image_asset_ids(args['project_id']))) from exc
                 if operation=='world' and scene['schema_version']!=2:raise SceneError('create_world requires scene version 2')
                 enforce_text_preference(scene, args.get('allow_text', False))
-                saved = compositions.save_plan(args['project_id'], scene, selected,
-                                               {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
+                attribution = {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'}
+                if operation == 'world' and args.get('reconstruction_id') is not None:
+                    from .rekindra_core.reconstruct import citation
+                    attribution['reconstruction'] = citation(store, args['project_id'], args['reconstruction_id'])
+                saved = compositions.save_plan(args['project_id'], scene, selected, attribution)
                 result = compositions.build(args['project_id'], saved['plan_id'], draft=True)
                 if operation == 'world':
                     from .rekindra_core.backdrop import backdrop_warnings
@@ -222,9 +226,12 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 compositions = CompositionStore(store)
                 parent = compositions.load_plan(args['project_id'], args['plan_id'])
                 scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
-                saved = compositions.save_plan(args['project_id'], scene, parent['source_ids'],
-                    {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
-                     'parent_plan_id': parent['plan_id'], 'changed_fields': changed}, parent=parent)
+                attribution = {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
+                               'parent_plan_id': parent['plan_id'], 'changed_fields': changed}
+                cited = parent['model'].get('reconstruction') if isinstance(parent.get('model'), dict) else None
+                if cited is not None:   # a revision still descends from the reconstruction its parent cited
+                    attribution['reconstruction'] = cited
+                saved = compositions.save_plan(args['project_id'], scene, parent['source_ids'], attribution, parent=parent)
                 result = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
                           'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
                           'warnings': backdrop_warnings(scene),
@@ -236,6 +243,9 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result = preview_scene(store, args['project_id'], args['plan_id'], review_camera=args.get('review_camera'), draft=True)
             elif operation == 'export':
                 result = export_world(store, args['project_id'], args['plan_id'], args.get('acknowledgments'))
+            elif operation == 'reconstruct':
+                from .rekindra_core.reconstruct import reconstruct as write_reconstruction
+                result = write_reconstruction(store, args['project_id'], args, evidence_reader())
             else:
                 result = store.status(args['project_id'])
             return json.dumps({'ok': True, 'result': result}, ensure_ascii=False)
@@ -281,6 +291,10 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
     def export(args, **kwargs):
         return invoke('export', args)
 
+    def reconstruct(args, **kwargs):
+        return invoke('reconstruct', args)
+
     return {'rekindra_inspect': inspect, 'rekindra_recover': recover, 'rekindra_status': status,
+            'rekindra_reconstruct': reconstruct,
             'rekindra_plan': plan, 'rekindra_build': build, 'rekindra_compose': compose, 'rekindra_create_world':world,
             'rekindra_preview':preview, 'rekindra_revise_world':revise, 'rekindra_export':export}
