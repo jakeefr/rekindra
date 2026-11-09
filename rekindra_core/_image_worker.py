@@ -56,7 +56,8 @@ def _on_background(Image, open_image, fill: int):
     if getattr(image, '_frame_transparency', None) is not None:
         image._frame_transparency = None    # or GIF swaps the canvas for its own, and nothing can be proved
     bands = len(image.getbands())
-    image.im = Image.new(image.mode, image.size, fill if bands == 1 else (fill,) * bands).im
+    size = getattr(image, '_tile_size', image.size)     # TIFF decodes unrotated, then turns during load
+    image.im = Image.new(image.mode, size, fill if bands == 1 else (fill,) * bands).im
     image.load()
     return image
 

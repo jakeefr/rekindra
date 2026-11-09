@@ -164,6 +164,21 @@ class ReadImageTests(unittest.TestCase):
         self.assertEqual(recovered.size, (30, 60))
         self.assertEqual(recovered.convert('RGB').tobytes(), source.transpose(Image.Transpose.ROTATE_270).tobytes())
 
+    def test_truncated_rotated_tiff_recovers_its_real_pixels(self):
+        source = noise((300, 100))
+        data = encoded(source, 'TIFF', tiffinfo={0x0112: 6})
+        result = read_image(data[:len(data) * 6 // 10], 'tiff')
+        header = result['header']
+        self.assertIs(header['partial'], True)
+        self.assertTrue(0 < header['decoded_fraction'] < 1, header['decoded_fraction'])
+        self.assertEqual((header['original_width'], header['original_height']), (100, 300))
+        recovered = decode(result['full'])
+        self.assertLess(recovered.size[0], 100)
+        self.assertEqual(recovered.size[1], 300)
+        turned = source.transpose(Image.Transpose.ROTATE_270)
+        reference = turned.crop((100 - recovered.size[0], 0, 100, 300))
+        self._assert_shown_pixels_match(recovered, reference, tolerance=0)
+
     def test_truncated_transparent_gif_counts_only_real_pixels(self):
         full = noise((80, 80)).quantize(255)
         data = encoded(full, 'GIF', transparency=0)
