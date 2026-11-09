@@ -114,6 +114,7 @@ def validate_world(value,asset_ids):
     # A world built from text evidence alone has no image to interpret.
     s.setdefault('references',[])
     if not isinstance(s['references'],list) or len(s['references'])>6:raise SceneError('World needs 1-6 source interpretations')
+    if not s['references'] and asset_ids:raise SceneError('Every selected image needs a source interpretation in references')
     if not s['references'] and 'text_references' not in s:raise SceneError('World needs 1-6 image source interpretations, or text_references when it is built from text evidence alone')
     used=set()
     for ref in s['references']:

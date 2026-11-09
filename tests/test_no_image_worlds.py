@@ -46,6 +46,10 @@ class ShapeTests(unittest.TestCase):
             with self.subTest(keep_key=keep_key), self.assertRaises(SceneError):
                 validate_world(text_only(None, keep_key), set())
 
+    def test_a_selected_image_cannot_skip_its_interpretation(self):
+        with self.assertRaises(SceneError):
+            validate_world(text_only([TEXT_REF]), {'a' * 32})
+
     def test_reference_bounds_still_hold(self):
         ref = world()['references'][0]
         scene = world(); scene['references'] = 'nope'; scene['text_references'] = [TEXT_REF]
@@ -119,6 +123,11 @@ class NoImageProjectTests(recover_tests.RecoverEvidenceTests):
         out = self.create(scene, asset_ids=[self.ids['photo.tga']])
         self.assertTrue(out['ok'], out)
         self.assertEqual(out['result']['source_ids'], [self.ids['photo.tga']])
+
+    def test_selected_image_with_empty_references_is_refused(self):
+        out = self.create(text_only(self.cited()), asset_ids=[self.ids['photo.tga']])
+        self.assertFalse(out['ok'], out)
+        self.assertIn('references', out['error']['message'])
 
     def test_no_image_and_no_text_is_refused(self):
         out = self.create(text_only())
