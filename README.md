@@ -22,7 +22,7 @@ Run the core tests:
 python -m unittest discover -s tests -v
 ```
 
-One runtime dependency, pinned in `plugin.yaml`: `pypdf` 6.21.4 (BSD-3-Clause) reads PDF text in a separate, killable process. It is a decoder, not a creative engine. The version matches Hermes's own `pypdf` pin, because a plugin cannot move a Hermes pin and a conflicting one gets the plugin disabled. Hermes asks before installing it (`hermes plugins install`, then restart). `hermes pm repair` does not add it. Without it PDFs are reported as unsupported and everything else works; PDF reader tests skip with a reason.
+Two runtime dependencies, ranged in `plugin.yaml`: `pypdf>=6.21.4,<7` (BSD-3-Clause) reads PDF text and `Pillow>=13.0.0,<14` (MIT-CMU) decodes images, each in a separate, killable process. They are decoders, not creative engines. The ranges include the versions Hermes itself installs, because a plugin cannot move a Hermes pin and a conflicting one gets the plugin disabled; `tests/test_dependency_ranges.py` fails if they ever stop doing so. Hermes asks before installing them (`hermes plugins install`, then restart). `hermes pm repair` does not add them. Without pypdf, PDFs are reported as unsupported; without Pillow, images other than the original TGA decoder's are. Everything else works, and those reader tests skip with a reason.
 
 On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launch Hermes with all development storage and caches directed to `<local path>`. To configure a model, run `scripts/Start-Rekindra.ps1 setup` and complete the provider's own sign-in. Never put a credential in this repository.
 

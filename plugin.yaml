@@ -3,7 +3,8 @@ version: 0.2.0
 description: Recover forgotten images and create source-backed original animated scenes with portable browser and WebM output.
 author: Jake Werner
 python_dependencies:
-  - pypdf==6.21.4
+  - pypdf>=6.21.4,<7
+  - Pillow>=13.0.0,<14
 provides_tools:
   - rekindra_inspect
   - rekindra_recover
