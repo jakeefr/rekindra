@@ -83,12 +83,17 @@ def _evidence_id(source_id: str, locator, text: str) -> str:
     return f'ev-{digest[:24]}'
 
 
+def _is_world(scene) -> bool:
+    return isinstance(scene, dict) and scene.get('schema_version') == 2
+
+
 class CompositionStore:
     def __init__(self, projects: ProjectStore):
         self.projects = projects
 
-    def sources(self, project_id: str, selected_ids: list[str]) -> list[dict]:
-        if (not isinstance(selected_ids, list) or not 1 <= len(selected_ids) <= 6
+    def sources(self, project_id: str, selected_ids: list[str], allow_empty: bool = False) -> list[dict]:
+        # allow_empty is for worlds only: validate_world then insists on text_references.
+        if (not isinstance(selected_ids, list) or not (0 if allow_empty else 1) <= len(selected_ids) <= 6
                 or any(not isinstance(x, str) or not _ID.fullmatch(x) for x in selected_ids)
                 or len(set(selected_ids)) != len(selected_ids)):
             raise SceneError('Select one to six unique image asset IDs')
@@ -270,7 +275,7 @@ class CompositionStore:
 
     def save_plan(self, project_id: str, scene: dict, selected_ids: list[str], attribution: dict,
                   parent: dict | None = None) -> dict:
-        sources = self.sources(project_id, selected_ids)
+        sources = self.sources(project_id, selected_ids, allow_empty=_is_world(scene))
         normalized = validate_scene(scene, set(selected_ids))
         plan_id = uuid.uuid4().hex
         directory = self.projects._project(project_id) / 'plans'
@@ -297,7 +302,7 @@ class CompositionStore:
             record = json.loads(path.read_text(encoding='utf-8'))
             if not isinstance(record, dict) or record.get('project_id') != project_id or record.get('plan_id') != plan_id:
                 raise SceneError('Malformed plan identity')
-            sources = self.sources(project_id, record.get('source_ids'))
+            sources = self.sources(project_id, record.get('source_ids'), allow_empty=_is_world(record.get('scene')))
             record['scene'] = validate_scene(record.get('scene'), {s['asset_id'] for s in sources})
             expected = record.get('sources')
             actual = [{k: v for k, v in s.items() if k != 'data'} for s in sources]
@@ -327,7 +332,7 @@ class CompositionStore:
             # without saving a revision or touching the presentation trajectory.
             plan['scene']['camera']=[dict(review_camera,at=0),dict(review_camera,at=plan['scene']['duration'])]
             plan['scene']=validate_scene(plan['scene'],set(plan['source_ids']))
-        sources = self.sources(project_id, plan['source_ids'])
+        sources = self.sources(project_id, plan['source_ids'], allow_empty=_is_world(plan['scene']))
         embedded = [{**{k: v for k, v in s.items() if k != 'data'},
                      'url': f"data:{s['mime_type']};base64," + base64.b64encode(s['data']).decode('ascii')} for s in sources]
         content={'scene': plan['scene'], 'sources': embedded, 'model': plan.get('model', {})}

@@ -103,7 +103,7 @@ def _text_references(refs):
 
 def validate_world(value,asset_ids):
     if not isinstance(value,dict):raise SceneError('Invalid world fields')
-    fields({k:v for k,v in value.items() if k not in ('assemblies','text_references')},'schema_version title mood reason duration width height seed references environment camera objects','world')
+    fields({k:v for k,v in value.items() if k not in ('assemblies','text_references','references')},'schema_version title mood reason duration width height seed environment camera objects','world')
     s=copy.deepcopy(value)
     assemblies=compile_assemblies(s.get('assemblies',[]))
     if 'text_references' in s:_text_references(s['text_references'])
@@ -111,7 +111,10 @@ def validate_world(value,asset_ids):
     for name,limit in (('title',100),('mood',100),('reason',600)):_text(s[name],limit,name)
     _number(s['duration'],4,30,'duration');_number(s['width'],1280,1280,'width',True);_number(s['height'],720,720,'height',True)
     _number(s['seed'],0,2**31-1,'seed',True)
-    if not isinstance(s['references'],list) or not 1<=len(s['references'])<=6:raise SceneError('World needs 1-6 source interpretations')
+    # A world built from text evidence alone has no image to interpret.
+    s.setdefault('references',[])
+    if not isinstance(s['references'],list) or len(s['references'])>6:raise SceneError('World needs 1-6 source interpretations')
+    if not s['references'] and 'text_references' not in s:raise SceneError('World needs 1-6 image source interpretations, or text_references when it is built from text evidence alone')
     used=set()
     for ref in s['references']:
         fields(ref,'asset_id observed created','source interpretation')
@@ -272,13 +275,16 @@ WORLD_SCHEMA=obj_schema({
     'schema_version':{'type':'integer','const':2},'title':{'type':'string','maxLength':100},
     'mood':{'type':'string','maxLength':100},'reason':{'type':'string','maxLength':600},
     'duration':{'type':'number','minimum':4,'maximum':30},'width':{'type':'integer','const':1280},'height':{'type':'integer','const':720},'seed':{'type':'integer'},
-    'references':{'type':'array','minItems':1,'maxItems':6,'items':obj_schema({'asset_id':TEXT,
+    'references':{'type':'array','minItems':0,'maxItems':6,'items':obj_schema({'asset_id':TEXT,
         'observed':{'type':'string','maxLength':500},'created':{'type':'string','maxLength':500}})},
     'environment':obj_schema({'sky_top':TEXT,'sky_bottom':TEXT,'fog_color':TEXT,'fog_density':NUM,'light_color':TEXT,'light_direction':VEC,'sun_size':NUM,'sun_strength':NUM}),
     'camera':{'type':'array','minItems':2,'maxItems':12,'items':obj_schema({'at':NUM,'eye':VEC,'target':VEC,'fov':NUM})},
     'objects':{'type':'array','minItems':1,'maxItems':MAX_SURFACES,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
         'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
         'roughness':NUM,'metalness':NUM,'emission':NUM})}})
+# A world from text evidence alone has no image reference; validate_world then requires text_references.
+WORLD_SCHEMA['required'].remove('references')
+WORLD_SCHEMA['properties']['references']['description']='One entry per selected image: what you observed and what you created. Leave empty or omit only when the world is built from text evidence alone, and then cite that evidence in text_references.'
 # Optional: absent in older plans, so it stays out of the required list.
 WORLD_SCHEMA['properties']['text_references']={'type':'array','minItems':1,'maxItems':4,
     'description':'Optional. Cite recovered text evidence that shaped this world. asset_id is a text/ZIP asset you ran rekindra_recover on; evidence_ids are its evidence_id values; interpretation is YOUR reading of that evidence (stored as agent interpretation, never as recovered content).',

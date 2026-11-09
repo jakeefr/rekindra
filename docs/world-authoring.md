@@ -46,6 +46,12 @@ This is the current primary-side scene system. The second developer's isolated s
 5. Call `rekindra_preview(project_id, plan_id)` and inspect its returned PNG with native vision under the user image-sharing consent. Use the HTML video exporter and decoded-video review when export-specific inspection is needed. A valid schema and successful export are not creative acceptance. Check silhouette, framing, foreground obstruction, lighting, independent movement, and temporal progression.
 6. Critique actual rendered frames and submit a revised world if needed. Revisions are new immutable plans. Keep the returned plan ID and artifact path: the current project status inventory still lists original/recovered artifacts, not generated plans.
 
+### When the folder has no image
+
+A folder of notes or PDFs can still make a world. Omit `asset_ids` and `references`, run `rekindra_recover` on each text, ZIP or PDF asset, and cite what you used in `text_references`, which is then required. Each entry names the asset, `evidence_id` values from the recover result, and your interpretation; Rekindra stores the quoted text as recovered and your interpretation apart from it.
+
+Read the text closely for physical detail: objects, layout, proportions, time of day, materials and colors. What it states is observed. What it does not state is your invention: say so in `scene.reason` and never present it as recovered. A revision cannot remove the last source from a world. With no source palette, `palette_drift` compares against colors the text names for large surfaces; if it names none, nothing is compared and color is judged by eye against the text.
+
 The active-agent route does not require a second model login or plugin-owned credentials. The separate `ctx.llm` route remains optional and has an unresolved native-chat/Python-client auth mismatch on this development installation.
 
 ## Creative acceptance: source recognition is only the first step

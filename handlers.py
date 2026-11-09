@@ -115,11 +115,13 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result['layer_count'] = len(saved['scene']['layers'])
             elif operation in ('compose','world'):
                 compositions = CompositionStore(store)
-                sources = compositions.sources(args['project_id'], args.get('asset_ids'))
+                # A world may be built from text evidence alone; a composition always draws an image.
+                selected = args.get('asset_ids', []) if operation == 'world' else args.get('asset_ids')
+                sources = compositions.sources(args['project_id'], selected, allow_empty=operation == 'world')
                 scene = validate_scene(args.get('scene'), {s['asset_id'] for s in sources})
                 if operation=='world' and scene['schema_version']!=2:raise SceneError('create_world requires scene version 2')
                 enforce_text_preference(scene, args.get('allow_text', False))
-                saved = compositions.save_plan(args['project_id'], scene, args.get('asset_ids'),
+                saved = compositions.save_plan(args['project_id'], scene, selected,
                                                {'origin': 'caller-authored', 'provider': 'not-attested', 'model': 'not-attested'})
                 result = compositions.build(args['project_id'], saved['plan_id'])
                 if operation == 'world':
