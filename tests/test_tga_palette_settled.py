@@ -70,13 +70,15 @@ class TgaPaletteTests(unittest.TestCase):
         self.assertEqual(self.saved()['palette'], PALETTE)
 
     def test_a_transient_failure_stays_unmeasured(self):
-        for failure in (ReaderBusy('busy'), OSError('disk')):
-            with self.subTest(type(failure).__name__), self.measured(side_effect=failure):
+        failures = [ReaderBusy('busy'), OSError('disk')] + [ImageRefused(code, 'unknown') for code in (
+            'image_timeout', 'image_reader_stopped', 'image_reader_unavailable', 'image_memory_limit')]
+        for failure in failures:
+            with self.subTest(getattr(failure, 'code', type(failure).__name__)), self.measured(side_effect=failure):
                 self.assertIsNone(self.store.recover(self.project_id, self.asset_id)['palette'])
                 self.assertNotIn('palette', self.saved())
 
     def test_a_finished_refusal_is_settled(self):
-        with self.measured(side_effect=ImageRefused('too_big', 'no')) as reader:
+        with self.measured(side_effect=ImageRefused('damaged_image', 'no')) as reader:
             self.store.recover(self.project_id, self.asset_id)
             self.assertIsNone(self.saved()['palette'])
             self.drift()

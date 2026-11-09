@@ -111,6 +111,11 @@ def _atomic(path: Path, data: bytes) -> None:
         temp.unlink(missing_ok=True)
 
 
+# Refusals that say nothing about the file: the same image may read fine on a later try.
+_NO_VERDICT_REFUSALS = frozenset({'image_timeout', 'image_reader_stopped', 'image_reader_unavailable',
+                                  'image_memory_limit'})
+
+
 class ProjectStore:
     def __init__(self, root: Path, limits: Limits | None = None):
         self.root = Path(os.path.abspath(root))
@@ -376,7 +381,9 @@ class ProjectStore:
         # image. A measurement that fails costs only the palette, never the recovery.
         try:
             palette = clean_palette(read_image(Path(artifact['path']).read_bytes(), 'png')['header'].get('palette'))
-        except ImageRefused:
+        except ImageRefused as exc:
+            if exc.code in _NO_VERDICT_REFUSALS:
+                return {**artifact, 'palette': None}
             palette = None
         except (ReaderBusy, OSError):   # could not finish, so a later preview may measure again
             return {**artifact, 'palette': None}
