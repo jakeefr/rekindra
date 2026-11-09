@@ -35,6 +35,7 @@ On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launc
 - `rekindra_plan`: optional separate host-owned structured model call to infer mood and save a scene plan.
 - `rekindra_build`: rebuild a saved plan after verifying source integrity.
 - `rekindra_preview`: render a saved scene into a timed PNG contact sheet in an isolated local browser so the active agent can inspect and revise it. Requires installed Chrome/Chromium/Edge; no production Playwright dependency.
+- `rekindra_export`: clear a previewed world for video. Refuses unresolved palette drift or a backdrop edge until they are revised or acknowledged with a reason, allows export with the warnings recorded after three flagged revise and preview cycles, and writes the only world HTML that can save WebM.
 - `rekindra_create_world`: create generated geometry, animated surfaces, atmosphere, materials and a moving perspective camera from source interpretation. No source-image textures or text are drawn in this mode.
 - `rekindra_revise_world`: apply bounded field edits to a new immutable world plan, then review its rendered output.
 

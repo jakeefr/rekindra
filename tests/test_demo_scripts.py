@@ -302,6 +302,12 @@ class ExportSelectionTests(unittest.TestCase):
             item = dict(self.project(tmp), plan_path=str(Path(tmp) / 'gone.json'))
             self.assertIsNone(export.world_html(item))
 
+    def test_only_a_cleared_export_is_selected(self):
+        artifacts = [{'tool': 'rekindra_create_world', 'path': 'draft.html'},
+                     {'tool': 'rekindra_export', 'plan_id': 'refused'},
+                     {'tool': 'rekindra_export', 'plan_id': 'cleared', 'path': 'cleared.html'}]
+        self.assertEqual([a['plan_id'] for a in export.cleared_exports(artifacts)], ['cleared'])
+
     def test_create_world_path_is_used_directly(self):
         self.assertEqual(export.world_html({'tool': 'rekindra_create_world', 'path': 'x.html'}), 'x.html')
 

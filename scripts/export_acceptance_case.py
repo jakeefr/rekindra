@@ -9,7 +9,7 @@ import subprocess
 
 def world_html(item):
     """HTML for a created world, or for the plan a preview rendered (covers revise-only runs)."""
-    if item['tool'] == 'rekindra_create_world' and item.get('path'):
+    if item['tool'] in ('rekindra_create_world', 'rekindra_export') and item.get('path'):
         return item['path']
     if item['tool'] == 'rekindra_preview' and item.get('path') and item.get('project_id') and item.get('plan_id'):
         for parent in Path(item['path']).parents:
@@ -27,6 +27,11 @@ def world_html(item):
     return None
 
 
+def cleared_exports(artifacts):
+    """Only rekindra_export writes HTML that can save video; a refused call has no path."""
+    return [a for a in artifacts if a['tool'] == 'rekindra_export' and a.get('path')]
+
+
 def main():
     from summarize_acceptance_runs import summarize
     parser = argparse.ArgumentParser()
@@ -34,11 +39,11 @@ def main():
     parser.add_argument('output', type=Path)
     args = parser.parse_args()
     row = summarize(args.events)
-    worlds = [dict(a, path=p) for a in row['artifacts'] if (p := world_html(a))]
+    worlds = cleared_exports(row['artifacts'])
     args.output.mkdir(parents=True, exist_ok=True)
-    record = {'selection': 'last created or previewed world, not a quality acceptance decision', 'case': row['case']}
+    record = {'selection': 'last rekindra_export result, not a quality acceptance decision', 'case': row['case']}
     if not worlds:
-        record['outcome'] = 'no world authored in this run'
+        record['outcome'] = 'no cleared export in this run'
     else:
         selected = worlds[-1]
         record['selected'] = selected
