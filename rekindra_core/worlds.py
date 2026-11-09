@@ -8,6 +8,19 @@ from .assemblies import compile_assemblies
 from .lofts import compile_loft
 
 MAX_SURFACES = 24
+_CITED_ID_CHARS = 64
+
+
+class UndeclaredWorldSource(SceneError):
+    """A reference cites an image outside asset_ids. Advice only: the list is never filled in."""
+
+    def __init__(self,cited):
+        self.cited=[c[:_CITED_ID_CHARS] for c in dict.fromkeys(cited)]
+        super().__init__(f'{self.subject()} but asset_ids does not list {"it" if len(self.cited)==1 else "them"}')
+
+    def subject(self):
+        return f'scene references asset{"" if len(self.cited)==1 else "s"} '+', '.join(f"'{c}'" for c in self.cited)
+
 
 def fields(value,names,label):
     if not isinstance(value,dict) or set(value)!=set(names.split()):raise SceneError(f'Invalid {label} fields')
@@ -119,7 +132,11 @@ def validate_world(value,asset_ids):
     used=set()
     for ref in s['references']:
         fields(ref,'asset_id observed created','source interpretation')
-        if not isinstance(ref['asset_id'],str) or ref['asset_id'] not in asset_ids or ref['asset_id'] in used:raise SceneError('Invalid or repeated world source')
+        if not isinstance(ref['asset_id'],str):raise SceneError('Invalid or repeated world source')
+        if ref['asset_id'] not in asset_ids:
+            # Name every miss at once so one corrected call can fix them all.
+            raise UndeclaredWorldSource([r['asset_id'] for r in s['references'] if isinstance(r,dict) and isinstance(r.get('asset_id'),str) and r['asset_id'] not in asset_ids])
+        if ref['asset_id'] in used:raise SceneError('Invalid or repeated world source')
         used.add(ref['asset_id'])
         for key in ('observed','created'):
             _text(ref[key],500,key)

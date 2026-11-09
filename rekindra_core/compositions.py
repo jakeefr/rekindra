@@ -91,6 +91,11 @@ class CompositionStore:
     def __init__(self, projects: ProjectStore):
         self.projects = projects
 
+    def image_asset_ids(self, project_id: str) -> list[str]:
+        """Assets sources() would accept; text, ZIP and PDF assets are never image sources."""
+        return [a['asset_id'] for a in self.projects.status(project_id)['assets']
+                if a['format'] in ('tga', 'tga_candidate') or a['format'] in IMAGE_FORMATS]
+
     def sources(self, project_id: str, selected_ids: list[str], allow_empty: bool = False) -> list[dict]:
         # allow_empty is for worlds only: validate_world then insists on text_references.
         if (not isinstance(selected_ids, list) or not (0 if allow_empty else 1) <= len(selected_ids) <= 6
