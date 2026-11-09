@@ -66,3 +66,24 @@ Rerun notes:
 - v3: the agent also tried `terminal` and `execute_code` once each; Hermes blocked both.
 - v4: the evidence dossier counted 3 sources (text 2, unknown 1) from 2 files. Not investigated.
 - Logs: `<local path>\logs\varied2-<folder>\`.
+
+## Integration build `4524c04` (2026-11-09): live rerun skipped
+
+The live rerun of the seven folders on `4524c04` (tag `freeze-2-2026-11-09`) was not completed. All seven attempts
+ended before any tool call: v1 on a gateway start timeout, v2 to v7 on the gpt-6.1-sol provider's quota (HTTP 429).
+Source hashes were unchanged. Jake accepted a model-free comparison in its place, so no live agent run backs this
+build for these folders.
+
+What was compared: `rekindra_inspect` and `rekindra_recover` on every asset in all seven folders, called through the
+real handlers with no model, once on the freeze build `64a6507` and once on `4524c04`.
+
+- Same ok or error outcome for every asset in every folder (v5: one `invalid_input`; v6: two `invalid_input` and one
+  `damaged_image`; everything else ok).
+- Same evidence items returned. v3 returns 6 of 7 on both builds; `4524c04` now says so with
+  `evidence_truncated: "truncated, 1 more; the full dossier is at dossier_path"`.
+- Reply differences are the intended ones: a `notice` line on recover replies, and in `text_members` the fields
+  `skipped_counts` and `skipped_uncounted` replace `member_bytes` and `skipped_omitted`. Text replies grew by about
+  240 characters; the largest seen was 3,193.
+
+Not covered: what a live agent authors from these replies, preview, and export on this build for these folders. The
+lighthouse flow was run live on `4524c04` with glm-5.3 and exported.
