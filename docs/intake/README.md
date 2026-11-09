@@ -1,6 +1,6 @@
 # Rekindra source intake
 
-`rekindra_intake` describes forgotten files without changing them. It takes bytes, returns JSON-compatible data and has no knowledge of Hermes, the runtime or any model. It is standalone: nothing in the plugin calls it yet.
+`rekindra_intake` describes forgotten files without changing them. It takes bytes, returns JSON-compatible data and has no knowledge of Hermes, the runtime or any model. It is standalone in the sense that it imports nothing from the plugin, but the plugin does call it. `rekindra_recover` runs `inspect_text` and `inspect_archive` through `handlers.evidence_reader`, and `rekindra_core/zip_text.py` and `rekindra_core/pdf_text.py` pass each ZIP text member and PDF page to `inspect_text`. See [Current wiring](integration-notes.md#current-wiring).
 
 It reports what is structurally present. It does not summarize, interpret or recover content, and an archive inventory is not an extraction.
 
@@ -156,7 +156,7 @@ Archive-level codes: `input_too_large`, `not_a_zip`, `eocd_missing`, `central_di
 ## Limitations
 
 - Entries past the 256th are not examined. The result is `partial` and later entries may be dangerous.
-- ZIP entries have no timestamps in the output, and their content is never read.
+- ZIP entries have no timestamps in the output, and this package never reads their content. In the plugin, `rekindra_core/zip_text.py` reads text members afterwards, in memory; see [Current wiring](integration-notes.md#current-wiring).
 - End records further than 64 KiB + 22 bytes from the end of the file are not found.
 - `unicode_path_extra` flags an alternate name but does not decode it.
 - Text direction controls in text excerpts are not counted. They are only flagged in ZIP names.

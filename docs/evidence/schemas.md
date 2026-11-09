@@ -135,7 +135,7 @@ An invalid `sha256` or `size_bytes` does not reject the collection. That source 
 ```
 
 - `content_inspected` is `true` only for text formats with status `ok` or `partial`. Sources with status `rejected` or `unsupported` produce no evidence in any format, so their `evidence_available` is `0`; the row is still listed.
-- `member_contents_inspected` is `false` for ZIP sources, and `null` otherwise. It is never `true`.
+- `member_contents_inspected`, as `build_dossier` returns it, is `false` for ZIP sources and `null` otherwise. The package alone never sets it to `true`. The plugin's live wiring does: after `build_dossier`, `mark_member_coverage` in `rekindra_core/zip_text.py` sets it to `true` on any row that has member sources (`<source_id>:mNNNN`). That covers a ZIP whose text members were read, and also a PDF whose pages gave text, which `build_dossier` alone reports as `null`. A ZIP with no member read keeps `false`.
 - `intake_truncated` lists the truncation flags the intake result set, sorted.
 - `source_text_fully_retained` is `true` only when intake status is `ok`, its excerpt was complete, and all of that excerpt was retained. It is always `false` for ZIP.
 

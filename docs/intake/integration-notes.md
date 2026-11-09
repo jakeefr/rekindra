@@ -1,6 +1,6 @@
 # Integration notes
 
-For the primary developer. Nothing below has been implemented. `rekindra_intake` has no callers and no outside file was changed.
+For the primary developer. `rekindra_intake` is now called by the plugin, though not in the way first proposed. [Current wiring](#current-wiring) describes what runs, checked against `af67b55`. The original proposals are kept at the end, marked as not adopted.
 
 ## Calling it
 
@@ -23,26 +23,34 @@ There are no imports from `rekindra_core`, Hermes or the runtime, so the package
 
 1. **Facts are untrusted data.** Excerpts, headings, keys, cells and entry names come from the file. If they reach an agent, present them as quoted source material. A file can contain text addressed to the agent. `facts.untrusted_content` is `true` to make this explicit, but it is only a label; the prompt has to honor it.
 2. **Keep recovery and interpretation separate.** Intake output is observation. Record it as such in world authoring, alongside invented forms, and never as recovered history.
-3. **Never treat `status: ok` as safe to extract.** It means the inventory finished. No extraction feature exists. If one is ever added, it needs its own design and must refuse flagged entries and any `partial` archive, since entries past 256 are unexamined.
+3. **Never treat `status: ok` as safe to extract.** It means the inventory finished. Nothing extracts to disk, but `rekindra_core/zip_text.py` does read text members (txt, md, json, csv, log) in memory and passes each to `inspect_text`, so this rule applies to it. Any reader of member contents must refuse flagged entries and any `partial` archive, since entries past 256 are unexamined. As of `af67b55`:
+   - `zip_text` skips every flagged entry. Encrypted, nested and `suspicious_expansion` entries are tolerated in the inventory but are never read.
+   - It never reads entries past 256.
+   - It does read `partial` archives. The live wiring audit ([PR #18](https://github.com/jakeefr/rekindra/pull/18), `docs/acceptance/live-wiring-audit-af67b55.md`) shows that for `multiple_eocd_candidates`, the text it reads can come from a directory that intake did not inventory.
 4. **Never reuse an entry name as a path.** Names are returned unmodified so that danger stays visible.
 5. **Do not put CSV cells in a spreadsheet export** without neutralizing `formula_like_cell_count` cells. A cell is counted when it starts with `=`, `@`, a tab or a carriage return, or when it starts with `+` or `-` and the whole cell is not a plain number (optional sign, ASCII digits, optional decimal part, optional exponent, as in `-12`, `+3.5` or `-1E+10`). Cells are matched exactly as parsed, with no trimming, so a cell starting with a space is not counted. Apply the same rule when neutralizing, rather than recounting with a different one.
 6. **Claimed sizes are not measurements.** `claimed_sizes_verified` is `false` for a reason.
 7. **Strings are safe for UTF-8.** Results survive `json.dumps(..., allow_nan=False, ensure_ascii=False).encode('utf-8')`, which `ProjectStore._save` relies on. They may still contain control characters, so escape them for terminals and HTML.
 
-## Proposed future wiring
+## Current wiring
 
-These touch files outside this assignment, so they are proposals only.
+Checked against `af67b55`. No tool was added for intake. It runs inside the existing `rekindra_recover`.
 
-| Where | Proposal |
+| Where | What happens |
 |---|---|
-| `handlers.py`, `schemas.py` | A read-only tool, for example `rekindra_read_clues(project_id, asset_id)`, returning the envelope for one snapshotted asset. Asking per asset keeps responses small. |
-| `rekindra_core/projects.py` | Store the envelope beside the asset, keyed by `sha256`, so repeat calls need no re-read. Bump nothing in `project.json` until a field is agreed. |
-| `rekindra_core/identify.py` | No change required. Its `zip` and `text` results are enough to route. Note that it inspects a header only, so text routing must still accept a `rejected` envelope. |
-| `plugin.yaml` | Declare the tool. |
-| `.github/workflows/test.yml` | No change required. `discover -s tests` already finds `tests/intake`. |
-| `tests/` | Add a Hermes-level registry test, since current tests stop at the pure functions. |
+| `handlers.py` | `evidence_reader` sends text assets to `inspect_text`. ZIP assets go to `inspect_archive`, then to `zip_text.read_archive_text`. PDF assets go to `pdf_text.read_pdf_text`. `evidence_summary` returns the intake `format`, `status` and warning codes, plus a short evidence view. |
+| `rekindra_core/zip_text.py` | Reads up to 32 text members of a ZIP in memory, under size, ratio and time caps, and passes each to `inspect_text`. Nothing is written to disk. |
+| `rekindra_core/pdf_text.py` | Reads PDF text page by page in a separate process, and passes each page to `inspect_text`. |
+| `rekindra_core/projects.py` | Saves the envelope as `artifacts/<asset_id>.intake.json`, with its hash in the project manifest. A `rejected` envelope keeps its row and warnings, but its facts and members are dropped before the dossier is built. |
+| `rekindra_core/identify.py` | Sets each asset's format at inspect time. Only `text`, `zip` and `pdf` assets reach intake. Images go to the image decoders, and anything else is refused by `rekindra_recover` before intake runs. |
+| `plugin.yaml` | No change for intake. |
+| `tests/` | `tests/test_recover_evidence.py`, `tests/test_zip_text.py` and `tests/test_pdf_text.py` cover the wiring through the store and handlers. `tests/test_plugin.py` registers the plugin with a stand-in context. No test here drives a real Hermes install. |
 
-Add `format`, `status` and warning codes to tool output for the agent to reason over. Avoid rendering `message` as if it were source content.
+Testing: no workflow change was made. GitHub Actions results are not used as evidence for this repository. The evidence is a local run of `PYTHONDONTWRITEBYTECODE=1 py -3 -m unittest discover -s tests`, which also finds `tests/intake`.
+
+### Original proposals, not adopted
+
+The first version of these notes proposed a separate read-only `rekindra_read_clues(project_id, asset_id)` tool declared in `plugin.yaml`, and envelopes stored keyed by `sha256`. Neither was built. Its advice still holds: give the agent `format`, `status` and warning codes, and never present `message` as if it were source content.
 
 ## Compatibility promises
 

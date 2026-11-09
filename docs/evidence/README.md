@@ -2,7 +2,7 @@
 
 `rekindra_evidence` turns intake results into one collection-level dossier. It helps answer three questions: what evidence do these files actually contain, which files are identical, and where did each clue come from?
 
-It reports observations only. It does not generate stories, scenes, summaries or historical claims, and it never reads a file. Nothing in the plugin calls it yet.
+It reports observations only. It does not generate stories, scenes, summaries or historical claims, and it never reads a file. In the plugin, `rekindra_recover` calls `build_dossier` through `handlers.evidence_reader` whenever it recovers a text, ZIP or PDF asset. Nothing in the plugin calls `search_dossier`. See [Current wiring](integration-notes.md#current-wiring).
 
 The exact result shapes, status codes and warning codes are in [schemas.md](schemas.md), which is the contract.
 
