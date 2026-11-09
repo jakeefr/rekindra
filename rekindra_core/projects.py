@@ -19,7 +19,7 @@ import uuid
 from .identify import identify
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
-from .image_recovery import IMAGE_FORMATS, ImageRefused, read_image
+from .image_recovery import IMAGE_FORMATS, ImageRefused, clean_palette, read_image
 from .pdf_text import ReaderBusy
 from .zip_text import MAX_DOSSIER_SOURCES, fit_members, member_byte_room, member_records
 
@@ -291,7 +291,11 @@ class ProjectStore:
                 raise ProjectError('Snapshot integrity check failed; original copy changed')
             image = asset.get('format') in IMAGE_FORMATS
             if not image and (asset.get('format') not in _EVIDENCE_FORMATS or evidence_reader is None):
-                return self._recover_tga(project, directory, asset, data)
+                recovered = self._recover_tga(project, directory, asset, data)
+            else:
+                recovered = None
+        if recovered is not None:
+            return self._add_tga_palette(project_id, recovered)
         # A reader can wait on a child process for seconds, so the store stays free meanwhile;
         # what it read is only committed if the asset is still the one that was verified.
         try:
@@ -348,6 +352,25 @@ class ProjectStore:
         self._save(directory, project)
         return artifact
 
+    def _add_tga_palette(self, project_id: str, artifact: dict) -> dict:
+        # Measured from the PNG we wrote, in the child and outside the store lock like any other
+        # image. A measurement that fails costs only the palette, never the recovery.
+        try:
+            palette = clean_palette(read_image(Path(artifact['path']).read_bytes(), 'png')['header'].get('palette'))
+        except (ImageRefused, ReaderBusy, OSError):
+            palette = None
+        artifact = {**artifact, 'palette': palette}
+        if palette is None:
+            return artifact
+        with _STORE_LOCK:
+            project = self.status(project_id)
+            saved = next((a for a in project['artifacts'] if a.get('asset_id') == artifact['asset_id']
+                          and a.get('sha256') == artifact['sha256']), None)
+            if saved is not None:
+                saved['palette'] = palette
+                self._save(self._project(project_id), project)
+        return artifact
+
     def _commit_image(self, project: dict, directory: Path, asset: dict, decoded: dict) -> dict:
         asset_id, header = asset['asset_id'], decoded['header']
         target = directory / 'artifacts' / (asset_id + '.png')
@@ -371,7 +394,8 @@ class ProjectStore:
                     'warnings': [str(note) for note in header.get('warnings') or []],
                     'scene_path': str(scene_target) if decoded['scene'] else None,
                     'scene_sha256': hashlib.sha256(decoded['scene']).hexdigest() if decoded['scene'] else None,
-                    'scene_width': header.get('scene_width'), 'scene_height': header.get('scene_height')}
+                    'scene_width': header.get('scene_width'), 'scene_height': header.get('scene_height'),
+                    'palette': clean_palette(header.get('palette'))}
         project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         project['stage'] = 'recovered'
         self._save(directory, project)

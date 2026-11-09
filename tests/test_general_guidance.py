@@ -9,7 +9,7 @@ from test_plugin import plugin
 ROOT = Path(__file__).resolve().parents[1]
 SCENE_WORDS = re.compile(r'\b(lighthouses?|boats?|hulls?|masts?|keeper)\b', re.I)
 RECIPE_TOKENS = ('320*v', '1F5888', '5A6480', 'B89A78', 'pointed-bow', 'headland', 'check_demo_scene')
-PRINCIPLES = ('silhouette', 'proportions', 'palette', 'close the geometry', 'frame size')
+PRINCIPLES = ('large surfaces', 'big enough to read', 'never show its ends', 'silhouette', 'proportions', 'palette', 'close the geometry', 'frame size')
 
 
 class GeneralGuidanceTests(unittest.TestCase):

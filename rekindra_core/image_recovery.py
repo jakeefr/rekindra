@@ -8,6 +8,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 
 from .pdf_text import ReaderBusy, _WORKER_SLOTS, _python
@@ -19,6 +20,9 @@ TIMEOUT_SECONDS = 30.0
 SCENE_BYTES = 1_900_000
 WORKER = Path(__file__).with_name('_image_worker.py')
 _PNG = b'\x89PNG\r\n\x1a\n'
+_HEX = re.compile(r'#[0-9A-F]{6}')
+_LOCATIONS = frozenset({'top band', 'middle', 'bottom band', 'top band and middle', 'middle and bottom band',
+                        'top band and bottom band', 'throughout'})
 
 _REFUSALS = {
     'too_large': ('image_too_large', f'The image is over the {MAX_PIXELS}-pixel limit, so it was not decoded.'),
@@ -36,6 +40,19 @@ class ImageRefused(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code = code
+
+
+def clean_palette(palette) -> list | None:
+    """The child's palette if it has exactly the promised shape, since the child reads untrusted bytes."""
+    if not isinstance(palette, list) or len(palette) > 6:
+        return None
+    for entry in palette:
+        if (not isinstance(entry, dict) or set(entry) != {'hex', 'location', 'coverage'}
+                or not isinstance(entry['hex'], str) or not _HEX.fullmatch(entry['hex'])
+                or not isinstance(entry['location'], str) or entry['location'] not in _LOCATIONS
+                or type(entry['coverage']) is not float or not 0 <= entry['coverage'] <= 100):
+            return None
+    return palette
 
 
 def _reader_dir() -> str | None:

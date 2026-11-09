@@ -301,6 +301,9 @@ These principles hold whatever a folder contains. Work out from the evidence wha
 - **Close the geometry:** solids need caps or meeting surfaces, parts seat into each other with no gaps or floating pieces, and parts that move together share an assembly and instances.
 - **Readable at frame size:** each main object must be large enough and contrast enough with what is behind it. Thicken or lighten a thin part that vanishes.
 - **An effect starts at its cause:** light, flame, smoke or spray must visibly leave its source in every frame and ride on the assembly of whatever moves it.
+- **Large surfaces:** sky, water, ground and backdrop take their colors from the source palette (`palette` in the `rekindra_recover` result: hex, rough location, coverage %), or from colors named in text evidence. Check your preview against the source before revising anything else.
+- **Effects and secondary objects:** they must be big enough to read at frame size. If you cannot tell what something is in the preview, enlarge it, add a distinguishing feature, or cut it.
+- **Scenery must never show its ends or float:** backdrops span the full frame width, extend past the fog distance, and meet the ground or water.
 
 Renderer facts that apply to every scene:
 
