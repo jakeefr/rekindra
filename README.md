@@ -2,7 +2,7 @@
 
 An original Hermes Agent plugin for recovering, reconstructing, and reimagining forgotten files.
 
-Status: working recovery and original animated-scene milestone. This is not yet the complete creative product or a released plugin.
+Status: working plugin, version 0.2.0. It recovers images and text from a folder you name and builds source-backed animated worlds that can be saved as video. Tested end to end on Windows only. See Limitations and Verification below.
 
 ## Product boundary
 
@@ -14,7 +14,7 @@ Python standard-library facilities, Hermes public APIs, and browser platform API
 
 All project code, dependencies, fixtures, temporary files, and development caches belong on D: on the current Windows development machine. Never commit private source collections or credentials.
 
-Five-day target: November 5-9, 2026. The implementation plan and evidence log live in `docs/`.
+The implementation plan and evidence log live in `docs/`.
 
 Run the core tests:
 
@@ -24,7 +24,7 @@ python -m unittest discover -s tests -v
 
 Two runtime dependencies, ranged in `plugin.yaml`: `pypdf>=6.21.4,<7` (BSD-3-Clause) reads PDF text and `Pillow>=13.0.0,<14` (MIT-CMU) decodes images, each in a separate, killable process. They are decoders, not creative engines. The ranges include the versions Hermes itself installs, because a plugin cannot move a Hermes pin and a conflicting one gets the plugin disabled; `tests/test_dependency_ranges.py` checks them against the recorded Hermes pins on every run, and against the versions actually installed when `HERMES_HOME` points at a Hermes install. Hermes asks before installing them (`hermes plugins install`, then restart). `hermes pm repair` does not add them. Without pypdf, PDFs are reported as unsupported; without Pillow, images other than the original TGA decoder's are. Everything else works, and those reader tests skip with a reason.
 
-On Jake's Windows development machine, use `scripts/Start-Rekindra.ps1` to launch Hermes with all development storage and caches directed to `<local path>`. To configure a model, run `scripts/Start-Rekindra.ps1 setup` and complete the provider's own sign-in. Never put a credential in this repository.
+`scripts/Start-Rekindra.ps1` is a Windows development helper that launches Hermes with all development storage and caches directed to `<local path>`. To configure a model, run `scripts/Start-Rekindra.ps1 setup` and complete the provider's own sign-in. Never put a credential in this repository.
 
 ## Working now
 
@@ -61,13 +61,34 @@ Known limits. Input limits are reported by the agent; none crashes.
 - A world that selects images is refused only when `references` is empty. If some selected images have a reference and others do not, the world still builds; the unreferenced image ships with no observed or created record and still counts toward palette drift.
 - Palette drift compares the rendered frame with the source in horizontal bands. A 3D view of flat art can flag a band that changed on purpose, such as ground where the source had sky. The agent must give a reason per warning to export past a flag, and the reason is stored in provenance. After three revise and preview cycles that still flag, export is allowed without reasons and the warnings are recorded as unresolved.
 
+## What this plugin does on your machine
+
+**Network.** Rekindra makes no network calls of its own and has no telemetry. Tool results, including recovered text and file names, go to your active Hermes model like any other tool result, so they reach whichever provider you use. `rekindra_plan` sends selected image bytes to that model only when called with `send_images=true`. If the agent opens a recovered image or preview with Hermes' own vision tools, that image goes to the model too.
+
+**Files it reads.** Only the folder you name, read-only, working from snapshots. It skips `.git`, `.ssh`, `.aws`, `.azure`, `.gnupg`, `.venv`, `node_modules`, `__pycache__`, `.env` and `.env.*`. Your source files are never modified.
+
+**Files it writes.** Only under `$HERMES_HOME/plugin-data/rekindra`.
+
+**Child processes, never through a shell.**
+- An isolated Python reader (`-I -S -B`) decodes images and PDFs. It gets only `SYSTEMROOT` and `PATH`, runs with a time limit, and is killed if it overruns.
+- Rendering a preview starts a headless copy of your installed Chrome, Edge or Chromium, or the browser named by the optional `REKINDRA_BROWSER` variable. It uses a temporary profile inside the project and background networking is turned off. It runs one at a time with a 45 second limit. It inherits Hermes' environment variables, with temp and cache paths redirected, and loads only a local generated page.
+- On Windows, `taskkill` ends a preview browser that overruns.
+
+**Background processes.** None remain once a tool call returns.
+
+**Credentials.** Rekindra stores none and declares no required environment variables. Model access is through Hermes.
+
+**Dependencies.** `pypdf>=6.21.4,<7` and `Pillow>=13.0.0,<14`. Hermes asks before installing them.
+
+**Untrusted content.** Recovered text is labelled as untrusted quoted data for the agent, which is told not to follow instructions inside it. That is guidance to the model, not a guarantee.
+
 ## Verification
 
-Latest local core verification: 675 Python and 15 Node tests pass. The current plugin declares ten tools including native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
+Latest local core verification: 674 Python tests pass with 1 skipped, and 15 Node tests pass. The current plugin declares ten tools including native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
 
 Real Windows Chrome acceptance now verifies original 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Playwright is development-only. Reproduce with `scripts/make_scene_fixture.py`, then `scripts/browser_scene_test.cjs` (requires a development Playwright installation and Chrome).
 
-Cross-platform CI passed all six Windows/Linux/macOS + Python 3.11/3.14 jobs, each running 46 Python and 6 Node tests: [scene CI run](https://github.com/jakeefr/rekindra/actions/runs/41989227727). A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
+The CI matrix covers Windows, Linux and macOS on Python 3.11 and 3.14. An earlier build passed all six jobs; the current build has been verified locally on Windows only. A green core test is not a real Hermes desktop/browser acceptance pass. Mac/Linux host and browser integration remain unverified.
 
 Future work: general render checks beyond palette drift and backdrop edges, covering object readability, washout, aliasing, intersections, motion and horizon. Also stronger creative variety, interactive story/game reconstruction, background jobs and full cross-platform acceptance. Hermes itself may install its own standard tools, including FFmpeg; Rekindra does not import or invoke them.
 

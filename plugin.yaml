@@ -1,5 +1,6 @@
 name: rekindra
 version: 0.2.0
+requires_hermes: ">=0.22.7"
 description: Recover forgotten images and create source-backed original animated scenes with portable browser and WebM output.
 author: Jake Werner
 python_dependencies:
