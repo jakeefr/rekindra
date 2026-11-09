@@ -53,6 +53,8 @@ def _on_background(Image, open_image, fill: int):
     """Decode onto a canvas of one value, kept by load_prepare, without Pillow's fake end marker."""
     image = open_image()
     image._ended = True     # otherwise a truncated JPEG is padded with gray rows nothing wrote
+    if getattr(image, '_frame_transparency', None) is not None:
+        image._frame_transparency = None    # or GIF swaps the canvas for its own, and nothing can be proved
     bands = len(image.getbands())
     image.im = Image.new(image.mode, image.size, fill if bands == 1 else (fill,) * bands).im
     image.load()
@@ -217,10 +219,11 @@ def recover(data: bytes, tag: str, max_pixels: int, scene_budget: int) -> tuple:
         notes.append('The icon holds several sizes; only the largest was recovered.')
     out = _normalize(Image, image)
     if facts['orientation']:
-        out = out.transpose({2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180,
-                             4: Image.Transpose.FLIP_TOP_BOTTOM, 5: Image.Transpose.TRANSPOSE,
-                             6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
-                             8: Image.Transpose.ROTATE_90}[facts['orientation']])
+        if tag != 'tiff':   # Pillow's TIFF reader already turned it during load
+            out = out.transpose({2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180,
+                                 4: Image.Transpose.FLIP_TOP_BOTTOM, 5: Image.Transpose.TRANSPOSE,
+                                 6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
+                                 8: Image.Transpose.ROTATE_90}[facts['orientation']])
         notes.append(f"EXIF orientation {facts['orientation']} was applied.")
     full = _png(out)
     small, scene = _scene_copy(Image, out, full, scene_budget)

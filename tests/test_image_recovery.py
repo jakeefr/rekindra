@@ -156,6 +156,26 @@ class ReadImageTests(unittest.TestCase):
         self.assertEqual(header['exif_orientation'], 6)
         self.assertEqual((header['width'], header['height']), (30, 60))
 
+    def test_tiff_orientation_is_applied_once(self):
+        source = noise((60, 30))
+        result = read_image(encoded(source, 'TIFF', tiffinfo={0x0112: 6}), 'tiff')
+        self.assertEqual(result['header']['exif_orientation'], 6)
+        recovered = decode(result['full'])
+        self.assertEqual(recovered.size, (30, 60))
+        self.assertEqual(recovered.convert('RGB').tobytes(), source.transpose(Image.Transpose.ROTATE_270).tobytes())
+
+    def test_truncated_transparent_gif_counts_only_real_pixels(self):
+        full = noise((80, 80)).quantize(255)
+        data = encoded(full, 'GIF', transparency=0)
+        reference = decode(encoded(Image.open(io.BytesIO(data)), 'PNG'))
+        result = read_image(data[:len(data) * 6 // 10], 'gif')
+        header = result['header']
+        self.assertIs(header['partial'], True)
+        self.assertTrue(0 < header['decoded_fraction'] < 1, header['decoded_fraction'])
+        recovered = decode(result['full'])
+        self.assertLess(recovered.size[1], 80)
+        self._assert_shown_pixels_match(recovered, reference, tolerance=0)
+
     def test_absent_exif_stays_null(self):
         self.assertIsNone(read_image(encoded(noise(), 'JPEG'), 'jpeg')['header']['exif_date'])
 
