@@ -76,6 +76,7 @@
     if(scene.schema_version===2){
       world=RekindraWorld.createRenderer(scene,data.programs);
       for(const ref of scene.references){const p=document.createElement('p');p.textContent=`Agent interpretation — observed: ${ref.observed} Created: ${ref.created}`;$('sources').append(p)}
+      for(const ref of scene.text_references||[]){const p=document.createElement('p');p.textContent=`Agent interpretation of recovered text: ${ref.interpretation}`;$('sources').append(p)}
     }
     display(Math.min(.8,scene.duration/4));$('status').textContent='Ready. Everything needed for playback is in this file.';
     if(data.inspection_only){$('status').textContent='Inspection view only. Saved scene and presentation camera are unchanged.';$('export').disabled=true;}
