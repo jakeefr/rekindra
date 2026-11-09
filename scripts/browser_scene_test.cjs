@@ -96,12 +96,15 @@ const digest=value=>require('node:crypto').createHash('sha256').update(value).di
     const cancelled=await page.evaluate(async()=>{const p=rekindra.exportVideo({download:false});setTimeout(()=>rekindra.cancelExport(),10);try{await p;return false}catch(e){return e.message==='Export cancelled'&&!document.querySelector('#export').disabled}});
     assert.equal(cancelled,true,'Cancellation failed');
     const original=fs.readFileSync(input,'utf8');
-    const altered=original.replace(/("image_sha256"\s*:\s*")[a-f0-9]{64}/,'$1'+'0'.repeat(64));
-    assert.notEqual(altered,original);
-    const alteredPath=path.join(out,'corrupted.html');fs.writeFileSync(alteredPath,altered);
-    await page.goto(pathToFileURL(alteredPath).href);await page.waitForFunction(()=>globalThis.rekindra);
-    assert.equal(await page.evaluate(()=>rekindra.ready),false,'Corrupted embedded data accepted');
-    assert.match(await page.evaluate(()=>rekindra.error),/integrity/);
-    assert.equal(await page.locator('#export').isDisabled(),true);
+    // The player's integrity check hashes embedded images; a world built from text alone embeds none.
+    if(!/"sources"\s*:\s*\[\s*\]/.test(original)){
+      const altered=original.replace(/("image_sha256"\s*:\s*")[a-f0-9]{64}/,'$1'+'0'.repeat(64));
+      assert.notEqual(altered,original);
+      const alteredPath=path.join(out,'corrupted.html');fs.writeFileSync(alteredPath,altered);
+      await page.goto(pathToFileURL(alteredPath).href);await page.waitForFunction(()=>globalThis.rekindra);
+      assert.equal(await page.evaluate(()=>rekindra.ready),false,'Corrupted embedded data accepted');
+      assert.match(await page.evaluate(()=>rekindra.error),/integrity/);
+      assert.equal(await page.locator('#export').isDisabled(),true);
+    }
   }finally{await context.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});
