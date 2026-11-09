@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from unittest import mock
 import zipfile
+import zlib
 
 from test_worlds import world
 import test_recover_evidence as rt
@@ -50,6 +51,36 @@ def corrupt_member(data, name):
 
 def read(data, name='archive.zip', **kw):
     return zip_text.read_archive_text(inspect_archive(data, name), data, inspect_text, **kw)
+
+
+SEEN = b'Text in the directory intake inventoried.\n'
+UNSEEN = b'Text from a directory intake never walked.\n'
+
+
+def two_directory_zip():
+    """Two end records: intake inventories directory A, stdlib zipfile would read directory B.
+
+    From docs/acceptance/live-wiring-audit-af67b55.md, finding 1. B hides in A's comment and
+    declares itself 100 bytes early, so each reader settles on a different directory.
+    """
+    def local(name, body):
+        return struct.pack('<4sHHHHHIIIHH', b'PK\x03\x04', 20, 0, 0, 0, 0, zlib.crc32(body),
+                           len(body), len(body), len(name), 0) + name + body
+
+    def central(name, body, offset):
+        return struct.pack('<4sHHHHHHIIIHHHHHII', b'PK\x01\x02', 20, 20, 0, 0, 0, 0, zlib.crc32(body),
+                           len(body), len(body), len(name), 0, 0, 0, 0, 0, offset) + name
+
+    def end(cd_size, cd_offset, comment_len):
+        return struct.pack('<4sHHHHIIH', b'PK\x05\x06', 0, 0, 1, 1, cd_size, cd_offset, comment_len)
+
+    name = b'notes/tide.txt'
+    first, directory_a = local(name, SEEN), central(name, SEEN, 0)
+    second_at = len(first) + len(directory_a) + 22
+    second = local(name, UNSEEN)
+    directory_b = central(name, UNSEEN, second_at - 100)
+    tail = second + directory_b + end(len(directory_b), second_at + len(second) - 100, 0)
+    return first + directory_a + end(len(directory_a), len(first), len(tail)) + tail
 
 
 class ReaderTests(unittest.TestCase):
@@ -209,6 +240,43 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual((zip_text.MAX_DOSSIER_SOURCES, zip_text.MAX_DOSSIER_PATH, zip_text.MAX_DOSSIER_INPUT_BYTES),
                          (_limits.MAX_RECORDS, _limits.MAX_PATH_CHARS, _limits.MAX_INPUT_BYTES))
 
+    def test_two_end_records_are_never_read(self):
+        data = two_directory_zip()
+        with mock.patch.object(zipfile.ZipFile, 'open', autospec=True, side_effect=zipfile.ZipFile.open) as opened:
+            out = read(data, 'pack.zip')
+        self.assertIn('multiple_eocd_candidates', [w['code'] for w in out['warnings']])
+        self.assertEqual(opened.call_count, 0)
+        self.assertEqual(out['text_members'], [])
+        self.assertEqual(out['text_member_report']['refused']['code'], 'ambiguous_archive')
+        self.assertEqual(out['text_member_report']['read'], 0)
+        # The inventory intake did finish is kept: only member contents are withheld.
+        self.assertEqual(out['status'], 'partial')
+        self.assertEqual([e['name'] for e in out['facts']['entries']], ['notes/tide.txt'])
+        self.assertIn('ambiguous_archive', [w['code'] for w in out['warnings']])
+
+    def test_partial_archive_is_never_read(self):
+        data = make_zip([('a.txt', 'fine')]) + b'bytes after the end record'
+        with mock.patch.object(zipfile.ZipFile, 'open', autospec=True, side_effect=zipfile.ZipFile.open) as opened:
+            out = read(data)
+        self.assertEqual(inspect_archive(data, 'archive.zip')['status'], 'partial')
+        self.assertEqual(opened.call_count, 0)
+        self.assertEqual(out['text_members'], [])
+        refused = out['text_member_report']['refused']
+        self.assertEqual(refused['code'], 'partial_archive_not_read')
+        self.assertIn('trailing_data', refused['reason'])
+        self.assertEqual(out['status'], 'partial')
+        self.assertEqual([e['name'] for e in out['facts']['entries']], ['a.txt'])
+
+    def test_member_that_disagrees_with_the_inventory_is_skipped(self):
+        data = make_zip([('a.txt', 'one'), ('b.txt', 'two')])
+        for field, value in (('claimed_crc32', '00000000'), ('compressed_size_bytes', 9999),
+                             ('claimed_uncompressed_size_bytes', 7), ('compression_method', 99)):
+            env = inspect_archive(data, 'a.zip')
+            env['facts']['entries'][0][field] = value
+            out = zip_text.read_archive_text(env, data, inspect_text)
+            self.assertEqual([m['name'] for m in out['text_members']], ['b.txt'], field)
+            self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'unsafe_member', field)
+
     def test_binary_text_member_is_reported(self):
         out = read(make_zip([('a.txt', b'\x00\x01\x02' * 40), ('b.txt', 'fine')]))
         self.assertEqual(out['text_member_report']['skipped'][0]['code'], 'text_intake_rejected')
@@ -268,6 +336,20 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(summary['intake_status'], 'rejected', name)
             self.assertEqual(summary['text_members']['refused']['code'], code)
             self.assertEqual(summary['evidence_count'], 0)
+
+    def test_two_end_records_give_inventory_but_no_member_text(self):
+        (self.source / 'pack.zip').write_bytes(two_directory_zip())
+        project = self.store.inspect(self.source)
+        pid, ids = project['project_id'], {a['source_path']: a['asset_id'] for a in project['assets']}
+        out = self.store.recover(pid, ids['pack.zip'], rt.plugin.handlers.evidence_reader())
+        texts = [e.get('text') or '' for e in out['dossier']['evidence']]
+        self.assertFalse([t for t in texts if 'never walked' in t or 'intake inventoried' in t])
+        self.assertIn('notes/tide.txt', texts)
+        self.assertFalse([s for s in out['dossier']['sources'] if ':' in s['source_id']])
+        summary = rt.plugin.handlers.evidence_summary(out)
+        self.assertEqual(summary['intake_status'], 'partial')
+        self.assertEqual(summary['text_members']['refused']['code'], 'ambiguous_archive')
+        self.assertEqual(summary['text_members']['read'], 0)
 
     def test_text_reference_resolves_and_survives_reload(self):
         out = self.recover('archive.zip')

@@ -3,7 +3,8 @@
 ``rekindra_intake.inspect_archive`` lists a ZIP without reading any member. This
 module runs after it: it refuses bomb-shaped archives from the claimed sizes, then
 reads the plain-text members with bounded reads and hands each one to
-``inspect_text``. Nothing is ever written to disk and nothing inside the ZIP runs.
+``inspect_text``. An archive intake left ``partial`` keeps its inventory but no member
+of it is read. Nothing is ever written to disk and nothing inside the ZIP runs.
 """
 import io
 import json
@@ -108,6 +109,38 @@ def _refuse(envelope: dict, code: str, reason: str, skipped: list) -> dict:
                 + [{'code': code, 'message': reason}], text_members=[], text_member_report=report)
 
 
+def _withhold(envelope: dict) -> dict:
+    """Keep a partial archive's inventory but read no member from it.
+
+    Intake could not vouch for the whole file, so nothing says the bytes ``zipfile``
+    would decompress are the ones the inventory describes. The envelope stays
+    ``partial`` rather than ``rejected`` so the entry list intake did finish survives.
+    """
+    codes = sorted({str(w.get('code')) for w in envelope.get('warnings') or []
+                    if isinstance(w, dict) and w.get('code')})
+    if 'multiple_eocd_candidates' in codes:
+        code, reason = 'ambiguous_archive', ('The archive has more than one end record, so its members could '
+                                             'come from a directory that was not inventoried. None was read.')
+    else:
+        code, reason = 'partial_archive_not_read', (
+            'The archive inventory is incomplete or inconsistent'
+            + (f' ({", ".join(codes)})' if codes else '') + ', so no member was read.')
+    report = {'read': 0, 'skipped': [], 'skipped_omitted': 0, 'refused': {'code': code, 'reason': reason}}
+    return dict(envelope, warnings=list(envelope.get('warnings') or []) + [{'code': code, 'message': reason}],
+                text_members=[], text_member_report=report)
+
+
+def _matches_inventory(entry: dict, info) -> bool:
+    """True when ``zipfile`` and intake describe the same member, not only the same name."""
+    try:
+        crc = int(str(entry.get('claimed_crc32')), 16)
+    except ValueError:
+        return False
+    return (crc == info.CRC and entry.get('compressed_size_bytes') == info.compress_size
+            and entry.get('claimed_uncompressed_size_bytes') == info.file_size
+            and entry.get('compression_method') == info.compress_type)
+
+
 def _bounded_read(archive, info, deadline: float, clock) -> bytes:
     chunks, total = [], 0
     with archive.open(info) as member:
@@ -143,6 +176,8 @@ def _precheck(entry: dict, info) -> str | None:
         return 'member_too_large'
     if _bomb_shaped(entry):
         return 'member_compresses_heavily'
+    if not _matches_inventory(entry, info):
+        return 'unsafe_member'
     return None
 
 
@@ -155,6 +190,8 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
     bomb = _bomb_reason(entries)
     if bomb:
         return _refuse(envelope, 'zip_bomb_guard', bomb, [])
+    if envelope.get('status') == 'partial':
+        return _withhold(envelope)
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except _DECODE_ERRORS:
