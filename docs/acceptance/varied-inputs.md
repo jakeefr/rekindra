@@ -64,5 +64,5 @@ Rerun notes:
 - Both acknowledged palette warnings (v5, v7) were the same case: a 3D view puts green ground where the flat source
   has sky. The band comparison can flag intended changes.
 - v3: the agent also tried `terminal` and `execute_code` once each; Hermes blocked both.
-- v4: the evidence dossier counted text 2, unknown 1 for two text sources plus the PDF. Not investigated.
+- v4: the evidence dossier counted 3 sources (text 2, unknown 1) from 2 files. Not investigated.
 - Logs: `<local path>\logs\varied2-<folder>\`.

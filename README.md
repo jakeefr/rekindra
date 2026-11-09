@@ -59,7 +59,7 @@ Known limits. Input limits are reported by the agent; none crashes.
 - A file Rekindra cannot read is named from its file signature ("identified as X, not supported yet") when the signature is known, and otherwise reported as having no known file signature. Its contents are not used.
 - Worlds built only from notes have no tamper check yet. The player's integrity check hashes embedded images, so a world with no image has nothing for it to verify.
 - A world that selects images is refused only when `references` is empty. If some selected images have a reference and others do not, the world still builds; the unreferenced image ships with no observed or created record and still counts toward palette drift.
-- Palette drift compares the rendered frame with the source in horizontal bands. A 3D view of flat art can flag a band that changed on purpose, such as ground where the source had sky. The agent can export past a flag only by giving a reason per warning, which is stored in provenance.
+- Palette drift compares the rendered frame with the source in horizontal bands. A 3D view of flat art can flag a band that changed on purpose, such as ground where the source had sky. The agent must give a reason per warning to export past a flag, and the reason is stored in provenance. After three revise and preview cycles that still flag, export is allowed without reasons and the warnings are recorded as unresolved.
 
 ## Verification
 
