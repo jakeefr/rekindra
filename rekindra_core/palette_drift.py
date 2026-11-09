@@ -150,7 +150,7 @@ def drift_report(regions: list, reference: dict, scene: dict) -> dict:
     rows = []
     for measured in regions:
         region = measured['region']
-        intended = (_palette_intended(reference['palette'], region) if from_palette
+        intended = ([color for palette in reference['palettes'] for color in _palette_intended(palette, region)] if from_palette
                     else [entry['hex'] for entry in reference['colors'] if entry['region'] == region])
         if not intended:
             continue
@@ -167,8 +167,8 @@ def drift_report(regions: list, reference: dict, scene: dict) -> dict:
                               f"{_cause(rendered['hex'], best, bool(objects))}") if over else None})
     report = {'status': 'drift' if any(row['over_threshold'] for row in rows) else 'ok',
               'reference': reference['kind'], 'regions': rows}
-    if reference.get('asset_id'):
-        report['source_asset_id'] = reference['asset_id']
+    if reference.get('asset_ids'):
+        report['source_asset_ids'] = reference['asset_ids']
     if not rows:
         report.update(status='not_measured', reason='The reference names no color for any measured region.')
     return report
@@ -180,6 +180,7 @@ def _skipped(status: str, reason: str) -> dict:
 
 def _reference(store, project_id: str, plan: dict) -> dict | None:
     artifacts = store.status(project_id)['artifacts']
+    palettes, asset_ids = [], []
     for asset_id in plan.get('source_ids') or []:
         saved = next((item for item in artifacts if item.get('asset_id') == asset_id and item.get('kind') == 'recovered'), None)
         palette = clean_palette(saved.get('palette')) if saved else None
@@ -189,7 +190,10 @@ def _reference(store, project_id: str, plan: dict) -> dict | None:
             except ProjectError:    # not an image, or a measurement that cannot be made: try the next source
                 palette = None
         if palette:
-            return {'kind': 'source-palette', 'asset_id': asset_id, 'palette': palette}
+            palettes.append(palette)
+            asset_ids.append(asset_id)
+    if palettes:    # a scene may take its sky from one source and its water from another
+        return {'kind': 'source-palette', 'asset_ids': asset_ids, 'palettes': palettes}
     colors = text_colors(((plan.get('text_provenance') or {}).get('recovered_evidence')))
     return {'kind': 'text-evidence', 'colors': colors} if colors else None
 

@@ -20,7 +20,7 @@ tga = import_module(f'{plugin.__name__}.rekindra_core.tga')
 PALETTE = [{'hex': '#28465F', 'location': 'bottom band', 'coverage': 26.6},
            {'hex': '#D99483', 'location': 'top band and middle', 'coverage': 20.8},
            {'hex': '#C68890', 'location': 'middle', 'coverage': 16.4}]
-SOURCE = {'kind': 'source-palette', 'asset_id': 'image-1', 'palette': PALETTE}
+SOURCE = {'kind': 'source-palette', 'asset_ids': ['image-1'], 'palettes': [PALETTE]}
 SCENE = {'objects': [{'id': 'water', 'color': '#28465F', 'color_high': '#28465F'}],
          'environment': {'sky_top': '#D99483'}}
 
@@ -44,7 +44,7 @@ class DriftReportTests(unittest.TestCase):
     def test_matching_render_is_ok(self):
         report = drift.drift_report(regions(), SOURCE, SCENE)
         self.assertEqual(report['status'], 'ok')
-        self.assertEqual(report['source_asset_id'], 'image-1')
+        self.assertEqual(report['source_asset_ids'], ['image-1'])
         self.assertEqual([row['delta_e'] for row in report['regions']], [0.0, 0.0, 0.0])
         self.assertTrue(all(row['flag'] is None for row in report['regions']))
 
@@ -121,6 +121,19 @@ class MeasureDriftTests(unittest.TestCase):
             report = drift.measure_drift(store, 'p', self.PLAN, b'png')
         self.assertEqual(report['status'], 'not_measured')
         measure.assert_not_called()
+
+    def test_every_selected_source_can_supply_the_color(self):
+        second = [{'hex': '#3F6B3A', 'location': 'bottom band', 'coverage': 40.0}]
+        artifacts = [{'asset_id': 'image-1', 'kind': 'recovered', 'palette': PALETTE},
+                     {'asset_id': 'image-2', 'kind': 'recovered', 'palette': second}]
+        store = SimpleNamespace(status=lambda project_id: {'artifacts': artifacts}, recover=mock.Mock())
+        plan = {'scene': SCENE, 'source_ids': ['image-1', 'image-2']}
+        with mock.patch.object(drift, 'measure_review_sheet', return_value=regions(bottom='#3F6B3A')):
+            report = drift.measure_drift(store, 'p', plan, b'png')
+        self.assertEqual(report['status'], 'ok')
+        self.assertEqual(report['source_asset_ids'], ['image-1', 'image-2'])
+        self.assertEqual(report['regions'][2]['intended'], '#3F6B3A')
+        store.recover.assert_not_called()
 
     def test_saved_palette_is_compared(self):
         with mock.patch.object(drift, 'measure_review_sheet', return_value=regions(bottom='#6B4F4A')):
