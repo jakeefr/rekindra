@@ -17,6 +17,7 @@ import time
 import uuid
 
 from .identify import identify
+from .signatures import identification
 from .tga import decode_tga, RecoveryError
 from .png import encode_png
 from .image_recovery import IMAGE_FORMATS, ImageRefused, clean_palette, read_image
@@ -259,8 +260,11 @@ class ProjectStore:
                 after = os.fstat(inp.fileno())
                 if (opened.st_size, opened.st_mtime_ns) != (after.st_size, after.st_mtime_ns) or size != opened.st_size:
                     raise ProjectError('Source changed during inspection')
-            return {'asset_id': asset_id, 'source_path': relative, 'size': size,
-                    'sha256': digest.hexdigest(), 'format': identify(header, relative), 'kind': 'original'}
+            asset = {'asset_id': asset_id, 'source_path': relative, 'size': size,
+                     'sha256': digest.hexdigest(), 'format': identify(header, relative), 'kind': 'original'}
+            if asset['format'] == 'unknown':
+                asset['identification'] = identification(header)
+            return asset
         except Exception:
             destination.unlink(missing_ok=True)
             raise
@@ -337,7 +341,9 @@ class ProjectStore:
     def _recover_tga(self, project: dict, directory: Path, asset: dict, data: bytes) -> dict:
         asset_id = asset['asset_id']
         if asset.get('format') not in ('tga', 'tga_candidate'):
-            raise ProjectError('Recovery supports common image formats, the documented TGA subset, and text, ZIP and PDF text')
+            note = asset.get('identification')
+            lead = f'{note[0].upper()}{note[1:]}. ' if isinstance(note, str) and note else ''
+            raise ProjectError(f'{lead}Recovery supports common image formats, the documented TGA subset, and text, ZIP and PDF text')
         try:
             raster = decode_tga(data)
             png = encode_png(raster)
