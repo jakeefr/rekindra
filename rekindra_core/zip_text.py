@@ -10,6 +10,7 @@ import io
 import json
 import lzma
 import re
+import struct
 import time
 import zipfile
 import zlib
@@ -37,6 +38,8 @@ _NESTED_SUFFIXES = ('.zip', '.jar', '.war', '.apk', '.7z', '.rar', '.tar', '.gz'
 _METHODS = (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
 _DECODE_ERRORS = (zipfile.BadZipFile, zlib.error, lzma.LZMAError, EOFError, NotImplementedError,
                   RuntimeError, OSError, ValueError)
+_END_SIGNATURE = b'PK\x05\x06'
+_END_RECORD = struct.Struct('<4s4H2IH')
 _TOLERATED = {'encrypted', 'nested_archive_not_inspected', 'suspicious_expansion'}
 _FAILED = ('encrypted_member', 'corrupt_member', 'text_intake_rejected')
 _MEMBER_ID = re.compile(r'm\d{4}')
@@ -109,16 +112,34 @@ def _refuse(envelope: dict, code: str, reason: str, skipped: list) -> dict:
                 + [{'code': code, 'message': reason}], text_members=[], text_member_report=report)
 
 
-def _withhold(envelope: dict) -> dict:
-    """Keep a partial archive's inventory but read no member from it.
+def _directory_offset(data: bytes) -> int | None:
+    """Central directory offset of the one end record every reader agrees on, or None.
 
-    Intake could not vouch for the whole file, so nothing says the bytes ``zipfile``
-    would decompress are the ones the inventory describes. The envelope stays
-    ``partial`` rather than ``rejected`` so the entry list intake did finish survives.
+    Intake picks the end record whose comment runs exactly to end of file. ``zipfile``
+    picks the last end signature in the tail and does not check that its comment fits.
+    They can only differ when the last signature in the file is not that exact record,
+    so that is the case refused here.
+    """
+    at = data.rfind(_END_SIGNATURE)
+    if at < 0 or at + _END_RECORD.size > len(data):
+        return None
+    fields = _END_RECORD.unpack_from(data, at)
+    if at + _END_RECORD.size + fields[7] != len(data):
+        return None
+    return fields[6]
+
+
+def _withhold(envelope: dict, ambiguous: bool = False) -> dict:
+    """Keep the archive's inventory but read no member from it.
+
+    Intake could not vouch for the whole file, or the readers could disagree about its
+    directory, so nothing says the bytes ``zipfile`` would decompress are the ones the
+    inventory describes. The envelope is ``partial`` rather than ``rejected`` so the
+    entry list intake did finish survives.
     """
     codes = sorted({str(w.get('code')) for w in envelope.get('warnings') or []
                     if isinstance(w, dict) and w.get('code')})
-    if 'multiple_eocd_candidates' in codes:
+    if ambiguous or 'multiple_eocd_candidates' in codes:
         code, reason = 'ambiguous_archive', ('The archive has more than one end record, so its members could '
                                              'come from a directory that was not inventoried. None was read.')
     else:
@@ -126,7 +147,8 @@ def _withhold(envelope: dict) -> dict:
             'The archive inventory is incomplete or inconsistent'
             + (f' ({", ".join(codes)})' if codes else '') + ', so no member was read.')
     report = {'read': 0, 'skipped': [], 'skipped_omitted': 0, 'refused': {'code': code, 'reason': reason}}
-    return dict(envelope, warnings=list(envelope.get('warnings') or []) + [{'code': code, 'message': reason}],
+    return dict(envelope, status='partial',
+                warnings=list(envelope.get('warnings') or []) + [{'code': code, 'message': reason}],
                 text_members=[], text_member_report=report)
 
 
@@ -192,10 +214,16 @@ def read_archive_text(envelope: dict, data: bytes, inspect_text, clock=time.mono
         return _refuse(envelope, 'zip_bomb_guard', bomb, [])
     if envelope.get('status') == 'partial':
         return _withhold(envelope)
+    directory_at = _directory_offset(data)
+    if directory_at is None:
+        return _withhold(envelope, ambiguous=True)
     try:
         archive = zipfile.ZipFile(io.BytesIO(data))
     except _DECODE_ERRORS:
         return _refuse(envelope, 'corrupt_archive', 'The archive directory could not be read.', [])
+    if archive.start_dir != directory_at:
+        archive.close()
+        return _withhold(envelope, ambiguous=True)
 
     members, skipped, attempted = [], [], 0
     read_allowance = MAX_TOTAL_READ_BYTES

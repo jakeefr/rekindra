@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -57,23 +58,41 @@ SEEN = b'Text in the directory intake inventoried.\n'
 UNSEEN = b'Text from a directory intake never walked.\n'
 
 
+def local(name, body):
+    return struct.pack('<4sHHHHHIIIHH', b'PK\x03\x04', 20, 0, 0, 0, 0, zlib.crc32(body),
+                       len(body), len(body), len(name), 0) + name + body
+
+
+def central(name, body, offset):
+    return struct.pack('<4sHHHHHHIIIHHHHHII', b'PK\x01\x02', 20, 20, 0, 0, 0, 0, zlib.crc32(body),
+                       len(body), len(body), len(name), 0, 0, 0, 0, 0, offset) + name
+
+
+def end(cd_size, cd_offset, comment_len):
+    return struct.pack('<4sHHHHIIH', b'PK\x05\x06', 0, 0, 1, 1, cd_size, cd_offset, comment_len)
+
+
+def late_end_record_zip():
+    """One end record reaches end of file exactly, so intake calls the archive ``ok``.
+
+    A second sits in its comment, in the last 22 bytes, claiming a one-byte comment that is
+    not there. Intake ignores it; stdlib zipfile takes the last signature and reads directory B.
+    """
+    name = b'notes/tide.txt'
+    first, directory_a = local(name, SEEN), central(name, SEEN, 0)
+    second_at = len(first) + len(directory_a) + 22
+    second = local(name, UNSEEN)
+    directory_b = central(name, UNSEEN, second_at)
+    tail = second + directory_b + end(len(directory_b), second_at + len(second), 1)
+    return first + directory_a + end(len(directory_a), len(first), len(tail)) + tail
+
+
 def two_directory_zip():
     """Two end records: intake inventories directory A, stdlib zipfile would read directory B.
 
     From docs/acceptance/live-wiring-audit-af67b55.md, finding 1. B hides in A's comment and
     declares itself 100 bytes early, so each reader settles on a different directory.
     """
-    def local(name, body):
-        return struct.pack('<4sHHHHHIIIHH', b'PK\x03\x04', 20, 0, 0, 0, 0, zlib.crc32(body),
-                           len(body), len(body), len(name), 0) + name + body
-
-    def central(name, body, offset):
-        return struct.pack('<4sHHHHHHIIIHHHHHII', b'PK\x01\x02', 20, 20, 0, 0, 0, 0, zlib.crc32(body),
-                           len(body), len(body), len(name), 0, 0, 0, 0, 0, offset) + name
-
-    def end(cd_size, cd_offset, comment_len):
-        return struct.pack('<4sHHHHIIH', b'PK\x05\x06', 0, 0, 1, 1, cd_size, cd_offset, comment_len)
-
     name = b'notes/tide.txt'
     first, directory_a = local(name, SEEN), central(name, SEEN, 0)
     second_at = len(first) + len(directory_a) + 22
@@ -254,6 +273,26 @@ class ReaderTests(unittest.TestCase):
         self.assertEqual([e['name'] for e in out['facts']['entries']], ['notes/tide.txt'])
         self.assertIn('ambiguous_archive', [w['code'] for w in out['warnings']])
 
+    def test_late_end_record_in_an_ok_archive_is_never_read(self):
+        data = late_end_record_zip()
+        # The two readers really do disagree, and intake raises no flag about it.
+        self.assertEqual(inspect_archive(data, 'pack.zip')['status'], 'ok')
+        self.assertEqual(zipfile.ZipFile(io.BytesIO(data)).read('notes/tide.txt'), UNSEEN)
+        with mock.patch.object(zipfile.ZipFile, 'open', autospec=True, side_effect=zipfile.ZipFile.open) as opened:
+            out = read(data, 'pack.zip')
+        self.assertEqual(opened.call_count, 0)
+        self.assertEqual(out['text_members'], [])
+        self.assertEqual(out['text_member_report']['refused']['code'], 'ambiguous_archive')
+        self.assertEqual(out['status'], 'partial')
+        self.assertEqual([e['name'] for e in out['facts']['entries']], ['notes/tide.txt'])
+
+    def test_end_signature_inside_a_member_does_not_withhold_the_archive(self):
+        # A stored nested archive carries its own end record, but it sits before the real one.
+        inner = make_zip([('deep.txt', 'inside')])
+        out = read(make_zip([('inner.zip', inner), ('a.txt', 'fine')], zipfile.ZIP_STORED))
+        self.assertEqual([m['name'] for m in out['text_members']], ['a.txt'])
+        self.assertNotIn('refused', out['text_member_report'])
+
     def test_partial_archive_is_never_read(self):
         data = make_zip([('a.txt', 'fine')]) + b'bytes after the end record'
         with mock.patch.object(zipfile.ZipFile, 'open', autospec=True, side_effect=zipfile.ZipFile.open) as opened:
@@ -350,6 +389,42 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(summary['intake_status'], 'partial')
         self.assertEqual(summary['text_members']['refused']['code'], 'ambiguous_archive')
         self.assertEqual(summary['text_members']['read'], 0)
+
+    def test_recover_reply_fits_the_host_result_floor(self):
+        # docs/acceptance/live-wiring-audit-af67b55.md, finding 3: long names made the reply
+        # 14,969 characters with the untrusted label at 4,189, past the host's 1,500 preview.
+        note = 'The harbour bell rang twice at low tide while the ferry waited at the north quay. ' * 4
+        members = [(f'notes/{"long-folder-name-" * 10}{i:02d}/note{i:02d}.txt', note) for i in range(40)]
+        members += [(f'bin/{"x" * 186}{i:03d}.bin', b'\0' * 16) for i in range(40)]
+        source = self.temp / 'wide'
+        source.mkdir()
+        (source / 'wide.zip').write_bytes(make_zip(members))
+        handlers = rt.plugin.handlers
+        tools = handlers.make_handlers(store_factory=lambda: self.store)
+        project = json.loads(tools['rekindra_inspect']({'folder': str(source)}))['result']
+        asset_id = project['assets'][0]['asset_id']
+        raw = tools['rekindra_recover']({'project_id': project['project_id'], 'asset_id': asset_id})
+        self.assertLessEqual(len(raw), handlers.SUMMARY_MAX_CHARS)
+        self.assertLessEqual(handlers.SUMMARY_MAX_CHARS, 8_000)
+        self.assertLess(raw.index('"untrusted_content"'), 1_500)
+        self.assertLess(raw.index('"notice"'), 1_500)
+        summary = json.loads(raw)['result']
+        members_view = summary['text_members']
+        self.assertEqual(members_view['read'], zip_text.MAX_TEXT_MEMBERS)
+        self.assertLessEqual(len(members_view['skipped']), handlers.SUMMARY_SKIPPED)
+        self.assertTrue(all(len(s['name']) <= handlers.SUMMARY_NAME_CHARS for s in members_view['skipped']))
+        self.assertRegex(members_view['skipped_truncated'], r'^truncated, \d+ more')
+        self.assertEqual(sum(members_view['skipped_counts'].values()) + members_view['skipped_uncounted'],
+                         len(members_view['skipped']) + int(members_view['skipped_truncated'].split()[1]))
+        self.assertTrue(summary['evidence'])
+        self.assertRegex(summary['evidence_truncated'], r'^truncated, \d+ more')
+        self.assertEqual(int(summary['evidence_truncated'].split()[1]), summary['evidence_omitted_from_summary'])
+        self.assertEqual(summary['evidence_count'],
+                         len(summary['evidence']) + summary['evidence_omitted_from_summary'])
+        # Only the first view is compacted: the saved intake keeps every reported skip and reason.
+        stored = json.loads(next((self.temp / 'projects').rglob(f'{asset_id}.intake.json')).read_text('utf-8'))
+        self.assertGreater(len(stored['text_member_report']['skipped']), handlers.SUMMARY_SKIPPED)
+        self.assertTrue(all(s.get('reason') for s in stored['text_member_report']['skipped']))
 
     def test_text_reference_resolves_and_survives_reload(self):
         out = self.recover('archive.zip')
