@@ -300,7 +300,7 @@ class ProjectStore:
             else:
                 recovered = None
         if recovered is not None:
-            if not measure_palette or recovered['palette'] is not None:
+            if not measure_palette or recovered.get('palette') is not None:
                 return recovered
             return self._add_tga_palette(project_id, recovered)
         # A reader can wait on a child process for seconds, so the store stays free meanwhile;
@@ -355,30 +355,32 @@ class ProjectStore:
         artifact = {'asset_id': asset_id, 'kind': 'recovered', 'format': 'png',
                     'path': str(target), 'source_sha256': asset['sha256'],
                     'sha256': hashlib.sha256(png).hexdigest(), 'decoder': 'rekindra-tga-v1',
-                    'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings),
-                    'palette': self._saved_palette(project, asset)}
+                    'width': raster.width, 'height': raster.height, 'warnings': list(raster.warnings)}
+        self._keep_measured_palette(project, asset, artifact)
         project['artifacts'] = [a for a in project['artifacts'] if a.get('asset_id') != asset_id] + [artifact]
         project['stage'] = 'recovered'
         self._save(directory, project)
         return artifact
 
     @staticmethod
-    def _saved_palette(project: dict, asset: dict):
+    def _keep_measured_palette(project: dict, asset: dict, artifact: dict) -> None:
         # The same bytes decode to the same picture, so an earlier measurement still holds.
+        # No key means never measured; a saved None means the measurement finished empty.
         saved = next((a for a in project['artifacts'] if a.get('asset_id') == asset['asset_id']
                       and a.get('source_sha256') == asset['sha256']), None)
-        return saved.get('palette') if saved else None
+        if saved and 'palette' in saved:
+            artifact['palette'] = saved['palette']
 
     def _add_tga_palette(self, project_id: str, artifact: dict) -> dict:
         # Measured from the PNG we wrote, in the child and outside the store lock like any other
         # image. A measurement that fails costs only the palette, never the recovery.
         try:
             palette = clean_palette(read_image(Path(artifact['path']).read_bytes(), 'png')['header'].get('palette'))
-        except (ImageRefused, ReaderBusy, OSError):
+        except ImageRefused:
             palette = None
+        except (ReaderBusy, OSError):   # could not finish, so a later preview may measure again
+            return {**artifact, 'palette': None}
         artifact = {**artifact, 'palette': palette}
-        if palette is None:
-            return artifact
         with _STORE_LOCK:
             project = self.status(project_id)
             saved = next((a for a in project['artifacts'] if a.get('asset_id') == artifact['asset_id']

@@ -187,7 +187,7 @@ def _reference(store, project_id: str, plan: dict) -> dict | None:
             continue
         if 'palette' in saved:      # None or [] is a settled answer: previewing must not decode the source again
             palette = clean_palette(saved['palette'])
-        else:                       # recovered before palettes were saved
+        else:                       # no measurement has finished for this source yet
             try:
                 palette = clean_palette(store.recover(project_id, asset_id).get('palette'))
             except (ProjectError, OSError):
