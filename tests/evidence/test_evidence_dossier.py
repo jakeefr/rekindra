@@ -9,7 +9,7 @@ import unittest
 from unittest import mock
 
 import rekindra_evidence
-from rekindra_evidence import build_dossier
+from rekindra_evidence import build_dossier, search_dossier
 from rekindra_evidence._validate import canonical_size
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -628,6 +628,61 @@ class ModuleSafety(unittest.TestCase):
 
     def test_public_api(self):
         self.assertEqual(sorted(rekindra_evidence.__all__), ['build_dossier', 'search_dossier'])
+
+
+class RejectedIntakeProducesNoEvidence(unittest.TestCase):
+    """Review finding 3: content intake refused never becomes evidence."""
+
+    SENTINEL = 'rejectedsentinel'
+
+    def bad_json(self):
+        # Shape of inspect_text on a bad.json containing NaN: format stays json and the excerpt is kept.
+        excerpt = '{"note": "' + self.SENTINEL + '", "v": NaN}'
+        facts = text_facts(excerpt, valid=False, root_type=None)
+        warning = {'code': 'json_non_finite_number',
+                   'message': 'NaN, Infinity or an out-of-range number is not valid finite JSON.'}
+        return record('bad', 'notes/bad.json', envelope('json', 'rejected', facts, sha=HASH_B,
+                                                        size=len(excerpt), name='bad.json', warnings=[warning]))
+
+    def test_rejected_json_keeps_its_row_but_yields_no_evidence(self):
+        result = build_dossier([self.bad_json(), text_record('good', 'kept text')])
+        self.assertEqual([item['source_id'] for item in result['evidence']], ['good'])
+        self.assertNotIn(self.SENTINEL, json.dumps(result['evidence']))
+        row = source(result, 'bad')
+        self.assertEqual((row['format'], row['inspection_status'], row['relative_path']),
+                         ('json', 'rejected', 'notes/bad.json'))
+        self.assertEqual([w['code'] for w in row['warnings']], ['json_non_finite_number'])
+        coverage = row['coverage']
+        self.assertIs(coverage['content_inspected'], False)
+        self.assertEqual((coverage['evidence_available'], coverage['evidence_retained'],
+                          coverage['characters_available']), (0, 0, 0))
+        self.assertEqual(result['coverage']['sources_with_evidence'], 1)
+        self.assertEqual(result['coverage']['sources_not_content_inspected'], 1)
+
+    def test_rejected_json_produces_no_search_hits(self):
+        dossier = build_dossier([self.bad_json(), text_record('good', 'kept text')])
+        self.assertEqual(search_dossier(dossier, self.SENTINEL)['matches'], [])
+
+    def test_unsupported_and_rejected_sources_of_any_format_yield_nothing(self):
+        records = [
+            record('t-unsupported', 'notes/u.txt', envelope('text', 'unsupported', text_facts(self.SENTINEL))),
+            record('t-rejected', 'notes/r.txt', envelope('text', 'rejected', text_facts(self.SENTINEL), sha=HASH_B)),
+            zip_record('z-rejected', [zip_entry(self.SENTINEL + '.txt')], status='rejected'),
+        ]
+        result = build_dossier(records)
+        self.assertEqual(result['evidence'], [])
+        self.assertEqual(len(result['sources']), 3)
+        for row in result['sources']:
+            with self.subTest(source=row['source_id']):
+                self.assertIs(row['coverage']['content_inspected'], False)
+                self.assertEqual(row['coverage']['evidence_available'], 0)
+
+    def test_content_inspected_agrees_with_evidence_for_every_status(self):
+        for status in ('ok', 'partial', 'rejected', 'unsupported'):
+            with self.subTest(status=status):
+                result = build_dossier([record('s', 'notes/s.txt', envelope('text', status, text_facts('words')))])
+                row = source(result, 's')
+                self.assertEqual(row['coverage']['content_inspected'], bool(result['evidence']))
 
 
 if __name__ == '__main__':

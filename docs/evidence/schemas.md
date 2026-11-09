@@ -134,7 +134,7 @@ An invalid `sha256` or `size_bytes` does not reject the collection. That source 
 }
 ```
 
-- `content_inspected` is `true` only for text formats with status `ok` or `partial`.
+- `content_inspected` is `true` only for text formats with status `ok` or `partial`. Sources with status `rejected` or `unsupported` produce no evidence in any format, so their `evidence_available` is `0`; the row is still listed.
 - `member_contents_inspected` is `false` for ZIP sources, and `null` otherwise. It is never `true`.
 - `intake_truncated` lists the truncation flags the intake result set, sorted.
 - `source_text_fully_retained` is `true` only when intake status is `ok`, its excerpt was complete, and all of that excerpt was retained. It is always `false` for ZIP.

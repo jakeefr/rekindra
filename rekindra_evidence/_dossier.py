@@ -22,6 +22,8 @@ _CHUNK_SEARCH_CHARS = 100
 _CELL_JOINER = ' | '
 _SHA256 = re.compile(r'[0-9a-f]{64}')
 _TEXT_FORMATS = ('text', 'markdown', 'json', 'csv')
+# Intake refused ('rejected') or did not handle ('unsupported') anything else, so its facts never become evidence.
+_EVIDENCE_STATUSES = ('ok', 'partial')
 _TRUNCATION_FLAGS = ('entries_truncated', 'excerpt_truncated', 'headings_truncated', 'preview_cells_truncated',
                      'preview_columns_truncated', 'preview_rows_truncated', 'top_level_keys_truncated')
 _METADATA_INTS = ('claimed_uncompressed_size_bytes', 'compressed_size_bytes')
@@ -197,8 +199,13 @@ class _Reader:
         return found
 
 
-def _candidates(fmt, facts, item_chars):
-    """Return (candidates, malformed, capped). The first excerpt chunk comes first."""
+def _candidates(fmt, status, facts, item_chars):
+    """Return (candidates, malformed, capped). The first excerpt chunk comes first.
+
+    A source whose intake status is rejected or unsupported offers no candidates.
+    """
+    if status not in _EVIDENCE_STATUSES:
+        return [], False, False
     reader = _Reader(facts)
     if fmt == 'zip':
         ordered = reader.entries()
@@ -221,7 +228,7 @@ def _plan(item, item_chars=MAX_ITEM_CHARS):
     size = _natural_int(source.get('size_bytes'))
     valid_digest = type(digest) is str and _SHA256.fullmatch(digest) is not None
     name = source.get('name')
-    candidates, malformed, capped = _candidates(intake['format'], facts, item_chars)
+    candidates, malformed, capped = _candidates(intake['format'], intake['status'], facts, item_chars)
     kept = intake['warnings'][:MAX_SOURCE_WARNINGS]
     return {
         'source_id': item['source_id'], 'relative_path': item['relative_path'],
@@ -304,7 +311,7 @@ def _row(plan, kept, group_id):
         'duplicate_group': group_id, 'warnings': [dict(warning) for warning in plan['warnings']],
         'warnings_omitted': plan['warnings_omitted'],
         'coverage': {
-            'content_inspected': fmt in _TEXT_FORMATS and status in ('ok', 'partial'),
+            'content_inspected': fmt in _TEXT_FORMATS and status in _EVIDENCE_STATUSES,
             'member_contents_inspected': False if fmt == 'zip' else None,
             'intake_truncated': flags, 'undecoded_bytes': undecoded,
             'evidence_available': len(available), 'evidence_retained': len(kept),
