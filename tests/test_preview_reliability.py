@@ -24,9 +24,10 @@ SceneError = import_module(f'{plugin.__name__}.rekindra_core.scenes').SceneError
 reconstruct = import_module(f'{plugin.__name__}.rekindra_core.reconstruct')
 GAP_KEYS = ('skipped_at_inspect', 'not_recovered', 'intake', 'partial_images', 'unplaced_images', 'unplaced_text')
 
-LIVELY = {'spread': [80, 82, 81, 85, 83, 80], 'change': [1.3, 2.1, 1.8, 1.5, 1.9]}
+LIVELY = {'spread': [80, 82, 81, 85, 83, 80], 'change': [1.3, 2.1, 1.8, 1.5, 1.9], 'white': [0.0, 0.1, 0.4, 0.2, 0.0, 0.3]}
+BLOWN = dict(LIVELY, white=[0.4, 0.2, 0.3, 0.8, 1.3, 4.0])     # the measured run whose last frame was one bloom
 EMPTY = {'spread': [0, 1, 0, 2, 0, 0], 'change': [0.0, 0.1, 0.0, 0.0, 0.0]}
-STILL = {'spread': [80, 80, 80, 80, 80, 80], 'change': [0.0, 0.05, 0.0, 0.1, 0.0]}
+STILL = {'spread': [80, 80, 80, 80, 80, 80], 'change': [0.0, 0.05, 0.0, 0.1, 0.0], 'white': [0.0] * 6}
 
 
 def small_png(width=640, height=360):
@@ -56,6 +57,22 @@ class FrameWarningTests(unittest.TestCase):
         self.assertEqual([w['warning_id'] for w in found], ['frames:motionless'])
         self.assertIn('still', found[0]['message'])
 
+    def test_a_frame_washed_to_near_white_is_blown_out(self):
+        found = gate.frame_warnings(BLOWN)
+        self.assertEqual([w['warning_id'] for w in found], ['frames:blown_out'])
+        self.assertIn('frame 6 is 4% near-white (limit 3%)', found[0]['message'])
+        for fix in ('glow strength', 'bloom and halo', 'pull the camera back', 'shrink the emitter'):
+            self.assertIn(fix, found[0]['message'])
+        self.assertEqual(gate.frame_warnings(dict(LIVELY, white=[3.0] * 6)), [])
+        self.assertEqual([w['warning_id'] for w in gate.frame_warnings(dict(STILL, white=[9.5] * 6))],
+                         ['frames:motionless', 'frames:blown_out'])
+
+    def test_records_without_the_near_white_share_never_block_on_it(self):
+        old = {'spread': LIVELY['spread'], 'change': LIVELY['change']}
+        for white in ('absent', None, [], ['x'] * 6, [True] * 6, 'white'):
+            frames = old if white == 'absent' else dict(old, white=white)
+            self.assertEqual(gate.frame_warnings(frames), [], white)
+
     def test_unmeasured_frames_never_block(self):
         for value in (None, {}, {'spread': [], 'change': []}, {'spread': ['x'] * 6, 'change': [None] * 5}, 'frames'):
             self.assertEqual(gate.frame_warnings(value), [], value)
@@ -73,6 +90,15 @@ class FrameGateTests(gate_tests.ExportGateTests):
         message = self.assertBlocked(self.export(plan_id))
         self.assertIn('frames:empty', message)
         out = self.export(plan_id, [{'warning_id': 'frames:empty', 'reason': 'a deliberate fade to black throughout'}])
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(out['result']['status'], 'acknowledged')
+
+    def test_blown_out_preview_blocks_export_until_answered(self):
+        plan_id = self.create()
+        shown = gate.preview_gate(self.store, self.project['project_id'], self.plan(plan_id), gate_tests.CLEAN, None, BLOWN)
+        self.assertEqual([w['warning_id'] for w in shown['warnings']], ['frames:blown_out'])
+        self.assertIn('frames:blown_out', self.assertBlocked(self.export(plan_id)))
+        out = self.export(plan_id, [{'warning_id': 'frames:blown_out', 'reason': 'the source photo is a white glare too'}])
         self.assertTrue(out['ok'], out)
         self.assertEqual(out['result']['status'], 'acknowledged')
 
@@ -265,6 +291,14 @@ class ReviewFrameMeasurementTests(unittest.TestCase):
         stats = recovery.measure_review_frames(sheet((217, 148, 131), (198, 136, 144), (40, 70, 95)))
         self.assertGreater(min(stats['spread']), 50)
         self.assertEqual([w['warning_id'] for w in gate.frame_warnings(stats)], ['frames:motionless'])
+
+    def test_near_white_share_is_measured_per_frame(self):
+        stats = recovery.measure_review_frames(sheet((250, 250, 250), (250, 250, 250), (40, 70, 95)))
+        self.assertEqual(len(stats['white']), 6)
+        self.assertGreater(min(stats['white']), 60)
+        self.assertEqual(gate.frame_warnings(stats)[-1]['warning_id'], 'frames:blown_out')
+        # Saturated colour is not white: one channel at full scale is a lit surface, not a washed-out frame.
+        self.assertEqual(recovery.measure_review_frames(sheet((255, 180, 60), (255, 40, 40), (40, 70, 95)))['white'], [0] * 6)
 
     def test_wrong_shape_is_not_measured(self):
         self.assertIsNone(recovery.measure_review_frames(png.encode_png(tga.Raster(4, 4, bytes(64)))))

@@ -18,7 +18,7 @@ import uuid
 from .compositions import CompositionStore
 from .export_gate import preview_gate
 from .image_recovery import measure_review_frames
-from .intent_check import intent_check
+from .intent_check import intent_check, photo_material_candidates
 from .palette_drift import measure_drift
 from .projects import _atomic, _no_links
 from .scenes import SceneError
@@ -268,6 +268,11 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
         intent = intent_check(plan) if plan['scene'].get('schema_version') == 2 else []
         if intent:
             next_step += ' intent_check lists what the scene leaves off or renders dark against your own notes; follow each hint and preview again.'
+        photo = photo_material_candidates(plan) if plan['scene'].get('schema_version') == 2 else None
+        if photo:
+            next_step += (' photo_materials: no surface takes its texture from a recovered image; it names which '
+                          'image could texture what. A subject too intricate for simple shapes reads better as a '
+                          'crop of its image than as a sculpted stand-in.')
         result = {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),
@@ -276,6 +281,8 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
                 'html_sha256': artifact['sha256'], 'palette_drift': drift, 'export_gate': gate, 'next_step': next_step}
         if intent:
             result['intent_check'] = intent
+        if photo:
+            result['photo_materials'] = photo
         return result
     finally:
         try:

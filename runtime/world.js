@@ -65,7 +65,7 @@
     return {center,right:b.right,up:b.up,forward:b.forward,extent,depthExtent};
   }
   // Atmosphere strengths at field value 1, as GLSL literals. Set by eye against foggy night scenes.
-  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.';
+  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.',HALO_REACH='.35';
   const math=`
 float bound(float a){return clamp(a,-10000.,10000.);}
 float rdiv(float a,float b){return bound(a/(abs(b)<.0001?(b<0.?-.0001:.0001):b));}
@@ -279,7 +279,8 @@ vec3 reflectedRadiance(){
         const img=images[photo.asset_id];if(!img)throw Error('Material image source is not embedded in this file');
         const [cx,cy,cw,ch]=photo.crop,sw=Math.max(1,Math.round(cw*img.width)),sh=Math.max(1,Math.round(ch*img.height)),k=Math.min(1,512/Math.max(sw,sh));
         const crop=document.createElement('canvas');crop.width=Math.max(1,Math.round(sw*k));crop.height=Math.max(1,Math.round(sh*k));
-        crop.getContext('2d').drawImage(img,Math.min(img.width-sw,Math.round(cx*img.width)),Math.min(img.height-sh,Math.round(cy*img.height)),sw,sh,0,0,crop.width,crop.height);
+        const ctx=crop.getContext('2d');ctx.translate(0,crop.height);ctx.scale(1,-1); // top of the crop lands at v=1
+        ctx.drawImage(img,Math.min(img.width-sw,Math.round(cx*img.width)),Math.min(img.height-sh,Math.round(cy*img.height)),sw,sh,0,0,crop.width,crop.height);
         materialTexture=gl.createTexture();gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,materialTexture);
         gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,crop);gl.generateMipmap(gl.TEXTURE_2D);
         gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
@@ -379,7 +380,7 @@ ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
 ${soft?`{vec2 rim=min(detailUV,1.-detailUV);float feather=${soft.u>0?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
 feather=clamp(feather-${fixed((soft.breakup??0)*1.6)}*cellNoise(vec3(detailUV*vec2(46.,9.),0.))*(1.-feather),0.,1.);glowEdge*=feather*feather;}`:''}
-${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
+${photo?'glowEdge*=smoothstep(.03,.3,max(albedo.r,max(albedo.g,albedo.b)));':''}${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
@@ -522,7 +523,7 @@ void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*asp
  L=sceneLight(min(pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2))+texture(glowLight,uv).rgb,vec3(1.)));
  float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
-  float q=h/pointRange${i},fade=max(1.-q*q,0.);
+  float q=h/(pointRange${i}*${HALO_REACH}),fade=max(1.-q*q,0.);
   // Inverse-square light gathered along the ray up to the first surface.
   L+=pointColor${i}*min(pointIntensity${i}*fade*fade*fade*exp(-(fogDensity+atmoHaze)*max(along,0.))*(atan((reach-along)/h)+atan(along/h))/h*scatter,4.);}`).join('\n')}
  vec4 nearLight=unpack(texture(lightNear,uv)),midLight=unpack(texture(lightMid,uv)),farLight=unpack(texture(lightFar,uv));

@@ -109,10 +109,12 @@ def measure_review_sheet(png: bytes) -> list | None:
 
 
 def measure_review_frames(png: bytes) -> dict | None:
-    """Per-frame brightness spread (0-255) and frame-to-frame change of a preview sheet, or None."""
+    """Per-frame brightness spread (0-255), near-white share (percent) and frame-to-frame change, or None."""
     header = _review_header(png)
     frames = header.get('frames') if header is not None else None
-    if (not isinstance(frames, dict) or set(frames) != {'spread', 'change'}
+    if (not isinstance(frames, dict) or set(frames) != {'spread', 'change', 'white'}
+            or not isinstance(frames['white'], list) or len(frames['white']) != 6
+            or any(type(v) not in (int, float) or not 0 <= v <= 100 for v in frames['white'])
             or not isinstance(frames['spread'], list) or len(frames['spread']) != 6
             or not isinstance(frames['change'], list) or len(frames['change']) != 5
             or any(type(v) is not int or not 0 <= v <= 255 for v in frames['spread'])

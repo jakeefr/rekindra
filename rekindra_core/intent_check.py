@@ -20,7 +20,9 @@ FEATURES = (
                'luminous figure', 'aura')},
     {'feature': 'material_image', 'uses': 'material_image',
      'field': 'no object has material_image; add material_image to the textured objects',
-     'words': ('texture', 'textured', 'bark', 'pavement', 'cobble', 'photo material')},
+     'words': ('texture', 'textured', 'bark', 'pavement', 'paving', 'paver', 'pavers', 'paved', 'cobble',
+               'cobbles', 'cobblestone', 'cobblestones', 'brick', 'bricks', 'brickwork', 'leaf litter',
+               'leaf-littered', 'photo material')},
 )
 _BLACK = {'#000', '#000000'}
 
@@ -104,6 +106,55 @@ def _black_glow(scene):
         if field:
             found.append((obj.get('id'), field))
     return found
+
+
+# What a recovered image could lend a surface, by words in what the agent observed in it.
+# Order is the output order; the first matching word is quoted back.
+PHOTO_USES = (
+    ('subject', ('figure', 'figures', 'face', 'faces', 'person', 'people', 'portrait', 'statue', 'sculpture',
+                 'animal', 'bird', 'creature', 'wing', 'wings', 'winged', 'ornate', 'carving', 'carved', 'mask'),
+     'has a distinct subject that simple shapes cannot build: put a crop of it on the focal form, as '
+     'material_image on a soft glow surface or a surface that faces the camera'),
+    ('ground', ('pavement', 'paving', 'paver', 'pavers', 'paved', 'path', 'road', 'street', 'sidewalk', 'brick',
+                'bricks', 'cobble', 'cobbles', 'cobblestone', 'cobblestones', 'tile', 'tiles', 'floor', 'ground',
+                'gravel', 'sand', 'grass', 'soil', 'rock', 'rocks', 'rocky', 'stone', 'stones'),
+     'has ground detail: a crop of it could texture the ground, path or floor surfaces'),
+    ('foliage', ('leaf', 'leaves', 'foliage', 'canopy', 'tree', 'trees', 'trunk', 'trunks', 'bark', 'hedge',
+                 'bush', 'ivy', 'branch', 'branches'),
+     'has leaf or bark detail: a crop of it could texture the canopy, hedge or trunk surfaces'),
+)
+_PHOTO_PATTERNS = [(use, [(w, _pattern(w)) for w in words], text) for use, words, text in PHOTO_USES]
+
+
+def photo_material_candidates(plan):
+    """None, or {status, message, candidates} when recovered images are referenced but none is used as a texture."""
+    if not isinstance(plan, dict):
+        return None
+    scene = plan.get('scene') if isinstance(plan.get('scene'), dict) else {}
+    references = [r for r in scene.get('references') or []
+                  if isinstance(r, dict) and isinstance(r.get('asset_id'), str) and r['asset_id']]
+    if not references or _USES['material_image'](scene):
+        return None
+    candidates = []
+    for ref in references:
+        observed = ref.get('observed') if isinstance(ref.get('observed'), str) else ''
+        found = False
+        for use, patterns, text in _PHOTO_PATTERNS:
+            match = next((m for m in (p.search(observed) for _, p in patterns) if m), None)
+            if match:
+                found = True
+                candidates.append({'asset_id': ref['asset_id'], 'use': use,
+                                   'hint': f"image {ref['asset_id'][:8]} (you observed '{match.group(0)}') {text}."})
+        if not found:
+            candidates.append({'asset_id': ref['asset_id'], 'use': 'surface',
+                               'hint': f"image {ref['asset_id'][:8]} could texture any surface that shows its "
+                                       'material: add material_image with a crop of it.'})
+    count = len(references)
+    return {'status': 'unused',
+            'message': f"No surface uses a photo material, though {count} recovered image{'s' if count != 1 else ''} "
+                       f"{'are' if count != 1 else 'is'} in scene.references. The shapes stay 3D and invented; "
+                       'only their texture is recovered.',
+            'candidates': candidates}
 
 
 def intent_check(plan):

@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rekindra_core.intent_check import intent_check  # noqa: E402
+from rekindra_core.intent_check import intent_check, photo_material_candidates  # noqa: E402
 
 
 def plan(reason='A quiet street at dusk.', **scene_extra):
@@ -73,6 +73,36 @@ class IntentCheckTests(unittest.TestCase):
         before = copy.deepcopy(p)
         intent_check(p)
         self.assertEqual(p, before)
+
+
+class PhotoMaterialTests(unittest.TestCase):
+    REFS = [{'asset_id': 'aaaaaaaa1111', 'observed': 'a glowing winged figure on rocky ground', 'created': 'x'},
+            {'asset_id': 'bbbbbbbb2222', 'observed': 'wet brick paving under yellow leaves', 'created': 'x'},
+            {'asset_id': 'cccccccc3333', 'observed': 'a plain grey wall', 'created': 'x'}]
+
+    def test_paving_words_in_notes_flag_a_missing_photo_material(self):
+        out = intent_check(plan('Wet reflective pavers and leaf-littered verges.'))
+        self.assertEqual([r['feature'] for r in out], ['foliage', 'material_image'])
+        self.assertEqual(out[1]['stated'], 'pavers, leaf-littered')
+
+    def test_candidates_are_named_when_no_surface_uses_a_recovered_image(self):
+        out = photo_material_candidates(plan(references=self.REFS))
+        self.assertEqual(out['status'], 'unused')
+        self.assertIn('3 recovered images are', out['message'])
+        self.assertEqual([(c['asset_id'][:1], c['use']) for c in out['candidates']],
+                         [('a', 'subject'), ('a', 'ground'), ('b', 'ground'), ('b', 'foliage'), ('c', 'surface')])
+        self.assertIn("image aaaaaaaa (you observed 'figure')", out['candidates'][0]['hint'])
+        self.assertIn('focal form', out['candidates'][0]['hint'])
+        self.assertIn('material_image', out['candidates'][-1]['hint'])
+        self.assertEqual(out, photo_material_candidates(plan(references=self.REFS)))
+
+    def test_silent_when_a_surface_uses_one_or_nothing_was_recovered(self):
+        used = plan(references=self.REFS, objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}}])
+        self.assertIsNone(photo_material_candidates(used))
+        self.assertIsNone(photo_material_candidates(plan(references=[])))
+        self.assertIsNone(photo_material_candidates(plan(references=[{'observed': 'a figure'}])))
+        for value in (None, {}, {'scene': None}, {'scene': {'references': 'x'}}):
+            self.assertIsNone(photo_material_candidates(value))
 
 
 if __name__ == '__main__':

@@ -15,6 +15,10 @@ MAX_RECORD_BYTES = 512_000
 _DRIFT_STATUSES = ('drift', 'ok', 'not_measured', 'unavailable')
 EMPTY_SPREAD = 8        # brightness range (0-255) below which a frame is one flat color
 STILL_CHANGE = 0.25     # mean per-channel change (0-255) between sampled frames below which nothing moved
+# Percent of a sampled frame that may be near-white (every channel at 190 of 255 or more, which takes in a
+# bloom core and the washed halo round it). Previews that read well measure 0.4 or less; a frame that reads
+# as one white bloom measured 4.0. Three sits well clear of the first and under the second.
+BLOWN_SHARE = 3.0
 
 
 class ExportBlocked(SceneError):
@@ -80,7 +84,25 @@ def frame_warnings(frames):
         found.append({'warning_id': 'frames:motionless', 'kind': 'motionless_frames',
                       'message': 'The six sampled frames are almost identical, so the video would look like a '
                                  'still image. Move the camera along its path or animate something visible.'})
-    return found
+    return found + blown_out_warnings(frames)
+
+
+def blown_out_warnings(frames):
+    """A frame mostly washed to near-white by one light shows the light and nothing else."""
+    white = frames.get('white') if isinstance(frames, dict) else None
+    if (not isinstance(white, list) or not white
+            or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in white)):
+        return []       # not measured: a record written before this check existed
+    worst = max(white)
+    if worst <= BLOWN_SHARE:
+        return []
+    frame = white.index(worst) + 1
+    return [{'warning_id': 'frames:blown_out', 'kind': 'blown_out_frames',
+             'message': f'Sampled frame {frame} is {worst:g}% near-white (limit {BLOWN_SHARE:g}%): a light has '
+                        'bloomed over the picture and hides the scene behind it. Lower the glow strength of the '
+                        'emitter or the atmosphere bloom and halo, pull the camera back from it, or shrink the '
+                        'emitter, then preview again. If the source image itself is this bright, acknowledge '
+                        'the warning with that reason.'}]
 
 
 def current_warnings(plan, drift, frames=None):
