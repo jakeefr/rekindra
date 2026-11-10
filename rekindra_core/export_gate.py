@@ -1,8 +1,10 @@
 """Binding review: only a clean or answered preview unlocks a video-capable world export."""
+import functools
 import math
 import json
 
 from .backdrop import backdrop_warnings
+from .report_checks import camera_graze_warnings, haze_warnings, object_motion_warnings
 from .compositions import CompositionStore
 from .projects import ProjectError, _atomic, _no_links
 from .scenes import SceneError
@@ -157,7 +159,7 @@ def _pale_backdrop(scene):
     return False
 
 
-def current_warnings(plan, drift, frames=None):
+def current_warnings(plan, drift, frames=None, measures=None):
     found = frame_warnings(frames)
     if _pale_backdrop(plan.get('scene')):
         found = [w for w in found if w['warning_id'] != 'frames:blown_out']
@@ -166,7 +168,120 @@ def current_warnings(plan, drift, frames=None):
                    'message': row['flag']} for row in drift['regions'] if row['over_threshold']]
     found += [{'warning_id': 'backdrop:' + text.split(':', 1)[0], 'kind': 'backdrop_edge', 'message': text}
               for text in backdrop_warnings(plan['scene'])]
+    measures = measures if isinstance(measures, dict) else {}
+    found += object_motion_warnings(plan['scene'], measures.get('object_motion'))
+    found += haze_warnings(plan['scene'], measures.get('source_mist'))
+    found += _graze_warnings(plan['scene'])
     return found
+
+
+@functools.lru_cache(maxsize=32)
+def _graze_cached(text):
+    return tuple(json.dumps(w) for w in camera_graze_warnings(json.loads(text)))
+
+
+def _graze_warnings(scene):
+    """The path check walks every small surface; an ancestry walk asks for the same scene more than once."""
+    return [json.loads(w) for w in _graze_cached(json.dumps(scene, sort_keys=True))]
+
+
+def _measures(record):
+    measures = record.get('measures')
+    return measures if isinstance(measures, dict) else None
+
+
+def _prior_defects(store, project_id, plan):
+    """Defects the last preview of this plan, or else of the plan it was revised from, still flagged."""
+    previous = _read_record(store, project_id, plan['plan_id'])
+    model = plan.get('model')
+    if previous is None and isinstance(model, dict) and model.get('origin') == 'caller-revised' \
+            and isinstance(model.get('parent_plan_id'), str):
+        try:
+            previous = _read_record(store, project_id, model['parent_plan_id'])
+        except ProjectError:
+            previous = None
+    rows = previous.get('defects') if isinstance(previous, dict) else None
+    return {row['id']: row for row in rows if isinstance(row, dict) and isinstance(row.get('id'), str)} \
+        if isinstance(rows, list) else {}
+
+
+def open_defects(store, project_id, plan_id):
+    """Ids the latest presentation preview of a plan flagged, in order. Empty when there is no record."""
+    record = _read_record(store, project_id, plan_id)
+    rows = record.get('defects') if isinstance(record, dict) else None
+    return [row['id'] for row in rows if isinstance(row, dict) and isinstance(row.get('id'), str)] \
+        if isinstance(rows, list) else []
+
+
+def _answers_path(store, project_id, plan_id):
+    path = store._project(project_id) / 'artifacts' / f'{plan_id}-defect-answers.json'
+    _no_links(path)
+    return path
+
+
+def _read_answers(store, project_id, plan_id):
+    path = _answers_path(store, project_id, plan_id)
+    try:
+        if path.stat().st_size > MAX_RECORD_BYTES:
+            return {}
+        saved = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    rows = saved.get('addressed') if isinstance(saved, dict) else None
+    return {row['id']: row['how'] for row in rows if isinstance(row, dict) and isinstance(row.get('id'), str)
+            and isinstance(row.get('how'), str)} if isinstance(rows, list) else {}
+
+
+def parse_addresses(addresses):
+    """The revise call's optional [{id, how}] answers, cleaned; a SceneError says what is malformed."""
+    if addresses is None:
+        return []
+    if not isinstance(addresses, list) or len(addresses) > MAX_ACKNOWLEDGMENTS:
+        raise SceneError(f'addresses must be a list of at most {MAX_ACKNOWLEDGMENTS} items shaped {{"id": "...", "how": "..."}}')
+    cleaned, seen = [], set()
+    for item in addresses:
+        if not isinstance(item, dict) or set(item) != {'id', 'how'} or not isinstance(item['id'], str) \
+                or not isinstance(item['how'], str):
+            raise SceneError('Each addresses item needs exactly id (a defect id from the last preview) and how '
+                             f'(1 to {MAX_REASON} characters saying what this revise changed for it)')
+        how = ' '.join(item['how'].split())
+        if not 1 <= len(how) <= MAX_REASON or not 1 <= len(item['id']) <= 128:
+            raise SceneError(f'addresses: id must be 1 to 128 characters and how 1 to {MAX_REASON} characters')
+        if item['id'] in seen:
+            raise SceneError(f'addresses: {_brief(item["id"])} is listed more than once')
+        seen.add(item['id'])
+        cleaned.append({'id': item['id'], 'how': how})
+    return cleaned
+
+
+def answer_defects(store, project_id, parent_plan_id, plan_id, addresses):
+    """Which of the parent preview's defects this revise says it addressed. None when nothing was open or said."""
+    flagged = open_defects(store, project_id, parent_plan_id)
+    if not flagged and not addresses:
+        return None
+    said = {item['id']: item['how'] for item in addresses}
+    addressed = [{'id': i, 'how': said[i]} for i in flagged if i in said]
+    _atomic(_answers_path(store, project_id, plan_id),
+            json.dumps({'plan_id': plan_id, 'parent_plan_id': parent_plan_id, 'addressed': addressed},
+                       ensure_ascii=False).encode('utf-8'))
+    return {'addressed': addressed, 'unaddressed': [i for i in flagged if i not in said],
+            'not_open': [item['id'] for item in addresses if item['id'] not in flagged]}
+
+
+def _defects(store, project_id, plan, warnings):
+    prior = _prior_defects(store, project_id, plan)
+    answers = _read_answers(store, project_id, plan['plan_id'])
+    rows = []
+    for warning in warnings:
+        before = prior.get(warning['warning_id'])
+        survived = before.get('previews_survived') if isinstance(before, dict) else None
+        row = {'id': warning['warning_id'], 'detail': warning['message'], 'carried': before is not None,
+               'previews_survived': survived + 1 if isinstance(survived, int) and not isinstance(survived, bool)
+               else (1 if before is not None else 0)}
+        if warning['warning_id'] in answers:
+            row['revise_said'] = answers[warning['warning_id']]
+        rows.append(row)
+    return rows
 
 
 def flagged_cycles(compositions, project_id, plan):
@@ -178,7 +293,7 @@ def flagged_cycles(compositions, project_id, plan):
             break
         seen.add(current['plan_id'])
         record = _read_record(compositions.projects, project_id, current['plan_id'])
-        if record is not None and current_warnings(current, record['palette_drift'], record.get('frames')):
+        if record is not None and current_warnings(current, record['palette_drift'], record.get('frames'), _measures(record)):
             count += 1
         try:
             current = compositions.load_plan(project_id, model.get('parent_plan_id'))
@@ -187,18 +302,31 @@ def flagged_cycles(compositions, project_id, plan):
     return count
 
 
-def preview_gate(store, project_id, plan, drift, review_camera, frames=None):
-    """Remember a presentation preview of a world and say what export will ask of it."""
+def preview_gate(store, project_id, plan, drift, review_camera, frames=None, measures=None):
+    """Remember a presentation preview of a world and say what export will ask of it.
+
+    measures holds optional readings beside the frame statistics (object_motion, source_mist); a key that was
+    not measured is left out. The record also keeps this preview's defects so the next one can carry them.
+    """
     if plan['scene']['schema_version'] != 2 or review_camera is not None:
         return None
+    measures = {k: v for k, v in (measures or {}).items() if v is not None}
+    warnings = current_warnings(plan, drift, frames, measures)
+    defects = _defects(store, project_id, plan, warnings)
     record = {'plan_id': plan['plan_id'], 'palette_drift': drift}
     if frames is not None:
         record['frames'] = frames
+    if measures:
+        record['measures'] = measures
+    if defects:
+        record['defects'] = defects
     payload = json.dumps(record, ensure_ascii=False, allow_nan=False)
     _atomic(_record_path(store, project_id, plan['plan_id']), payload.encode('utf-8'))
     cycles = flagged_cycles(CompositionStore(store), project_id, plan)
-    return {'warnings': current_warnings(plan, drift, frames), 'revise_preview_cycles': cycles,
-            'cycle_cap': MAX_FLAGGED_CYCLES}
+    gate = {'warnings': warnings, 'revise_preview_cycles': cycles, 'cycle_cap': MAX_FLAGGED_CYCLES}
+    if defects:
+        gate['defects'] = defects
+    return gate
 
 
 def _parsed(item):
@@ -295,7 +423,7 @@ def export_world(store, project_id, plan_id, acknowledgments=None):
                             'make that record, never write one another way; if its error says to stop, stop '
                             'and tell the user.')
     drift = saved['palette_drift']
-    warnings = current_warnings(plan, drift, saved.get('frames'))
+    warnings = current_warnings(plan, drift, saved.get('frames'), _measures(saved))
     cycles = flagged_cycles(compositions, project_id, plan)
     if not warnings:
         status, answered = 'clear', []

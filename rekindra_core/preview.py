@@ -19,8 +19,10 @@ from .compositions import CompositionStore
 from .export_gate import preview_gate
 from .image_recovery import measure_review_frames
 from .intent_check import intent_check, photo_material_candidates
+from .image_recovery import clean_palette
 from .palette_drift import measure_drift
-from .projects import _atomic, _no_links
+from .projects import ProjectError, _atomic, _no_links
+from .report_checks import haze_report, object_motion_report, source_mist
 from .scenes import SceneError
 
 _PREVIEW_LOCK = threading.Lock()
@@ -137,10 +139,29 @@ def _white_off_emitter(result):
             or any(type(v) not in (int, float) or not 0 <= v <= 100 for v in shares)):
         return None
     return shares
+def _source_mist(store, project_id, plan):
+    """How misty the plan's source images read, from their measured palettes; None without palettes."""
+    # Only palettes already measured: this reading must never decode a source again.
+    try:
+        artifacts = store.status(project_id)['artifacts']
+    except (ProjectError, OSError, KeyError, TypeError):
+        return None
+    sources = set(plan.get('source_ids') or [])
+    palettes = [clean_palette(item.get('palette')) for item in artifacts if isinstance(item, dict)
+                and item.get('kind') == 'recovered' and item.get('asset_id') in sources and item.get('palette')]
+    return source_mist([p for p in palettes if p])
 
 
 def _decode_review(document, duration):
     return _decode_review_full(document, duration)[:3]
+
+
+def _object_motion(result):
+    """The frozen-camera change the page measured, or None when it did not (older page, no world)."""
+    value = result.get('objectMotion')
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 255:
+        return None
+    return float(value)
 
 
 def _decode_review_full(document, duration):
@@ -166,7 +187,7 @@ def _decode_review_full(document, duration):
             raise ValueError('Invalid PNG')
         if struct.unpack('>II', png[16:24]) != (1280, 1128):
             raise ValueError('Invalid preview dimensions')
-        return png, expected, _frame_images(result), _white_off_emitter(result)
+        return png, expected, _frame_images(result), _white_off_emitter(result), _object_motion(result)
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
         raise SceneError('Browser returned an invalid scene preview') from exc
 
@@ -248,7 +269,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             raise SceneError('The local browser could not render this scene. Check browser installation and graphics support.' + _STOP)
         if output.stat().st_size > MAX_DOM_BYTES:
             raise SceneError('Browser preview output exceeded its size limit')
-        png, times, frame_pngs, off_emitter = _decode_review_full(output.read_text(encoding='utf-8', errors='replace'), plan['scene']['duration'])
+        png, times, frame_pngs, off_emitter, object_motion = _decode_review_full(output.read_text(encoding='utf-8', errors='replace'), plan['scene']['duration'])
         review_id = uuid.uuid4().hex
         target = project / 'artifacts' / f'{plan_id}-review-{review_id}.png'
         _no_links(target)
@@ -276,7 +297,20 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
         if drift['status'] == 'drift':
             flags = ' '.join(row['flag'] + '.' for row in drift['regions'] if row['over_threshold'])
             next_step = f'Rendered colors drifted from the source: revise before exporting. {flags} {next_step}'
-        gate = preview_gate(store, project_id, plan, drift, review_camera, frame_stats)
+        mist = _source_mist(store, project_id, plan) if gated else None
+        gate = preview_gate(store, project_id, plan, drift, review_camera, frame_stats,
+                            {'object_motion': object_motion if gated else None, 'source_mist': mist})
+        defects = gate.pop('defects', None) if gate is not None else None
+        motion = object_motion_report(object_motion) if gated else None
+        haze = haze_report(plan['scene'], mist) if gated else None
+        if motion is not None:
+            next_step += f" object_motion: {motion['statement']}."
+        if defects:
+            carried = [d['id'] for d in defects if d['carried']]
+            next_step += (' defects lists what this preview flagged. When you revise, pass addresses [{id, how}] for '
+                          'each one you fix; any you leave out are reported as unaddressed and carried forward.')
+            if carried:
+                next_step += f" Still open from the previous preview: {', '.join(carried)}."
         if gate is not None:
             if gate['warnings']:
                 next_step += ' rekindra_export will refuse this plan until every item in export_gate.warnings is revised away or acknowledged with a reason.'
@@ -297,6 +331,12 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(), 'frames': frames,
                 'html_sha256': artifact['sha256'], 'palette_drift': drift, 'export_gate': gate, 'next_step': next_step}
+        if motion is not None:
+            result['object_motion'] = motion
+        if haze is not None:
+            result['haze'] = haze
+        if defects:
+            result['defects'] = defects
         if intent:
             result['intent_check'] = intent
         if photo:

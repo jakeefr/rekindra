@@ -586,9 +586,10 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       draw(null,canvas.width,canvas.height);
       for(let unit=3;unit<9;unit++)bind(unit,null);gl.activeTexture(gl.TEXTURE0);
     }
-    function render(time){
+    // cameraTime holds the camera at another moment; review uses it to tell object motion from camera motion.
+    function render(time,cameraTime=time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
-      const frame=cameraFrame(scene.camera,time),c=frame.camera,b=frame.basis;
+      const frame=cameraFrame(scene.camera,cameraTime),c=frame.camera,b=frame.basis;
       if(contactEnabled&&!reflector){
         gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,null);gl.bindFramebuffer(gl.FRAMEBUFFER,cameraDepthBuffer);
         gl.viewport(0,0,canvas.width,canvas.height);gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);gl.disable(gl.POLYGON_OFFSET_FILL);gl.clear(gl.DEPTH_BUFFER_BIT);
