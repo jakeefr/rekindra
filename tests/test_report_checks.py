@@ -212,9 +212,9 @@ class ReportGateTests(gate_tests.ExportGateTests):
         self.assertIn('only the camera moves', out['next_step'])
         self.assertNotIn('haze', out)   # no recovered palettes, so no mist reading
         ids = [w['warning_id'] for w in out['export_gate']['warnings']]
-        self.assertEqual(ids, ['frames:objects_still'])
+        self.assertEqual(ids, [])   # reported and tracked, never a gate warning
         self.assertEqual([d['id'] for d in out['defects']], ['frames:objects_still'])
-        self.assertIn('frames:objects_still', self.assertBlocked(self.export(plan_id)))
+        self.assertNotIn('export_blocked', json.dumps(self.export(plan_id)))
 
 
 # The gate's own tests run once, in their own file; only the helpers are borrowed here.

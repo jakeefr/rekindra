@@ -74,7 +74,7 @@ def object_motion_warnings(scene, value):
              'message': f'The plan uses time (t) in surface expressions, but with the camera held still the '
                         f'frames change by only {value:g} (limit {OBJECT_STILL:g}): objects do not move on their '
                         'own; only the camera moves. Make the animated term large enough to see from the camera, '
-                        'put the animated surface in view, or acknowledge that only the camera is meant to move.'}]
+                        'or put the animated surface in view. This is reported, not an export warning.'}]
 
 
 def source_mist(palettes):

@@ -169,7 +169,6 @@ def current_warnings(plan, drift, frames=None, measures=None):
     found += [{'warning_id': 'backdrop:' + text.split(':', 1)[0], 'kind': 'backdrop_edge', 'message': text}
               for text in backdrop_warnings(plan['scene'])]
     measures = measures if isinstance(measures, dict) else {}
-    found += object_motion_warnings(plan['scene'], measures.get('object_motion'))
     found += haze_warnings(plan['scene'], measures.get('source_mist'))
     found += _graze_warnings(plan['scene'])
     return found
@@ -312,7 +311,9 @@ def preview_gate(store, project_id, plan, drift, review_camera, frames=None, mea
         return None
     measures = {k: v for k, v in (measures or {}).items() if v is not None}
     warnings = current_warnings(plan, drift, frames, measures)
-    defects = _defects(store, project_id, plan, warnings)
+    # Still objects are reported and tracked as a defect, but never block export: a camera-only move is a fair choice.
+    advisory = object_motion_warnings(plan['scene'], measures.get('object_motion'))
+    defects = _defects(store, project_id, plan, warnings + advisory)
     record = {'plan_id': plan['plan_id'], 'palette_drift': drift}
     if frames is not None:
         record['frames'] = frames
