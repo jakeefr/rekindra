@@ -171,10 +171,26 @@ class RejectionTests(unittest.TestCase):
         refused([group(pivot=[0, 0])], 'pivot needs three values', 'between -80 and 80', '[0, 0]')
         refused([group(translation=['0', '0', '0'])], 'Invalid assembly translation fields', 'x, y, z')
         refused([group(rotation={'x': 0, 'y': '0', 'z': '0'})], '"0", not 0', 'int 0')
-        text = refused([group(rotation={'x': 'u*2', 'y': '0', 'z': '0'})], "'u*2'", 't/pi only')
+        text = refused([group(rotation={'x': '', 'y': '0', 'z': '0'})], 'at least 1', 'got 0 characters')
+        self.assertNotIn('bindings', text)
+        text = refused([group(rotation={'x': '+'.join(['t'] * 20), 'y': '0', 'z': '0'})], 'at most 32 nodes', '39 nodes')
+        self.assertNotIn('uses u or v', text)
+        text = refused([group(rotation={'x': 'u*2', 'y': '0', 'z': '0'})], "'u*2'", 't/pi only', 'uses u or v')
+        self.assertNotIn('nodes;', text)
         text = refused([group(rotation={'x': 'spin*t', 'y': '0', 'z': '0'})], "'spin'", 't and pi only')
         self.assertNotIn('the names u v t pi', text)
         self.assertNotIn('bindings defined before', text)
+
+    def test_binding_name_rejection_names_the_value_and_the_reason(self):
+        def refused(bindings, *expected):
+            scene = self.scene()
+            scene['objects'][0]['bindings'] = bindings
+            return self.create(scene, *expected)
+
+        refused([{'name': 'Wave', 'expression': 'u'}], "'Wave'", 'not a lowercase identifier', 'up to 23')
+        refused([{'name': 'sin', 'expression': 'u'}], "'sin'", 'reserved math name')
+        refused([{'name': 'w', 'expression': 'u'}, {'name': 'w', 'expression': 'v'}], "'w'", 'already defined')
+        refused('w=u', 'at most 16 local bindings', "'w=u'")
 
     def test_unknown_argument_names_are_echoed_safely(self):
         text = self.message('rekindra_status', {'project_id': self.project['project_id'], 'a\x1b[2J\nb' + 'x' * 80: 1},

@@ -54,7 +54,8 @@ def color(value):
 
 def compile_surface(obj):
     bindings=obj.get('bindings',[])
-    if not isinstance(bindings,list) or len(bindings)>16:raise SceneError('Surface allows at most 16 local bindings')
+    if not isinstance(bindings,list) or len(bindings)>16:raise SceneError('Surface allows at most 16 local bindings: bindings is an array of 0-16 {name, expression} objects; got '
+                         +(f'{len(bindings)} items' if isinstance(bindings,list) else shown(bindings)))
     names={};definitions=[];cost=0
     if 'loft' in obj:
         loft=compile_loft(obj['loft']);names.update(loft['names']);definitions.append(loft['definitions']);cost+=loft['cost']
@@ -62,7 +63,11 @@ def compile_surface(obj):
         fields(binding,'name expression','local binding')
         name=binding['name']
         if not isinstance(name,str) or not re.fullmatch('[a-z][a-z0-9_]{0,23}',name) or name in names or name in FUNCTIONS or name in ('u','v','t','pi'):
-            raise SceneError('Binding names must be unique lowercase identifiers, not reserved math names')
+            why=('is not a lowercase identifier' if not isinstance(name,str) or not re.fullmatch('[a-z][a-z0-9_]{0,23}',name)
+                 else 'is already defined on this surface' if name in names else 'is a reserved math name')
+            raise SceneError(f'Binding names must be unique lowercase identifiers, not reserved math names: got {shown(name)}, which {why}. '
+                             'Use a lowercase letter then up to 23 lowercase letters, digits or underscores, not u, v, t, pi or '
+                             +', '.join(FUNCTIONS))
         # Only prior names are in scope. No recursion, cycles, forward references,
         # caller-supplied shader identifiers, or executable code are accepted.
         value=compile_expression(binding['expression'],names)
@@ -120,7 +125,8 @@ def _text_references(refs):
     for ref in refs:
         fields(ref,'asset_id evidence_ids interpretation','text reference')
         aid=ref['asset_id']
-        if not isinstance(aid,str) or not 1<=len(aid)<=64 or aid in seen:raise SceneError('Invalid or repeated text reference asset_id')
+        if not isinstance(aid,str) or not 1<=len(aid)<=64 or aid in seen:raise SceneError('Invalid or repeated text reference asset_id: pass the asset_id of one recovered text source, '
+                                                                                        f'1-64 characters, once per source; got {shown(aid)}')
         seen.add(aid)
         ids=ref['evidence_ids']
         if (not isinstance(ids,list) or not 1<=len(ids)<=4

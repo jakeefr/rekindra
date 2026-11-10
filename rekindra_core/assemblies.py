@@ -37,13 +37,16 @@ def compile_assemblies(groups):
             compiled[field]=[]
             for axis in ('x','y','z'):
                 text=exprs[axis]
-                if not isinstance(text,str) or len(text)>128:
-                    raise SceneError('Assembly expressions allow at most 128 characters of text, even for a constant ("0", not 0); got '
+                if not isinstance(text,str) or not 1<=len(text)<=128:
+                    raise SceneError('Assembly expressions allow at most 128 characters of text and at least 1, even for a constant ("0", not 0); got '
                                      +(f'{len(text)} characters' if isinstance(text,str) else shown(text)))
                 expression=compile_expression(text,allowed=ASSEMBLY_ALLOWED)
-                if expression['cost']>32 or re.search(r'\b[uv]\b',expression['glsl']):
-                    raise SceneError(f'Assembly expressions use t/pi only and at most 32 nodes: {shown(text)} uses u or v, or is too long '
-                                     f'({expression["cost"]} nodes). u and v belong in a surface position, not in an assembly')
+                if re.search(r'\b[uv]\b',expression['glsl']):
+                    raise SceneError(f'Assembly expressions use t/pi only and at most 32 nodes: {shown(text)} uses u or v, '
+                                     'which belong in a surface position, not in an assembly')
+                if expression['cost']>32:
+                    raise SceneError(f'Assembly expressions use t/pi only and at most 32 nodes: {shown(text)} has '
+                                     f'{expression["cost"]} nodes; shorten it')
                 compiled[field].append(expression['glsl']);cost+=expression['cost']
         vec=lambda values: 'vec3('+','.join(format(float(x),'.9f') for x in values)+')'
         pivot=vec(group['pivot']);scale=vec(group['scale'])
