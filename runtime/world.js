@@ -65,7 +65,7 @@
     return {center,right:b.right,up:b.up,forward:b.forward,extent,depthExtent};
   }
   // Atmosphere strengths at field value 1, as GLSL literals. Set by eye against foggy night scenes.
-  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.',HALO_REACH='.35';
+  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.',HALO_REACH='.35',SPILL_CAP='.7';
   const math=`
 float bound(float a){return clamp(a,-10000.,10000.);}
 float rdiv(float a,float b){return bound(a/(abs(b)<.0001?(b<0.?-.0001:.0001):b));}
@@ -286,7 +286,7 @@ vec3 reflectedRadiance(){
       const cards=cardCount?`min(fract(clamp(detailUV.x,0.,.999999)*${fixed(cardCount)})*${fixed(o.segments[0]/(o.segments[0]-cardCount))},1.0001)`:'';
       // Separate body masses and wing feathers also leave their joining cells out of the shadow and depth passes.
       const cardGap=source.cards?`if(min(fract(clamp(cardU,0.,.999999)*${fixed(cardCount)})*${fixed(o.segments[0]/(o.segments[0]-cardCount))},1.0001)>1.00005)discard;`:'';
-      const wrapU=Boolean(o.drape||o.ring),wrapV=Boolean(o.ring);
+      const wrapU=Boolean(o.drape||o.ring||o.figure),wrapV=Boolean(o.ring);
       const hasDetail=hasColorDetail||hasBump||hasColorPattern||Boolean(photo)||Boolean(soft)||Boolean(cards);
       // A recovered-image crop becomes a small mirrored-repeat texture for this surface.
       let materialTexture=null;
@@ -541,7 +541,7 @@ void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*asp
  // Glow surfaces write no depth, so their light is added after the haze, which only knows the surface behind.
  // It is added to the display-encoded colour, exactly as the plain renderer blends glow, so a glow over a lit background keeps its strength.
  L=sceneLight(${softHighlights?'vec3(1.)-(vec3(1.)-pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2)))*(vec3(1.)-texture(glowLight,uv).rgb)':'min(pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2))+texture(glowLight,uv).rgb,vec3(1.))'});
- float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
+ float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};${softHighlights?'vec3 spillBase=L;':''}
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
   float q=h/(pointRange${i}*${HALO_REACH}),fade=max(1.-q*q,0.);
   // Inverse-square light gathered along the ray up to the first surface.
@@ -549,7 +549,9 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
  vec4 nearLight=unpack(texture(lightNear,uv)),midLight=unpack(texture(lightMid,uv)),farLight=unpack(texture(lightFar,uv));
  L+=(nearLight.rgb*.5+midLight.rgb*.5)*atmoBloom*${BLOOM_GAIN};
  L+=farLight.rgb*(farLight.a/max(dot(farLight.rgb,vec3(.2126,.7152,.0722)),1.e-5))*atmoHalo*${HALO_GAIN};
- L*=1.-atmoVignette*smoothstep(.4,1.5,length(screen));
+${softHighlights?` // Soft highlights: halo and bloom spill saturates below white, so glare veils what it covers instead of erasing it.
+ L=spillBase+${SPILL_CAP}*(vec3(1.)-exp(-(L-spillBase)*exposure/${SPILL_CAP}))/exposure;
+`:''} L*=1.-atmoVignette*smoothstep(.4,1.5,length(screen));
  vec3 c=${softHighlights?softTone('L'):'displayColor(L)'};
  if(atmoGrain>0.){
   // One grain value per output pixel and frame, from an integer hash: the same time always gives the same grain.

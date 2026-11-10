@@ -161,7 +161,7 @@ def _figure(spec, segments, context=None):
         f'float rk_gt=min((rk_gu-rk_gi)*{_f(across / (across - 1))},1.)*6.2831853;',
         'float rk_gv=clamp(v,0.,1.);',
         'float rk_gb=clamp(rk_gv*2.-.5,0.,1.);',
-        'float rk_gp=1.5707963*(clamp(rk_gv*4.-3.,0.,1.)-clamp(1.-rk_gv*4.,0.,1.));',
+        'float rk_gp=1.5307963*(clamp(rk_gv*4.-3.,0.,1.)-clamp(1.-rk_gv*4.,0.,1.));',
         'vec3 rk_figure_p=rk_ga[rk_gn]+rk_gd[rk_gn]*rk_gb+mix(rk_gc[rk_gn].x,rk_gc[rk_gn].y,rk_gb)*'
         '(cos(rk_gp)*(cos(rk_gt)*rk_gx[rk_gn]+sin(rk_gt)*rk_gy[rk_gn])+sin(rk_gp)*rk_gz[rk_gn]);',
     ]
@@ -182,8 +182,12 @@ def _wing(spec, segments, context=None):
     broad = spec.get('width', 1.5); _number(broad, .4, 3, 'wing width')
     overlap = spec.get('overlap', .5); _number(overlap, 0, 1, 'wing overlap')
     layer = spec.get('layer', .03 * span); _number(layer, 0, 2, 'wing layer')
+    if layer > .12 * span:
+        # Layer also cups each feather, so a deep one turns flat feathers into cones.
+        raise SceneError(f'wing layer is the depth between feather rows in metres and must stay at or under 0.12 of the '
+                         f'span ({_f(.12 * span).rstrip("0")} here); leave it out for the default')
     cards = count * rows
-    across = _cards(segments, cards, 2, 'wing', f'feathers ({count} in each of {rows} rows)')
+    across = _cards(segments, cards, 3, 'wing', f'feathers ({count} in each of {rows} rows)')
     opened = compile_expression(spec.get('open', '1'), {})
     code = [
         f'float rk_wu=clamp(u,0.,.999999)*{cards}.;',

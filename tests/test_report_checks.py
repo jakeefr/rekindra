@@ -215,6 +215,8 @@ class ReportGateTests(gate_tests.ExportGateTests):
         self.assertEqual(ids, [])   # reported and tracked, never a gate warning
         self.assertEqual([d['id'] for d in out['defects']], ['frames:objects_still'])
         self.assertNotIn('export_blocked', json.dumps(self.export(plan_id)))
+        answered = self.export(plan_id, [{'warning_id': 'frames:objects_still', 'reason': 'Only the camera is meant to move.'}])
+        self.assertNotIn('export_blocked', json.dumps(answered))
 
 
 # The gate's own tests run once, in their own file; only the helpers are borrowed here.

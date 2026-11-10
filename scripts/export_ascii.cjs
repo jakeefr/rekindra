@@ -19,7 +19,7 @@ const {pathToFileURL}=require('node:url');
     await page.waitForFunction(()=>globalThis.rekindra?.ready);
     await page.locator('#ascii').setChecked(ascii);await page.locator('#asciiColor').setChecked(!mono);
     if(detail!=='standard')await page.locator('#asciiDetail').selectOption(detail);
-    const downloading=page.waitForEvent('download');
+    const downloading=page.waitForEvent('download',{timeout:240000});
     const result=await page.evaluate(async()=>{
       const blob=await rekindra.exportVideo({download:false});
       const url=URL.createObjectURL(blob),v=document.createElement('video');v.muted=true;v.src=url;

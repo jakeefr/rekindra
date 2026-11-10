@@ -373,6 +373,8 @@ def _matched(acknowledgments, warnings, cycles):
             parsed = _parsed(item)
             if parsed is None:
                 malformed += 1
+            elif parsed['warning_id'] == 'frames:objects_still' and parsed['warning_id'] not in wanted:
+                continue    # reported only; answering it is harmless, never stale
             elif parsed['warning_id'] not in wanted:
                 stale.append(_brief(parsed['warning_id']))
             elif parsed['warning_id'] in answered:
