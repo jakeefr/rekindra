@@ -405,8 +405,10 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 # A world may be built from text evidence alone; a composition always draws an image.
                 selected = args.get('asset_ids', []) if operation == 'world' else args.get('asset_ids')
                 sources = compositions.sources(args['project_id'], selected, allow_empty=operation == 'world')
+                from .rekindra_core.constructs import collect_adjustments
                 try:
-                    scene = validate_scene(args.get('scene'), {s['asset_id'] for s in sources})
+                    with collect_adjustments() as adjusted:
+                        scene = validate_scene(args.get('scene'), {s['asset_id'] for s in sources})
                 except UndeclaredWorldSource as exc:
                     raise SceneError(undeclared_source_message(exc, selected, compositions.image_asset_ids(args['project_id']))) from exc
                 if operation=='world' and scene['schema_version']!=2:raise SceneError('create_world requires scene version 2: set scene.schema_version to 2 and use the world fields '
@@ -420,7 +422,10 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 result = compositions.build(args['project_id'], saved['plan_id'], draft=True)
                 if operation == 'world':
                     from .rekindra_core.backdrop import backdrop_warnings
-                    result = with_preview({**result, 'warnings': backdrop_warnings(scene)})
+                    result = {**result, 'warnings': backdrop_warnings(scene)}
+                    if adjusted:
+                        result['adjusted'] = list(dict.fromkeys(adjusted))
+                    result = with_preview(result)
             elif operation == 'revise':
                 from .rekindra_core.backdrop import backdrop_warnings
                 from .rekindra_core.revisions import revise_world
@@ -428,7 +433,9 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 parent = compositions.load_plan(args['project_id'], args['plan_id'])
                 from .rekindra_core.export_gate import answer_defects, parse_addresses
                 addresses = parse_addresses(args.get('addresses'))
-                scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
+                from .rekindra_core.constructs import collect_adjustments
+                with collect_adjustments() as adjusted:
+                    scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
                 attribution = {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
                                'parent_plan_id': parent['plan_id'], 'changed_fields': changed}
                 cited = parent['model'].get('reconstruction') if isinstance(parent.get('model'), dict) else None
@@ -444,12 +451,25 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                                         if args.get('preview') is True else
                                         'Use rekindra_preview with this new plan_id, then rekindra_export once it is right; saving is not visual acceptance. '
                                         'Passing preview: true to rekindra_revise_world renders it in the same call.')}
+                if adjusted:
+                    revised['adjusted'] = list(dict.fromkeys(adjusted))
                 if answered is not None:
                     revised['flagged_defects'] = answered
-                    if answered['unaddressed']:
-                        revised['next_step'] += (' flagged_defects.unaddressed lists defects the last preview flagged '
-                                                 'that this revise did not say it addressed; they stay open.')
                 result = with_preview(revised)
+                shown = result.get('preview') if isinstance(result.get('preview'), dict) else {}
+                if answered is not None:
+                    # The new preview's measurement decides: a defect it no longer finds counts as addressed
+                    # even when this revise did not declare it.
+                    measured = [row for row in shown.get('cleared_defects') or [] if row['id'] in answered['unaddressed']]
+                    if measured:
+                        gone = {row['id'] for row in measured}
+                        answered = dict(answered, addressed=answered['addressed'] + measured,
+                                        unaddressed=[i for i in answered['unaddressed'] if i not in gone])
+                        result['flagged_defects'] = answered
+                    if answered['unaddressed']:
+                        result['next_step'] += (' flagged_defects.unaddressed lists defects the last preview flagged that '
+                                                'this revise did not say it addressed'
+                                                + (' and its preview did not clear' if shown else '') + '; they stay open.')
             elif operation == 'build':
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'], draft=True)
             elif operation == 'preview':

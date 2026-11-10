@@ -4,12 +4,51 @@ Each optional surface field supplies coordinates to the position expressions, th
 feathers -> feather_x/y/z, drape -> drape_x/y/z, ring -> ring_x/y/z, figure -> figure_x/y/z,
 wing -> wing_x/y/z. Absent by default.
 """
+import contextvars
 import math
+from contextlib import contextmanager
 from .scenes import SceneError, _number
 from .expressions import compile_expression
 from .rigs import PARTS
 
 CONSTRUCTS = ('feathers', 'drape', 'ring', 'figure', 'wing')
+U_LIMIT = 128
+_NOTES = contextvars.ContextVar('rekindra_construct_adjustments', default=None)
+
+
+@contextmanager
+def collect_adjustments():
+    """Collects one sentence per value a builder moved to the nearest one the renderer allows."""
+    notes = []
+    token = _NOTES.set(notes)
+    try:
+        yield notes
+    finally:
+        _NOTES.reset(token)
+
+
+def _note(text):
+    notes = _NOTES.get()
+    if notes is not None:
+        notes.append(text)
+
+
+def _snap(segments, cards, least, label, unit):
+    """Columns per card. A u count that does not fit is moved, in place, to the nearest one that does;
+    0 when segments is malformed or no count up to the u limit fits."""
+    if not (isinstance(segments, list) and segments and type(segments[0]) is int):
+        return 0
+    have = segments[0]
+    if have % cards == 0 and have // cards >= least:
+        return have // cards
+    fits = [cards * k for k in range(least, U_LIMIT // cards + 1)]
+    if not fits:
+        return 0
+    used = min(fits, key=lambda n: (abs(n - have), -n))
+    segments[0] = used
+    _note(f'{label} u segments {have} does not divide into its {cards} {unit} with at least {least} each; '
+          f'used {used}, the nearest count that does')
+    return used // cards
 
 
 def _fields(value, required, optional, label):
@@ -35,8 +74,8 @@ def _feathers(spec, segments, context=None):
     mirror = spec.get('mirror', False)
     if type(mirror) is not bool:
         raise SceneError('feathers mirror must be true or false')
-    across = segments[0] // count if isinstance(segments, list) and segments and isinstance(segments[0], int) else 0
-    if across < 2 or segments[0] % count:
+    across = _snap(segments, count, 2, 'feathers', 'feathers')
+    if not across:
         raise SceneError(f'feathers needs u segments to be a multiple of count with at least 2 per feather: with count {count} '
                          f'use u segments {count * 2}, {count * 3} or {count * 4} (u limit 128)')
     opened = compile_expression(spec.get('open', '1'), {})
@@ -125,8 +164,8 @@ def _rig(name, context, label):
 
 
 def _cards(segments, cards, least, label, unit):
-    across = segments[0] // cards if isinstance(segments, list) and segments and isinstance(segments[0], int) else 0
-    if across < least or segments[0] % cards:
+    across = _snap(segments, cards, least, label, unit)
+    if not across:
         fit = [str(cards * k) for k in range(least, least + 6) if cards * k <= 128][:3]
         raise SceneError(f'{label} needs u segments to be a multiple of its {cards} {unit} with at least {least} each: '
                          + (f'use u segments {" or ".join(fit)}' if fit else 'use fewer, the u limit is 128'))
@@ -184,8 +223,10 @@ def _wing(spec, segments, context=None):
     layer = spec.get('layer', .03 * span); _number(layer, 0, 2, 'wing layer')
     if layer > .12 * span:
         # Layer also cups each feather, so a deep one turns flat feathers into cones.
-        raise SceneError(f'wing layer is the depth between feather rows in metres and must stay at or under 0.12 of the '
-                         f'span ({_f(.12 * span).rstrip("0")} here); leave it out for the default')
+        deepest = math.floor(.12 * span * 1e6) / 1e6
+        _note(f'wing layer {layer:g} is deeper than 0.12 of the span; used {deepest:g}, the deepest allowed '
+              '(layer is the depth between feather rows in metres)')
+        layer = spec['layer'] = deepest
     cards = count * rows
     across = _cards(segments, cards, 3, 'wing', f'feathers ({count} in each of {rows} rows)')
     opened = compile_expression(spec.get('open', '1'), {})
@@ -221,4 +262,9 @@ def compile_constructs(obj, context=None):
     present = [name for name in CONSTRUCTS if name in obj]
     if len(present) > 1 or (present and 'loft' in obj):
         raise SceneError('A surface takes one construction field: feathers, drape, ring, figure, wing or loft')
-    return [_BUILD[name](obj[name], obj.get('segments'), context) for name in present]
+    notes = _NOTES.get()
+    start = len(notes) if notes is not None else 0
+    parts = [_BUILD[name](obj[name], obj.get('segments'), context) for name in present]
+    if notes is not None:
+        notes[start:] = [f"surface {obj.get('id')}: {note}" for note in notes[start:]]
+    return parts

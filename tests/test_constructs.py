@@ -3,7 +3,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from rekindra_core.constructs import compile_constructs
+from rekindra_core.constructs import collect_adjustments, compile_constructs
 from rekindra_core.scenes import SceneError
 from rekindra_core.worlds import compile_surface, WORLD_SCHEMA
 
@@ -50,11 +50,24 @@ class FeatherTests(unittest.TestCase):
         self.assertIn('vec3(rk_fq.x', still['definitions'])
         self.assertGreater(part['cost'], still['cost'] - 1)
 
-    def test_segments_must_divide_into_cards(self):
-        with self.assertRaisesRegex(SceneError, 'multiple of count'):
-            compile_constructs(surface(feathers=self.SPEC, segments=[20, 6]))
-        with self.assertRaisesRegex(SceneError, 'at least 2 per feather'):
-            compile_constructs(surface(feathers=self.SPEC, segments=[12, 6]))
+    def test_segments_that_do_not_divide_into_cards_snap_to_the_nearest_count_and_say_so(self):
+        for given in (20, 12, 30):   # 30 sits between 24 and 36: the higher count wins a tie
+            part = surface(feathers=self.SPEC, segments=[given, 6])
+            with collect_adjustments() as notes:
+                compile_constructs(part)
+            self.assertEqual(part['segments'], [36 if given == 30 else 24, 6], given)
+            self.assertEqual(len(notes), 1)
+            self.assertIn(f'surface part: feathers u segments {given} ', notes[0])
+            self.assertIn(f'used {part["segments"][0]}', notes[0])
+        fits = surface(feathers=self.SPEC, segments=[24, 6])
+        with collect_adjustments() as notes:
+            compile_constructs(fits)
+        self.assertEqual((fits['segments'], notes), ([24, 6], []))
+        compile_constructs(surface(feathers=self.SPEC, segments=[20, 6]))   # no collector: still snaps, no error
+
+    def test_segments_no_count_can_fix_are_still_refused(self):
+        with self.assertRaises(SceneError):   # 48 feathers need at least 96 columns and at most 128: only 96 fits
+            compile_constructs(surface(feathers=dict(self.SPEC, count=48), segments=['many', 6]))
 
     def test_bad_values_are_refused(self):
         for bad in ({'count': 1}, {'count': 49}, {'count': 2.5}, {'overlap': 2}, {'mirror': 1}, {'colour': 1}, {'open': 'import os'}):

@@ -131,9 +131,129 @@ class CameraGrazeTests(unittest.TestCase):
         self.assertIn('instance 1', found[0]['message'])
 
 
+def figure_scene(distance, fov=42):
+    """A 1.8 m kneeling figure with the camera held `distance` metres in front of it."""
+    scene = world()
+    scene['rigs'] = [{'id': 'kneeler', 'position': [0, 0, 0], 'height': 1.8, 'pose': ['kneeling', 'arms_at_chest']}]
+    pose = {'eye': [0, 1.25, distance], 'target': [0, .7, 0], 'fov': fov}
+    scene['camera'] = [dict(pose, at=0), dict(pose, at=scene['duration'])]
+    return scene
+
+
+class FocalFramingTests(unittest.TestCase):
+    def test_a_figure_that_ends_small_is_flagged_with_how_to_fix_it(self):
+        scene = figure_scene(11.2)   # the first demo rehearsal: the final camera 11.2 m from the figure at fov 42
+        report = checks.focal_framing(scene)
+        self.assertEqual(set(report), {'subject', 'times_seconds', 'frame_height_share', 'threshold', 'verdict'})
+        self.assertEqual((report['subject'], report['verdict'], report['threshold']), ('kneeler', 'small', checks.FOCAL_SHARE))
+        self.assertEqual(report['times_seconds'], [9.0, 11.0])   # the last third of six frames over 12 s
+        self.assertTrue(all(.1 < share < .2 for share in report['frame_height_share']), report)
+        found = checks.focal_framing_warnings(scene)
+        self.assertEqual([w['warning_id'] for w in found], ['frames:subject_small'])
+        for words in ('Figure kneeler', 'camera keys closer', 'lower their fov', 'not an export warning'):
+            self.assertIn(words, found[0]['message'])
+
+    def test_a_close_or_long_lens_ending_is_quiet(self):
+        for scene in (figure_scene(4.5), figure_scene(11.2, fov=14)):
+            self.assertEqual(checks.focal_framing(scene)['verdict'], 'ok')
+            self.assertEqual(checks.focal_framing_warnings(scene), [])
+
+    def test_only_the_last_third_of_the_frames_counts(self):
+        scene = figure_scene(11.2)
+        scene['camera'][1]['eye'] = [0, 1.25, 3.5]   # starts far, ends close
+        self.assertEqual(checks.focal_framing(scene)['verdict'], 'ok')
+        scene = figure_scene(3.5)
+        scene['camera'][1]['eye'] = [0, 1.25, 14]    # starts close, ends far
+        self.assertEqual(checks.focal_framing(scene)['verdict'], 'small')
+
+    def test_a_scene_without_a_figure_has_no_reading(self):
+        self.assertIsNone(checks.focal_framing(world()))
+        self.assertEqual(checks.focal_framing_warnings(world()), [])
+
+    def test_schema_states_the_staging_rule_once_per_tool(self):
+        for name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
+            text = SCHEMAS[name]['description']
+            self.assertEqual(text.count('within the first third of the duration'), 1, name)
+            self.assertIn('frames:subject_small', text, name)
+            self.assertIn('listed under adjusted', text, name)
+
+
 class ReportGateTests(gate_tests.ExportGateTests):
     def project_id(self):
         return self.project['project_id']
+
+    def revise_with_preview(self, plan_id, drift, **args):
+        """rekindra_revise_world with preview: true, the render replaced by the gate reading `drift`."""
+        def shown(store, project_id, new_id, **options):
+            found = gate.preview_gate(store, project_id, self.plan(new_id), drift, None)
+            out = {'export_gate': found}
+            for key, name in (('defects', 'defects'), ('cleared', 'cleared_defects')):
+                if key in found:
+                    out[name] = found.pop(key)
+            return out
+        with mock.patch.object(preview, 'preview_scene', shown):
+            out = self.call('rekindra_revise_world', plan_id=plan_id, preview=True,
+                            edits=[{'field': 'title', 'value': 'Next'}], **args)
+        self.assertTrue(out['ok'], out)
+        return out['result']
+
+    def test_a_revise_that_clears_a_defect_counts_as_addressed_without_declaring_it(self):
+        first = self.create()
+        self.preview(first)
+        out = self.revise_with_preview(first, gate_tests.CLEAN)
+        self.assertEqual(out['preview']['cleared_defects'], [{'id': gate_tests.BOTTOM, 'how': gate.NOT_DECLARED}])
+        self.assertEqual(out['flagged_defects'],
+                         {'addressed': [{'id': gate_tests.BOTTOM, 'how': gate.NOT_DECLARED}], 'unaddressed': [], 'not_open': []})
+        self.assertNotIn('flagged_defects.unaddressed', out['next_step'])
+        self.assertNotIn('defects', out['preview'])
+
+    def test_a_defect_the_next_preview_still_measures_stays_unaddressed(self):
+        first = self.create()
+        self.preview(first)
+        out = self.revise_with_preview(first, gate_tests.DRIFT)
+        self.assertNotIn('cleared_defects', out['preview'])
+        self.assertEqual(out['flagged_defects']['unaddressed'], [gate_tests.BOTTOM])
+        self.assertIn('flagged_defects.unaddressed', out['next_step'])
+        self.assertIn('did not clear', out['next_step'])
+
+    def test_a_declared_fix_keeps_its_own_words_when_the_preview_clears_it(self):
+        first = self.create()
+        self.preview(first)
+        out = self.revise_with_preview(first, gate_tests.CLEAN,
+                                       addresses=[{'id': gate_tests.BOTTOM, 'how': 'cooled the water colour'}])
+        row = {'id': gate_tests.BOTTOM, 'how': 'cooled the water colour'}
+        self.assertEqual(out['preview']['cleared_defects'], [row])
+        self.assertEqual(out['flagged_defects'], {'addressed': [row], 'unaddressed': [], 'not_open': []})
+
+    def test_a_measured_defect_is_not_cleared_by_a_preview_that_did_not_measure_it(self):
+        first = self.create()
+        gate.preview_gate(self.store, self.project_id(), self.plan(first), gate_tests.CLEAN, None,
+                          reliability.LIVELY, {'object_motion': 0.0})
+        second = self.revise(first)
+        blind = gate.preview_gate(self.store, self.project_id(), self.plan(second), gate_tests.CLEAN, None)
+        self.assertNotIn('cleared', blind)
+        seen = gate.preview_gate(self.store, self.project_id(), self.plan(second), gate_tests.CLEAN, None,
+                                 reliability.LIVELY, {'object_motion': 3.0})
+        self.assertEqual(seen['cleared'], [{'id': 'frames:objects_still', 'how': gate.NOT_DECLARED}])
+
+    def test_create_and_revise_list_what_was_adjusted(self):
+        aid = self.ids['photo.tga']
+        scene = world(aid)
+        fan = dict(scene['objects'][0], id='fan', position={'x': 'feather_x', 'y': 'feather_y+2', 'z': 'feather_z'},
+                   segments=[20, 6], feathers={'count': 12, 'spread': 3, 'length': 1.2, 'open': 'clamp(t/4,0,1)'})
+        scene['objects'].append(fan)
+        out = self.call('rekindra_create_world', asset_ids=[aid], scene=scene)
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(len(out['result']['adjusted']), 1)
+        self.assertIn('surface fan: feathers u segments 20 ', out['result']['adjusted'][0])
+        plan_id = out['result']['plan_id']
+        self.assertEqual(self.plan(plan_id)['scene']['objects'][1]['segments'], [24, 6])
+        out = self.call('rekindra_revise_world', plan_id=plan_id,
+                        edits=[{'object_id': 'fan', 'field': 'segments', 'value': [50, 6]}])
+        self.assertTrue(out['ok'], out)
+        self.assertIn('used 48', out['result']['adjusted'][0])
+        self.assertEqual(self.plan(out['result']['plan_id'])['scene']['objects'][1]['segments'], [48, 6])
+        self.assertNotIn('adjusted', self.call('rekindra_create_world', asset_ids=[aid], scene=world(aid))['result'])
 
     def test_defects_carry_until_a_revise_answers_them(self):
         first = self.create()

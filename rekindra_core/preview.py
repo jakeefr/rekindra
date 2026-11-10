@@ -22,7 +22,7 @@ from .intent_check import intent_check, photo_material_candidates
 from .image_recovery import clean_palette
 from .palette_drift import measure_drift
 from .projects import ProjectError, _atomic, _no_links
-from .report_checks import haze_report, object_motion_report, source_mist
+from .report_checks import focal_framing, haze_report, object_motion_report, source_mist
 from .scenes import SceneError
 
 _PREVIEW_LOCK = threading.Lock()
@@ -301,7 +301,9 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
         gate = preview_gate(store, project_id, plan, drift, review_camera, frame_stats,
                             {'object_motion': object_motion if gated else None, 'source_mist': mist})
         defects = gate.pop('defects', None) if gate is not None else None
-        motion = object_motion_report(object_motion) if gated else None
+        cleared = gate.pop('cleared', None) if gate is not None else None
+        framing = focal_framing(plan['scene']) if gated else None
+        motion =object_motion_report(object_motion) if gated else None
         haze = haze_report(plan['scene'], mist) if gated else None
         if motion is not None:
             next_step += f" object_motion: {motion['statement']}."
@@ -311,6 +313,9 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
                           'each one you fix; any you leave out are reported as unaddressed and carried forward.')
             if carried:
                 next_step += f" Still open from the previous preview: {', '.join(carried)}."
+        if cleared:
+            next_step += (' cleared_defects lists what the previous preview flagged and this one no longer measures; '
+                          'those count as addressed whether or not the revise declared them.')
         if gate is not None:
             if gate['warnings']:
                 next_step += ' rekindra_export will refuse this plan until every item in export_gate.warnings is revised away or acknowledged with a reason.'
@@ -335,8 +340,12 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             result['object_motion'] = motion
         if haze is not None:
             result['haze'] = haze
+        if framing is not None:
+            result['focal_framing'] = framing
         if defects:
             result['defects'] = defects
+        if cleared:
+            result['cleared_defects'] = cleared
         if intent:
             result['intent_check'] = intent
         if photo:
