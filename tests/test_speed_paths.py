@@ -162,6 +162,31 @@ class SpeedPathTests(unittest.TestCase):
         self.assertEqual(len(reply['not_recovered']) + reply.get('not_recovered_not_listed', {}).get('count', 0), 45)
         self.assertLessEqual(len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False)), plugin.handlers.SUMMARY_MAX_CHARS)
 
+    def test_many_failures_give_way_before_recovered_details(self):
+        assets = [{'asset_id': f'{i:032x}', 'source_path': f'file-{i:03d}.bin'} for i in range(104)]
+        assets.append({'asset_id': 'text', 'source_path': 'notes.txt'})
+        quoted = {'asset_id': 'text', 'kind': 'evidence', 'evidence_omitted_from_summary': 0,
+                  'evidence': [{'evidence_id': 'ev-0', 'text': 'q' * 200}]}
+        store = self._image_store(assets, fail={a['asset_id'] for a in assets[:100]})
+        with mock.patch.object(plugin.handlers, 'evidence_summary', return_value=quoted):
+            reply = plugin.handlers.recover_all(store, self.pid, None)
+        self.assertLessEqual(len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False)), plugin.handlers.SUMMARY_MAX_CHARS)
+        self.assertEqual(len(reply['recovered']), 5)
+        for row in reply['recovered'][:4]:
+            self.assertEqual(row['width'], 640)
+        self.assertTrue(reply['recovered'][-1]['evidence'])
+        self.assertEqual(len(reply['not_recovered']) + reply['not_recovered_not_listed']['count'], 100)
+        self.assertTrue(all(f['code'] == 'invalid_input' for f in reply['not_recovered']))
+
+    def test_a_malformed_result_on_one_asset_does_not_fail_the_call(self):
+        assets = [{'asset_id': 'text', 'source_path': 'notes.txt'}, {'asset_id': 'a' * 32, 'source_path': 'scan.tga'}]
+        store = self._image_store(assets)
+        with mock.patch.object(plugin.handlers, 'evidence_summary', side_effect=KeyError('evidence_id')):
+            reply = plugin.handlers.recover_all(store, self.pid, None)
+        self.assertEqual([r['asset_id'] for r in reply['recovered']], ['a' * 32])
+        self.assertEqual([(f['asset_id'], f['code']) for f in reply['not_recovered']], [('text', 'operation_failed')])
+        self.assertNotIn('guidance', reply)
+
     def test_recover_schema_makes_asset_id_optional_and_says_so(self):
         schema = plugin.schemas.SCHEMAS['rekindra_recover']
         self.assertEqual(schema['parameters']['required'], ['project_id'])

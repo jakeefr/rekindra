@@ -170,6 +170,7 @@ def _fit_summary(summary):
 
 RECOVER_ALL_ASSETS = 40
 RECOVER_ALL_SECONDS = 150
+RECOVER_ALL_FAILURES = 12
 _IMAGE_VIEW = ('format', 'width', 'height', 'partial', 'decoded_fraction', 'palette', 'warnings', 'path')
 
 
@@ -178,8 +179,9 @@ def recover_all(store, project_id, reader):
 
     Each asset goes through the same store.recover as a single call, so nothing about what is
     accepted changes. One asset failing never stops the rest: it is listed with its reason.
-    The call stops after RECOVER_ALL_ASSETS recovered assets or RECOVER_ALL_SECONDS, whichever
-    comes first; files that cannot be recovered do not use up the asset allowance.
+    No new asset starts after RECOVER_ALL_ASSETS recovered assets or RECOVER_ALL_SECONDS,
+    whichever comes first (an asset already being read finishes); files that cannot be
+    recovered do not use up the asset allowance.
     """
     assets = [a for a in store.status(project_id)['assets'] if isinstance(a, dict)]
     recovered, failed, evidence = [], [], []
@@ -191,6 +193,9 @@ def recover_all(store, project_id, reader):
         aid, name = asset.get('asset_id'), str(asset.get('source_path'))[:SUMMARY_NAME_CHARS]
         try:
             result = store.recover(project_id, aid, reader)
+            is_text = isinstance(result, dict) and 'dossier' in result
+            row = None if is_text else {'asset_id': aid, 'source_path': name, 'kind': 'image',
+                                        **{k: result[k] for k in _IMAGE_VIEW if result.get(k) not in (None, [], False)}}
         except (ReaderRetry, ImageRefusal) as exc:
             failed.append({'asset_id': aid, 'source_path': name, 'code': exc.code, 'message': str(exc)[:SUMMARY_CHARS]})
             continue
@@ -205,27 +210,28 @@ def recover_all(store, project_id, reader):
             failed.append({'asset_id': aid, 'source_path': name, 'code': 'operation_failed',
                            'message': 'Rekindra could not recover this asset. Call rekindra_recover with this asset_id to retry it alone.'})
             continue
-        if isinstance(result, dict) and 'dossier' in result:
-            evidence.append((len(recovered), result))
-            recovered.append(None)
-        else:
-            recovered.append({'asset_id': aid, 'source_path': name, 'kind': 'image',
-                              **{k: result[k] for k in _IMAGE_VIEW if result.get(k) not in (None, [], False)}})
+        if is_text:
+            evidence.append((len(recovered), aid, name, result))
+        recovered.append(row)
     # Recovering a later text source rebuilds the shared dossier, so every evidence summary is
     # read from the last one: it is what the project holds now.
-    for index, result in evidence:
-        view = evidence_summary({**result, 'dossier': evidence[-1][1]['dossier']})
-        view.pop('guidance', None); view.pop('notice', None)
-        recovered[index] = {'source_path': str(next((a.get('source_path') for a in assets
-                                                     if a.get('asset_id') == view['asset_id']), ''))[:SUMMARY_NAME_CHARS], **view}
+    for index, aid, name, result in evidence:
+        try:
+            view = evidence_summary({**result, 'dossier': evidence[-1][3]['dossier']})
+            view.pop('guidance', None); view.pop('notice', None)
+            recovered[index] = {'source_path': name, **view}
+        except Exception:
+            failed.append({'asset_id': aid, 'source_path': name, 'code': 'operation_failed',
+                           'message': 'Rekindra could not summarize this asset. Call rekindra_recover with this asset_id to retry it alone.'})
+    recovered = [row for row in recovered if row is not None]
     reply = {'project_id': project_id, 'untrusted_content': True, 'notice': EVIDENCE_NOTICE,
              'asset_count': len(assets), 'recovered': recovered, 'not_recovered': failed}
     if attempted < len(assets):
         reply['not_attempted'] = {'count': len(assets) - attempted,
                                   'asset_ids': [a.get('asset_id') for a in assets[attempted:attempted + 12]],
-                                  'next_step': f'One call recovers up to {RECOVER_ALL_ASSETS} assets within {RECOVER_ALL_SECONDS} seconds; '
-                                               'recover the rest one at a time with asset_id'}
-    if evidence:
+                                  'next_step': f'One call recovers up to {RECOVER_ALL_ASSETS} assets and starts no new asset after '
+                                               f'{RECOVER_ALL_SECONDS} seconds; recover the rest one at a time with asset_id'}
+    if any(row.get('kind') != 'image' for row in recovered):
         reply['guidance'] = EVIDENCE_GUIDANCE
 
     def size():
@@ -239,6 +245,18 @@ def recover_all(store, project_id, reader):
             longest['evidence_truncated'] = (_more(longest['evidence_omitted_from_summary'])
                                              + '; call rekindra_recover with this asset_id for more, or read dossier_path')
             continue
+        # Failure rows give way before any recovered detail: shorten the reasons (the code
+        # stays), then count the tail beyond RECOVER_ALL_FAILURES instead of listing it.
+        long_reason = next((row for row in failed if len(row['message']) > SUMMARY_NAME_CHARS), None)
+        if long_reason is not None:
+            long_reason['message'] = long_reason['message'][:SUMMARY_NAME_CHARS]
+            continue
+        if len(failed) > RECOVER_ALL_FAILURES:
+            failed.pop()
+            reply['not_recovered_not_listed'] = {
+                'count': reply.get('not_recovered_not_listed', {}).get('count', 0) + 1,
+                'next_step': 'rekindra_status lists every asset and artifact of this project'}
+            continue
         # Image details go before the last quoted passage of any text source.
         wide = (next((r for r in reversed(recovered) if len(r) > 3 and r.get('kind') == 'image'), None)
                 or next((r for r in reversed(recovered) if len(r) > 3), None))
@@ -249,13 +267,9 @@ def recover_all(store, project_id, reader):
             reply['recovered_note'] = ('Entries showing only asset_id, source_path and kind were recovered; '
                                        'call rekindra_recover with that asset_id for its details')
             continue
-        # Last resorts, in order: shorten failure reasons (the code stays), then count the tail
-        # instead of listing it. Every asset is still recovered; rekindra_status lists them all.
-        long_reason = next((row for row in failed if len(row['message']) > SUMMARY_NAME_CHARS), None)
-        if long_reason is not None:
-            long_reason['message'] = long_reason['message'][:SUMMARY_NAME_CHARS]
-            continue
-        rows = recovered if len(recovered) >= len(failed) else failed
+        # Last resort: count the tail instead of listing it. Every asset is still recovered;
+        # rekindra_status lists them all.
+        rows =recovered if len(recovered) >= len(failed) else failed
         if not rows:
             break
         rows.pop()
