@@ -173,6 +173,22 @@ RECOVER_ALL_SECONDS = 150
 RECOVER_ALL_FAILURES = 12
 _RETRY_ALONE = ('reader_busy', 'operation_failed', 'filesystem_error')
 _IMAGE_VIEW = ('format', 'width', 'height', 'partial', 'decoded_fraction', 'palette', 'warnings', 'path')
+_REFUSED_INTAKE = ('rejected', 'unsupported')
+# What a shortened entry keeps: who it is, and how its recovery went.
+_SHORT_ENTRY = ('asset_id', 'source_path', 'kind', 'intake_status', 'partial')
+
+
+def _refused_row(aid, name, view):
+    """A text, ZIP or PDF source its reader rejected or does not support: nothing came out of it."""
+    status = view.get('intake_status')
+    refused = (view.get('text_members') or {}).get('refused') if isinstance(view.get('text_members'), dict) else None
+    reasons = [str(w) for w in view.get('warnings') or [] if isinstance(w, str)]
+    if isinstance(refused, dict) and refused.get('code') and str(refused['code']) not in reasons:
+        reasons.append(str(refused['code']))
+    detail = f' ({", ".join(reasons[:4])})' if reasons else ''
+    return {'asset_id': aid, 'source_path': name, 'code': reasons[0] if reasons else str(status),
+            'intake_status': status,
+            'message': (f'The reader marked this file {status}{detail}; nothing was recovered from it.')[:SUMMARY_CHARS]}
 
 
 def recover_all(store, project_id, reader):
@@ -186,9 +202,9 @@ def recover_all(store, project_id, reader):
     """
     assets = [a for a in store.status(project_id)['assets'] if isinstance(a, dict)]
     recovered, failed, evidence = [], [], []
-    started, attempted = time.monotonic(), 0
+    started, attempted, refused = time.monotonic(), 0, 0
     for asset in assets:
-        if len(recovered) >= RECOVER_ALL_ASSETS or (attempted and time.monotonic() - started > RECOVER_ALL_SECONDS):
+        if len(recovered) - refused >= RECOVER_ALL_ASSETS or (attempted and time.monotonic() - started > RECOVER_ALL_SECONDS):
             break
         attempted += 1
         aid, name = asset.get('asset_id'), str(asset.get('source_path'))[:SUMMARY_NAME_CHARS]
@@ -213,6 +229,8 @@ def recover_all(store, project_id, reader):
             continue
         if is_text:
             evidence.append((len(recovered), aid, name, result))
+            artifact = result.get('artifact')
+            refused += isinstance(artifact, dict) and artifact.get('status') in _REFUSED_INTAKE
         recovered.append(row)
     # Recovering a later text source rebuilds the shared dossier, so every evidence summary is
     # read from the last one: it is what the project holds now.
@@ -220,7 +238,11 @@ def recover_all(store, project_id, reader):
         try:
             view = evidence_summary({**result, 'dossier': evidence[-1][3]['dossier']})
             view.pop('guidance', None); view.pop('notice', None)
-            recovered[index] = {'source_path': name, **view}
+            if view.get('intake_status') in _REFUSED_INTAKE:
+                # Read and refused is not recovered: it is listed with the files that gave nothing.
+                failed.append(_refused_row(aid, name, view))
+            else:
+                recovered[index] = {'source_path': name, **view}
         except Exception:
             failed.append({'asset_id': aid, 'source_path': name, 'code': 'operation_failed',
                            'message': 'Rekindra could not summarize this asset. Call rekindra_recover with this asset_id to retry it alone.'})
@@ -268,17 +290,19 @@ def recover_all(store, project_id, reader):
                                              + '; call rekindra_recover with this asset_id for more, or read dossier_path')
             continue
         # Image details go before the last quoted passage of any text source.
-        wide = (next((r for r in reversed(recovered) if len(r) > 3 and r.get('kind') == 'image'), None)
-                or next((r for r in reversed(recovered) if len(r) > 3), None))
+        def full(row):
+            return any(key not in _SHORT_ENTRY for key in row)
+        wide = (next((r for r in reversed(recovered) if full(r) and r.get('kind') == 'image'), None)
+                or next((r for r in reversed(recovered) if full(r)), None))
         if wide is not None:
-            kept = {k: wide[k] for k in ('asset_id', 'source_path', 'kind') if k in wide}
+            kept = {k: wide[k] for k in _SHORT_ENTRY if k in wide}
             wide.clear()
             wide.update(kept)
-            reply['recovered_note'] = ('Entries showing only asset_id, source_path and kind were recovered; '
+            reply['recovered_note'] = ('Entries showing only asset_id, source_path, kind and status are summarized; '
+                                       'see intake_status (text sources) or partial (damaged images) for each, and '
                                        'call rekindra_recover with that asset_id for its details')
             continue
-        # Last resort: count the tail instead of listing it. Every asset is still recovered;
-        # rekindra_status lists them all.
+        # Last resort: count the tail instead of listing it; rekindra_status lists them all.
         rows = recovered if len(recovered) >= len(failed) else failed
         if not rows:
             break

@@ -67,6 +67,7 @@ Limits: 500 files, 100 MB per file, 500 MB total snapshots, 2,000 visited direct
 Known limits. Input limits are reported by the agent; none crashes.
 
 - PDF text is read page by page, up to 32 pages. There is no OCR: a scanned or image-only PDF is reported as having no extractable text, and an encrypted one as encrypted.
+- A truncated TGA is refused, not recovered in part. Partial recovery covers damaged JPEG, PNG, BMP, GIF, PCX, PPM and TIFF only; a TGA cut off before its last pixel row is listed as not recovered even when most of its pixels are intact.
 - A file Rekindra cannot read is named from its file signature ("identified as X, not supported yet") when the signature is known, and otherwise reported as having no known file signature. Its contents are not used.
 - Worlds built only from notes have no tamper check yet. The player's integrity check hashes embedded images, so a world with no image has nothing for it to verify.
 - A world that selects images is refused only when `references` is empty. If some selected images have a reference and others do not, the world still builds; the unreferenced image ships with no observed or created record and still counts toward palette drift.
