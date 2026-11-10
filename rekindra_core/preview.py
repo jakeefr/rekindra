@@ -18,6 +18,7 @@ import uuid
 from .compositions import CompositionStore
 from .export_gate import preview_gate
 from .image_recovery import measure_review_frames
+from .intent_check import intent_check
 from .palette_drift import measure_drift
 from .projects import _atomic, _no_links
 from .scenes import SceneError
@@ -264,12 +265,18 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             if gate['warnings']:
                 next_step += ' rekindra_export will refuse this plan until every item in export_gate.warnings is revised away or acknowledged with a reason.'
             next_step += ' When satisfied, call rekindra_export with this plan_id; only its HTML can save video.'
-        return {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
+        intent = intent_check(plan) if plan['scene'].get('schema_version') == 2 else []
+        if intent:
+            next_step += ' intent_check lists features your notes ask for that the scene leaves off; turn them on and preview again.'
+        result = {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),
                 'path': str(target), 'format': 'png', 'times_seconds': times,
                 'width': 1280, 'height': 1128, 'sha256': hashlib.sha256(png).hexdigest(), 'frames': frames,
                 'html_sha256': artifact['sha256'], 'palette_drift': drift, 'export_gate': gate, 'next_step': next_step}
+        if intent:
+            result['intent_check'] = intent
+        return result
     finally:
         try:
             if working is not None and project is not None:

@@ -251,10 +251,33 @@ def validate_world(value,asset_ids):
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError(f'Camera must span the full duration: the first state needs at 0 and the last needs at {s["duration"]}; got {camera[0]["at"]} and {camera[-1]["at"]}')
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=MAX_SURFACES:
         raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
-    ids=set();cells=work=detail_work=placements=active_reflectors=0
+    ids=set();cells=work=detail_work=placements=active_reflectors=image_materials=0
     for obj in s['objects']:
         fields(obj,'id position segments color color_high color_mix roughness metalness emission','surface',
-               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow')
+               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow soft foliage material_image')
+        if 'soft' in obj:
+            soft=obj['soft'];fields(soft,'u v','soft edge','breakup')
+            if 'glow' not in obj:raise SceneError('soft feathers the edges of a glow surface: add glow to this surface, or remove soft')
+            _number(soft['u'],0,1,'soft u');_number(soft['v'],0,1,'soft v');_number(soft.get('breakup',0),0,1,'soft breakup')
+        if 'foliage' in obj:
+            foliage=obj['foliage'];fields(foliage,'leaf_size density','foliage','variation')
+            if 'glow' in obj or 'reflection' in obj:raise SceneError('foliage is a solid leaf mass: it cannot be combined with glow or reflection')
+            _number(foliage['leaf_size'],.03,2,'foliage leaf_size');_number(foliage['density'],.2,1,'foliage density');_number(foliage.get('variation',.5),0,1,'foliage variation')
+        if 'material_image' in obj:
+            material=obj['material_image'];fields(material,'asset_id crop','material image','repeat strength')
+            if not isinstance(material['asset_id'],str) or material['asset_id'] not in used:
+                raise SceneError(f'material_image asset_id must be one of the images in scene.references {sorted(used)}; got {shown(material["asset_id"])}')
+            crop=material['crop']
+            if not isinstance(crop,list) or len(crop)!=4:raise SceneError('material_image crop needs [left, top, width, height] as fractions of the image, each 0-1')
+            _number(crop[0],0,.98,'material_image crop left');_number(crop[1],0,.98,'material_image crop top')
+            _number(crop[2],.02,1,'material_image crop width');_number(crop[3],.02,1,'material_image crop height')
+            if crop[0]+crop[2]>1.000001 or crop[1]+crop[3]>1.000001:raise SceneError('material_image crop must stay inside the image: left+width and top+height may not exceed 1')
+            repeat=material.get('repeat',[1,1])
+            if not isinstance(repeat,list) or len(repeat)!=2:raise SceneError('material_image repeat needs [across u, across v]')
+            for x in repeat:_number(x,.1,32,'material_image repeat')
+            _number(material.get('strength',1),0,1,'material_image strength')
+            image_materials+=1
+            if image_materials>4:raise SceneError('World allows at most 4 surfaces with material_image')
         if 'reflection' in obj:
             reflection=obj['reflection'];fields(reflection,'strength blur','planar reflection')
             _number(reflection['strength'],0,1,'reflection strength');_number(reflection['blur'],0,8,'reflection blur')
@@ -440,5 +463,21 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['shading']={'type':
 
 WORLD_SCHEMA['properties']['objects']['items']['properties']['loft']={'type':'array','minItems':2,'maxItems':8,'description':'Optional ordered convex cross-sections. Supplies loft_x/loft_y/loft_z to position and bindings. Equal3-16point counts, same winding, heights increasing >=0.0001. Points are x,z, no repeated closing vertex. Rings close automatically. u segments must be a multiple of point count; v segments a multiple of sections-1. Use position x:loft_x,y:loft_y,z:loft_z then optional bounded deformation. Static sections interpolate linearly in v; instance/assembly transforms still apply. Work charged per copy/cap. Convex source rings do not guarantee deformed geometry is collision-free.','items':obj_schema({'height':{'type':'number','minimum':-80,'maximum':80},'points':{'type':'array','minItems':3,'maxItems':16,'items':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':-80,'maximum':80}}}})}
 
+WORLD_SCHEMA['properties']['objects']['items']['properties']['soft']=obj_schema({'u':{'type':'number','minimum':0,'maximum':1},'v':{'type':'number','minimum':0,'maximum':1},'breakup':{'type':'number','minimum':0,'maximum':1}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['soft']['required']=['u','v']
+WORLD_SCHEMA['properties']['objects']['items']['properties']['soft']['description']=('Optional, glow surfaces only. Fades the light toward the surface edges so a figure of light, wing, aura or halo has no hard outline. '
+    'u and v give the faded share of the surface from each pair of edges (0 none, 1 fades all the way to the middle). breakup 0-1 frays the fade into fine streaks that run along v, for feathers or wisps. '
+    'Use it whenever a source shows light with soft or feathered edges; a glow sheet without soft has a hard cut edge.')
+WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']=obj_schema({'leaf_size':{'type':'number','minimum':.03,'maximum':2},'density':{'type':'number','minimum':.2,'maximum':1},'variation':{'type':'number','minimum':0,'maximum':1}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']['required']=['leaf_size','density']
+WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']['description']=('Optional. Turns a closed surface into a leaf mass: leaf-sized patches vary between color and color_high and face different ways, and gaps are cut out so the outline is ragged and you see into the canopy. '
+    'leaf_size is the patch size in world units (0.1-0.3 for a tree seen from the ground), density 0.2 sparse to 1 nearly solid, variation 0-1 colour spread. Take color and color_high from two leaf tones in the source. '
+    'Build a canopy from several overlapping lumpy masses (instances) on a tapered trunk with a few branch surfaces, never one smooth ball on a pole. Not with glow or reflection. Shadows stay solid.')
+WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']=obj_schema({'asset_id':{'type':'string'},'crop':{'type':'array','minItems':4,'maxItems':4,'items':{'type':'number','minimum':0,'maximum':1}},
+    'repeat':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.1,'maximum':32}},'strength':{'type':'number','minimum':0,'maximum':1}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['required']=['asset_id','crop']
+WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['description']=('Optional. Takes this surface colour from a crop of one of the recovered images in scene.references, so leaves, bark, paving, stone or mist carry the real texture of the source. '
+    'crop is [left, top, width, height] as fractions of the image; pick a patch that is all one material. repeat [u,v] tiles it across the surface (mirrored, so no seams; default 1,1). strength 0-1 mixes it over color/color_high (default 1). '
+    'Lighting, shadows, foliage and glow still apply, and the page lists it as recovered material. This textures a 3D surface; never use it to paste a whole photo on a flat card. At most 4 surfaces.')
 WORLD_SCHEMA['properties']['objects']['items']['properties']['glow']={'type':'number','minimum':.05,'maximum':3,
     'description':'Optional see-through light volume: the surface ADDS albedo*glow to whatever is behind it, casts no shadow, ignores scene lighting, fades at its silhouette and with fog. Use for a light beam, halo or shaft, never for solid matter. Black albedo adds nothing, so a color_pattern toward color_high #000000 fades it out along its length. Opaque surfaces in front still hide it.'}

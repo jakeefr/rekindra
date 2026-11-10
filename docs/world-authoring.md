@@ -320,3 +320,19 @@ Renderer facts that apply to every scene:
 - On a surface that wraps in `u`, keep every `u` frequency an integer multiple of `2*pi` or a seam shows at u=0/1.
 - A `glow` surface is additive, see-through and casts no shadow; above about .25 it saturates to white. To fade one along its length, mix toward `color_high` `#000000` with a smooth curve such as `u*u*(3-2*u)`, because plain `u` leaves a bright flat end. A scene with any `glow` surface renders without hardware MSAA and relies on the 2x supersample for smooth edges.
 - When replacing `assemblies`, copy unchanged every assembly the request does not mention. A request to soften or recolor something is not a request to stop its motion.
+- A `glow` whose `color_mix` stays at 1 with `color_high` `#000000` is black and adds no light.
+
+## Matching the look of the source: atmosphere, foliage, soft forms, source materials
+
+Four optional features draw what plain surfaces cannot. All are off unless the scene sets them, so a scene without them renders exactly as before. Turn one on when the source images show what it draws.
+
+| The sources show | Use | Notes |
+| --- | --- | --- |
+| Night, mist, fog, lamps, halos, light that blooms | `environment.atmosphere` | `bloom` and `halo` spread light from `glow` surfaces; `haze_density` with `haze_color` from the source palette gives depth; `haze_height` keeps haze near the ground; `vignette` and a little `grain` finish the frame. Use this instead of raising `fog_density`. |
+| Trees, hedges, ivy, any mass of leaves | `foliage` on the canopy surface | Breaks the surface into leaf-sized cells with gaps and color variation between `color` and `color_high`. Build several overlapping, irregular canopy masses on a trunk that tapers and branches. A smooth ball on a pole does not read as a tree. |
+| A figure of light, wings, flame, mist, anything with a fading edge | `glow` with `soft` | `soft.u` and `soft.v` set how far the fade reaches in from each edge; `breakup` splits the edge into feather-like strands. |
+| A surface whose look is in a source image: leaves, pavement, bark, cloth, water | `material_image` | Names a source image of this scene and a crop of it. The shape stays 3D and created; only its texture is recovered, and the exported page says so. At most four surfaces. Pick a crop that is all one material. |
+
+If a `Created:` note promises glow, haze, leaves, soft edges or source texture, the scene must set the matching field. `rekindra_preview` reports any that are missing in `intent_check`; turn them on and preview again rather than accepting the plain version.
+
+Judge every preview against the source images themselves, side by side: the shapes, the light, the texture and the mood, not only the palette numbers.

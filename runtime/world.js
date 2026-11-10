@@ -89,7 +89,13 @@ vec3 atmosphere(vec3 ray){
  return col;
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
-  function createRenderer(scene,programs,{sampleScale:requestedScale=2}={}){
+  // Small hash and value noise for leaf breakup and feathered glow edges.
+  const featureNoise=`
+float cellHash(vec3 p){p=fract(p*vec3(.1031,.1030,.0973));p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
+float cellNoise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+ return mix(mix(mix(cellHash(i),cellHash(i+vec3(1.,0.,0.)),f.x),mix(cellHash(i+vec3(0.,1.,0.)),cellHash(i+vec3(1.,1.,0.)),f.x),f.y),
+  mix(mix(cellHash(i+vec3(0.,0.,1.)),cellHash(i+vec3(1.,0.,1.)),f.x),mix(cellHash(i+vec3(0.,1.,1.)),cellHash(i+vec3(1.,1.,1.)),f.x),f.y),f.z);}`;
+  function createRenderer(scene,programs,{sampleScale:requestedScale=2,images={}}={}){
     if(requestedScale!==1&&requestedScale!==2)throw Error('World sample scale must be 1 or 2');
     const reflector=scene.objects.find(o=>(o.reflection?.strength??0)>0);
     const reflectionHeight=reflector?Number(reflector.position.y):0;
@@ -265,7 +271,22 @@ vec3 reflectedRadiance(){
 }`:'';
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
       const hasColorPattern=source.color_pattern!==undefined;
-      const hasDetail=hasColorDetail||hasBump||hasColorPattern;
+      const photo=o.material_image,soft=o.soft,leaf=o.foliage,fixed=x=>Number(x).toFixed(8);
+      const hasDetail=hasColorDetail||hasBump||hasColorPattern||Boolean(photo)||Boolean(soft);
+      // A recovered-image crop becomes a small mirrored-repeat texture for this surface.
+      let materialTexture=null;
+      if(photo){
+        const img=images[photo.asset_id];if(!img)throw Error('Material image source is not embedded in this file');
+        const [cx,cy,cw,ch]=photo.crop,sw=Math.max(1,Math.round(cw*img.width)),sh=Math.max(1,Math.round(ch*img.height)),k=Math.min(1,512/Math.max(sw,sh));
+        const crop=document.createElement('canvas');crop.width=Math.max(1,Math.round(sw*k));crop.height=Math.max(1,Math.round(sh*k));
+        crop.getContext('2d').drawImage(img,Math.min(img.width-sw,Math.round(cx*img.width)),Math.min(img.height-sh,Math.round(cy*img.height)),sw,sh,0,0,crop.width,crop.height);
+        materialTexture=gl.createTexture();gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,materialTexture);
+        gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,crop);gl.generateMipmap(gl.TEXTURE_2D);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR_MIPMAP_LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.MIRRORED_REPEAT);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.MIRRORED_REPEAT);
+        gl.bindTexture(gl.TEXTURE_2D,null);gl.activeTexture(gl.TEXTURE0);
+      }
+      const leafGap=leaf?fixed(.62-.42*leaf.density):'';
       const hasCaps=Boolean(o.caps?.length);
       const hasInstances=o.instances!==undefined;
       const hasInstanceRotation=o.instances?.some(p=>p.rotation!==undefined)??false;
@@ -295,7 +316,7 @@ gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${
         `#version 300 es
 precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${reflectionUniforms}${reflectionShader}${shadowUniforms}uniform highp sampler2D shadowDepth;
-uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;
+uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${photo?'uniform sampler2D materialImage;':''}${soft||leaf?featureNoise:''}
 ${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}${contactShader}${panelUniforms}${panelShader}
 float visibility(vec3 p,float nl){
  vec3 q=shadowPoint(p)*.5+.5;
@@ -343,8 +364,16 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 `vec3 albedo=mix(baseColor,highColor,blend);
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
+${leaf?`// Leaf mass: world-space cells vary colour and facing; gaps are cut out at the end.
+vec3 leafP=worldPos/${fixed(leaf.leaf_size)},leafCell=floor(leafP*3.);float leafCover=cellNoise(leafP)*.6+cellNoise(leafP*2.7+11.3)*.4;
+albedo=mix(baseColor,highColor,clamp(blend+(cellHash(leafCell)-.5)*2.*${fixed(leaf.variation??.5)},0.,1.));
+N=normalize(N+(vec3(cellHash(leafCell+17.),cellHash(leafCell+31.),cellHash(leafCell+47.))-.5)*1.1);`:''}
+${photo?`albedo=mix(albedo,pow(texture(materialImage,detailUV*vec2(${fixed(photo.repeat?.[0]??1)},${fixed(photo.repeat?.[1]??1)})).rgb,vec3(2.2)),${fixed(photo.strength??1)});`:''}
+${leaf?`albedo*=.4+.6*smoothstep(${leafGap}-.05,${leafGap}+.3,leafCover);`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
+${soft?`{vec2 rim=min(detailUV,1.-detailUV);float feather=${soft.u>0?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
+feather=clamp(feather-${fixed((soft.breakup??0)*1.6)}*cellNoise(vec3(detailUV*vec2(46.,9.),0.))*(1.-feather),0.,1.);glowEdge*=feather*feather;}`:''}
 ${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
@@ -376,6 +405,7 @@ ${panels.length?`lit+=(${panelContribution})${contactEnabled?'*indirect':''};`:'
 float fog=1.-exp(-length(eye-worldPos)*fogDensity);lit=mix(lit,fogColor,fog);
 ${reflectionClip}
 ${isReflector?`if(reflectionActive>.5)lit=mix(lit,reflectedRadiance(),${Number(o.reflection.strength).toFixed(8)});`:''}
+${leaf?`if(leafCover<${leafGap})discard;`:''}
 pixel=vec4(displayColor(lit),${atmo?'min(emission,1.)*(1.-fog)':'1.'});}`);
       const depthProgram=program(`#version 300 es
 precision highp float;layout(location=0)in vec3 uv;uniform float t;${math}${shadowUniforms}${position}${capPosition}
@@ -391,7 +421,7 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       const vao=gl.createVertexArray();gl.bindVertexArray(vao);
       const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
       const ib=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);gl.bindVertexArray(null);
-      return {p,depthProgram,cameraDepthProgram,o,vao,vb,ib,count:indices.length,placements:o.instances??[null]};
+      return {p,depthProgram,cameraDepthProgram,o,vao,vb,ib,materialTexture,count:indices.length,placements:o.instances??[null]};
     });
     function drawSurface(s,p){
       gl.bindVertexArray(s.vao);
@@ -420,6 +450,7 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
         // With an atmosphere, glow light is kept in its own texture (same depth buffer) so haze never dims it.
         if(glow&&post&&!pass){gl.bindFramebuffer(gl.FRAMEBUFFER,post.glowBuffer);gl.clear(gl.COLOR_BUFFER_BIT)}
         for(const s of surfaces){if((s.o.glow!==undefined)!==glow||pass&&s.o===reflector)continue;setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
+          if(s.materialTexture){gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,s.materialTexture);gl.uniform1i(gl.getUniformLocation(s.p.p,'materialImage'),10);gl.activeTexture(gl.TEXTURE0)}
           for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
         if(glow){gl.disable(gl.BLEND);gl.depthMask(true)}
         if(glow&&post&&!pass)gl.bindFramebuffer(gl.FRAMEBUFFER,post.sceneBuffer);
@@ -482,7 +513,8 @@ void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*asp
   float k=dir.y/atmoHazeHeight,x=clamp(k*reach,-30.,30.),path=abs(x)<1.e-4?reach:(1.-exp(-x))/k;
   optical=min(atmoHaze*exp(clamp(-(eye.y-atmoHazeFloor)/atmoHazeHeight,-30.,0.))*path,optical);}
  // Glow surfaces write no depth, so their light is added after the haze, which only knows the surface behind.
- L=mix(L,atmoHazeColor,1.-exp(-optical))+sceneLight(texture(glowLight,uv).rgb);
+ // It is added to the display-encoded colour, exactly as the plain renderer blends glow, so a glow over a lit background keeps its strength.
+ L=sceneLight(min(pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2))+texture(glowLight,uv).rgb,vec3(1.)));
  float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
   float q=h/pointRange${i},fade=max(1.-q*q,0.);
@@ -563,7 +595,7 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       return output;
     }
     // Review frames are compared with each other to detect a motionless scene; per-frame grain would hide that.
-    return {render,canvas:output,sampleScale,requestedScale,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);gl.deleteTexture(post.glowColor);gl.deleteFramebuffer(post.glowBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
+    return {render,canvas:output,sampleScale,requestedScale,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);gl.deleteTexture(post.glowColor);gl.deleteFramebuffer(post.glowBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){if(s.materialTexture)gl.deleteTexture(s.materialTexture);gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
   }
   const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

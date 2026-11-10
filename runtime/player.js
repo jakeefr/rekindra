@@ -83,7 +83,9 @@
       if(img.width*img.height>20_000_000)throw Error('Source image exceeds pixel budget');images[source.asset_id]=img;
       const card=document.createElement('div');card.className='source';const thumb=img.cloneNode(),caption=document.createElement('span');thumb.alt=source.name;caption.textContent=`${source.name} · ${source.kind} · SHA-256 ${source.source_sha256}`;card.append(thumb,caption);$('sources').append(card)}
     if(scene.schema_version===2){
-      world=RekindraWorld.createRenderer(scene,data.programs);
+      world=RekindraWorld.createRenderer(scene,data.programs,{images});
+      for(const o of scene.objects){if(!o.material_image)continue;const from=data.sources.find(s=>s.asset_id===o.material_image.asset_id),c=o.material_image.crop.map(x=>Math.round(x*100));
+        const p=document.createElement('p');p.textContent=`Recovered material: surface "${o.id}" takes its texture from a crop of ${from?from.name:'a source image'} (left ${c[0]}%, top ${c[1]}%, width ${c[2]}%, height ${c[3]}%). The shape it covers is created.`;$('sources').append(p)}
       for(const ref of scene.references){const p=document.createElement('p');p.textContent=`Agent interpretation — observed: ${ref.observed} Created: ${ref.created}`;$('sources').append(p)}
       for(const ref of scene.text_references||[]){const p=document.createElement('p');p.textContent=`Agent interpretation of recovered text: ${ref.interpretation}`;$('sources').append(p)}
     }
