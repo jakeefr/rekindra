@@ -24,6 +24,8 @@
     const x=c.getContext('2d'),times=[],frames=[],f=document.createElement('canvas');f.width=640;f.height=360;
     const fx=f.getContext('2d');x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
     try{
+      // Grain differs every frame, so it would make a motionless scene measure as moving. Review without it.
+      if(world)world.setGrain(false);
       for(let i=0;i<6;i++){
         const t=(i+.5)*scene.duration/6;times.push(t);draw(t,false,sc);
         const px=i%2*640,py=Math.floor(i/2)*376;
@@ -32,7 +34,7 @@
         fx.drawImage(scratch,0,0,640,360);frames.push(f.toDataURL('image/png').split(',')[1]);
       }
       return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
-    }finally{display(saved)}
+    }finally{if(world)world.setGrain(true);display(saved)}
   }
   function reportReview(result){
     const el=document.createElement('script');el.id='rekindra-review-result';el.type='application/json';

@@ -151,6 +151,10 @@ def _text_references(refs):
         if not ref['interpretation'].strip():raise SceneError('Text reference interpretation cannot be blank')
 
 
+# Optional screen-space finish applied after the 3D render. Every field is optional and absent by default.
+ATMOSPHERE_RANGES=(('bloom',0,2),('halo',0,2),('haze_density',0,.3),('haze_height',.25,80),('haze_floor',-80,80),('vignette',0,1),('grain',0,.08))
+
+
 def validate_world(value,asset_ids):
     if not isinstance(value,dict):raise SceneError(f'Invalid world fields: scene must be a JSON object, not JSON-encoded text; got {shown(value)}')
     fields(value,'schema_version title mood reason duration width height seed environment camera objects','world','references text_references assemblies')
@@ -183,7 +187,14 @@ def validate_world(value,asset_ids):
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
     fields(env,'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment',
-           'fill_color fill_direction fill_strength exposure ambient_strength ground_color ground_strength point_lights occlusion_strength occlusion_radius environment_panels')
+           'fill_color fill_direction fill_strength exposure ambient_strength ground_color ground_strength point_lights occlusion_strength occlusion_radius environment_panels atmosphere')
+    if 'atmosphere' in env:
+        atmosphere=env['atmosphere']
+        fields(atmosphere,'','atmosphere',' '.join(k for k,_,_ in ATMOSPHERE_RANGES)+' haze_color')
+        if not atmosphere:raise SceneError('Atmosphere needs at least one of bloom, halo, haze_density, vignette or grain; omit atmosphere for a plain render')
+        for key,low,high in ATMOSPHERE_RANGES:
+            if key in atmosphere:_number(atmosphere[key],low,high,'atmosphere '+key.replace('_',' '))
+        if 'haze_color' in atmosphere:color(atmosphere['haze_color'])
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
     _number(env['fog_density'],0,.15,'fog density');_number(env['sun_size'],.003,.15,'sun size');_number(env['sun_strength'],0,4,'sun strength')
     if sum(x*x for x in vector(env['light_direction'],'light direction'))<.0001:raise SceneError('Light direction cannot be zero')
@@ -373,6 +384,18 @@ WORLD_SCHEMA['properties']['environment']['properties']['environment_panels']={
     'items':obj_schema({'direction':VEC,'color':HEX,'intensity':{'type':'number','minimum':0,'maximum':16},
         'size':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.03,'maximum':1}},
         'rotation':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi}})}
+WORLD_SCHEMA['properties']['environment']['properties']['atmosphere']={
+    'type':'object','additionalProperties':False,'minProperties':1,
+    'description':'Optional finishing pass over the rendered 3D frame; omit for a plain render. USE IT when the sources show night, fog, mist, lamps, glow or soft light: without it emissive surfaces are hard-edged shapes on a flat background. bloom: soft glow spilling around emissive surfaces (emission>=1) and glow surfaces. halo: wide light halos that grow with fog/haze density and distance, plus a lit mist sphere around every point_lights entry, so put a point light at each lamp. haze_density with haze_color: mist that thickens with distance and tints far things toward haze_color; take haze_color from the source palette. haze_height makes the mist thin out above haze_floor (ground mist). vignette darkens the frame corners. grain adds fine film grain to exported video (review frames omit it). Typical foggy night: {"bloom":0.9,"halo":1.1,"haze_density":0.03,"haze_color":"<mist color from the source>","haze_height":6,"vignette":0.35,"grain":0.02}.',
+    'properties':{
+        'bloom':{'type':'number','minimum':0,'maximum':2,'description':'Glow around emissive and glow surfaces, default 0. Start 0.6-1.2.'},
+        'halo':{'type':'number','minimum':0,'maximum':2,'description':'Wide halos in fog around lights, default 0. Needs fog_density or haze_density above 0 to show; start 0.8-1.4.'},
+        'haze_color':{**HEX,'description':'#RRGGBB mist color, default fog_color. Sample it from the source image.'},
+        'haze_density':{'type':'number','minimum':0,'maximum':.3,'description':'Mist per world unit of distance, default 0. Light mist 0.01, dense fog 0.05.'},
+        'haze_height':{'type':'number','minimum':.25,'maximum':80,'description':'Optional height in world units over which mist thins above haze_floor. Omit for mist that is equally thick at every height.'},
+        'haze_floor':{'type':'number','minimum':-80,'maximum':80,'description':'World y where height mist is thickest, default 0.'},
+        'vignette':{'type':'number','minimum':0,'maximum':1,'description':'Corner darkening, default 0. Start 0.3.'},
+        'grain':{'type':'number','minimum':0,'maximum':.08,'description':'Film grain amplitude, default 0. Subtle 0.015-0.03. Fixed by seed and frame.'}}}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['reflection']=obj_schema({
     'strength':{'type':'number','minimum':0,'maximum':1},
     'blur':{'type':'number','minimum':0,'maximum':8}})
