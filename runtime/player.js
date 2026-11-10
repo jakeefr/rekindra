@@ -33,8 +33,24 @@
         // Each frame alone, small enough for a vision model that times out on the whole sheet.
         fx.drawImage(scratch,0,0,640,360);frames.push(f.toDataURL('image/png').split(',')[1]);
       }
-      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
+      const result={kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
+      if(world)result.objectMotion=objectMotion(times[0],times[5]);
+      return result;
     }finally{if(world)world.setGrain(true);display(saved)}
+  }
+  // With the camera held at one moment, how much the picture changes between two scene times (mean per-channel
+  // 0-255 over a small copy). Zero means nothing moves on its own and only the camera moves.
+  function objectMotion(a,b){
+    const small=document.createElement('canvas');small.width=128;small.height=72;
+    const s=small.getContext('2d',{willReadFrequently:true});s.imageSmoothingEnabled=false;
+    const grab=(t,held)=>{s.drawImage(world.render(t,held),0,0,128,72);return s.getImageData(0,0,128,72).data};
+    let worst=0;
+    for(const held of [a,b]){
+      const p=grab(a,held),q=grab(b,held);let sum=0;
+      for(let i=0;i<p.length;i+=4)sum+=Math.abs(p[i]-q[i])+Math.abs(p[i+1]-q[i+1])+Math.abs(p[i+2]-q[i+2]);
+      worst=Math.max(worst,sum/(p.length/4*3));
+    }
+    return Math.round(worst*1000)/1000;
   }
   function reportReview(result){
     const el=document.createElement('script');el.id='rekindra-review-result';el.type='application/json';

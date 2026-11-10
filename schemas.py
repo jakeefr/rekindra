@@ -135,5 +135,16 @@ for _name in ('rekindra_create_world', 'rekindra_revise_world'):
 _AUTHORING_RULES = ' Authoring rules. Build every subject from geometry: decompose the source subject into parts (silhouette, pose, proportions, main masses), build each part from surfaces and the construction fields (feathers for wings, petals, leaves, scales and fins; drape for cloth that falls to the ground; ring for halos, rims and wheels; loft for solid masses), and prefer layered detail (dozens of small parts) over one big shape. material_image is surface texture only (ground, bark, leaves, stone, fabric, sky detail): never put a photo of the subject on a flat or camera-facing surface. Use atmosphere for haze and depth, foliage for leaf masses, glow with soft for light and luminous forms. Compare every preview with the source images for silhouette and pose before revising anything else. If a preview fails, stop and report; never render or record outside these tools. Never modify skill files or plugin files.'
 for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
     SCHEMAS[_name]['description'] += _AUTHORING_RULES
+_MIST_RULE = ' When the source images read misty or hazy, the scene needs enough fog or haze to veil the distance the same way; the preview reports this as haze, and frames:haze_thin when it is too thin.'
+for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
+    SCHEMAS[_name]['description'] += _MIST_RULE
+SCHEMAS['rekindra_revise_world']['parameters']['properties']['addresses'] = {
+    'type': 'array', 'maxItems': 16, 'items': {'type': 'object', 'properties': {
+        'id': {'type': 'string', 'description': 'A defect id from the last preview of the parent plan.'},
+        'how': {'type': 'string', 'maxLength': 200, 'description': 'What this revise changed to fix it.'}},
+        'required': ['id', 'how'], 'additionalProperties': False},
+    'description': 'Optional. For each defect the parent plan\'s last preview listed that this revise fixes, {id, how}. '
+                   'The result reports flagged_defects: which open defects were addressed and which were not; '
+                   'unaddressed ones stay open and carry into the next preview.'}
 from .rekindra_core.schema_hints import tighten
 tighten(SCHEMAS)

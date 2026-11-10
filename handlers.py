@@ -402,6 +402,8 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 from .rekindra_core.revisions import revise_world
                 compositions = CompositionStore(store)
                 parent = compositions.load_plan(args['project_id'], args['plan_id'])
+                from .rekindra_core.export_gate import answer_defects, parse_addresses
+                addresses = parse_addresses(args.get('addresses'))
                 scene, changed = revise_world(parent['scene'], args.get('edits'), set(parent['source_ids']))
                 attribution = {'origin': 'caller-revised', 'provider': 'not-attested', 'model': 'not-attested',
                                'parent_plan_id': parent['plan_id'], 'changed_fields': changed}
@@ -409,13 +411,21 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 if cited is not None:   # a revision still descends from the reconstruction its parent cited
                     attribution['reconstruction'] = cited
                 saved = compositions.save_plan(args['project_id'], scene, parent['source_ids'], attribution, parent=parent)
-                result = with_preview({'project_id': args['project_id'], 'plan_id': saved['plan_id'],
+                # Recorded before any preview of the new plan, so that preview can say what this revise claimed.
+                answered = answer_defects(store, args['project_id'], parent['plan_id'], saved['plan_id'], addresses)
+                revised = {'project_id': args['project_id'], 'plan_id': saved['plan_id'],
                           'parent_plan_id': parent['plan_id'], 'changed_fields': changed,
                           'warnings': backdrop_warnings(scene),
                           'next_step': ('Inspect preview.path, then rekindra_export once it is right; saving is not visual acceptance.'
                                         if args.get('preview') is True else
                                         'Use rekindra_preview with this new plan_id, then rekindra_export once it is right; saving is not visual acceptance. '
-                                        'Passing preview: true to rekindra_revise_world renders it in the same call.')})
+                                        'Passing preview: true to rekindra_revise_world renders it in the same call.')}
+                if answered is not None:
+                    revised['flagged_defects'] = answered
+                    if answered['unaddressed']:
+                        revised['next_step'] += (' flagged_defects.unaddressed lists defects the last preview flagged '
+                                                 'that this revise did not say it addressed; they stay open.')
+                result = with_preview(revised)
             elif operation == 'build':
                 result = CompositionStore(store).build(args['project_id'], args['plan_id'], draft=True)
             elif operation == 'preview':
