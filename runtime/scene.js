@@ -86,15 +86,85 @@
       ctx.restore();
     });ctx.restore();
   }
-  function renderAscii(ctx,scratch){
-    const columns=110,rows=Math.round(columns*scratch.height/scratch.width*.55),sample=document.createElement('canvas');
-    sample.width=columns;sample.height=rows;const s=sample.getContext('2d',{willReadFrequently:true});s.drawImage(scratch,0,0,columns,rows);
-    const pixels=s.getImageData(0,0,columns,rows).data,chars=' .:-=+*#%@',cw=scratch.width/columns,ch=scratch.height/rows;
-    ctx.fillStyle='#080f12';ctx.fillRect(0,0,scratch.width,scratch.height);ctx.font=`${ch}px monospace`;ctx.textBaseline='top';
-    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
-      const i=(y*columns+x)*4,lum=(pixels[i]*.2126+pixels[i+1]*.7152+pixels[i+2]*.0722)/255;
-      ctx.fillStyle=`rgb(${pixels[i]},${pixels[i+1]},${pixels[i+2]})`;ctx.fillText(chars[Math.min(9,Math.floor(lum*10))],x*cw,y*ch,cw);
-    }
+  // ASCII view. The ramp ascends by measured ink coverage in a bold monospace face;
+  // the four edge glyphs are kept out of it so an outline never reads as shading.
+  const ASCII={ramp:' .:~;=+*cvstxneoakhSAm#H8WMB0N&@',columns:200,cellAspect:1.875,gamma:.8,edge:.6,
+    mono:[236,240,236],lift:.45,floor:.32,sample:2,low:.02,high:.98,gain:3};
+  const asciiGrid=(width,height)=>({columns:ASCII.columns,rows:Math.max(1,Math.round(ASCII.columns*height/width/ASCII.cellAspect))});
+  // Brightness 0..1 to a ramp index. Monotonic: a brighter cell never gets a sparser glyph.
+  const asciiLevel=lum=>Math.round(Math.pow(clamp(lum,0,1),ASCII.gamma)*(ASCII.ramp.length-1));
+  // Frame contrast: spread the darkest and brightest few percent toward the ends of the ramp, by a bounded gain.
+  // A flat frame is left as it is. The mapping is increasing, so brightness order inside a frame is kept.
+  function asciiTone(lum){
+    const bins=new Uint32Array(256);for(let i=0;i<lum.length;i++)bins[Math.round(clamp(lum[i],0,1)*255)]++;
+    const rank=share=>{let seen=0;const want=share*lum.length;for(let b=0;b<256;b++){seen+=bins[b];if(seen>=want)return b/255}return 1};
+    const lo=rank(ASCII.low),hi=Math.max(lo,rank(ASCII.high)),gain=Math.min(ASCII.gain,hi>lo?1/(hi-lo):ASCII.gain);
+    const span=gain*(hi-lo),mid=(lo+hi)/2,centre=clamp(mid,span/2,1-span/2);
+    return v=>clamp((v-mid)*gain+centre,0,1);
   }
-  const api={pose,trackAt,fragmentPose,renderScene,renderAscii};if(typeof module!=='undefined')module.exports=api;else root.RekindraScene=api;
+  // Average factor x factor blocks so thin shapes survive the reduction to one sample per cell.
+  function asciiReduce(pixels,width,height,factor){
+    const w=Math.floor(width/factor),h=Math.floor(height/factor),out=new Uint8ClampedArray(w*h*4),area=factor*factor;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)for(let k=0;k<4;k++){
+      let sum=0;for(let v=0;v<factor;v++)for(let u=0;u<factor;u++)sum+=pixels[((y*factor+v)*width+x*factor+u)*4+k];
+      out[(y*w+x)*4+k]=Math.round(sum/area);
+    }
+    return out;
+  }
+  // Pure: RGBA pixels at one sample per cell -> glyphs and glyph colours. No canvas, clock or random input.
+  function asciiCells(pixels,columns,rows,mode='color'){
+    if(mode!=='color'&&mode!=='mono')throw Error('ASCII mode must be color or mono');
+    const n=columns*rows;if(pixels.length<n*4)throw Error('ASCII pixels do not cover the grid');
+    const lum=new Float32Array(n),mag=new Float32Array(n),gxs=new Float32Array(n),gys=new Float32Array(n),chars=new Array(n),colors=new Uint8ClampedArray(n*3);
+    for(let i=0;i<n;i++)lum[i]=(pixels[i*4]*.2126+pixels[i*4+1]*.7152+pixels[i*4+2]*.0722)/255;
+    const tone=asciiTone(lum);for(let i=0;i<n;i++)lum[i]=tone(lum[i]);
+    const at=(x,y)=>lum[clamp(y,0,rows-1)*columns+clamp(x,0,columns-1)];
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const i=y*columns+x;
+      gxs[i]=at(x+1,y-1)+2*at(x+1,y)+at(x+1,y+1)-at(x-1,y-1)-2*at(x-1,y)-at(x-1,y+1);
+      gys[i]=at(x-1,y+1)+2*at(x,y+1)+at(x+1,y+1)-at(x-1,y-1)-2*at(x,y-1)-at(x+1,y-1);
+      mag[i]=Math.hypot(gxs[i],gys[i]);
+    }
+    const strength=(x,y)=>x<0||y<0||x>=columns||y>=rows?0:mag[y*columns+x];
+    let edges=0;
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const i=y*columns+x;let glyph=ASCII.ramp[asciiLevel(lum[i])];
+      if(mag[i]>=ASCII.edge){
+        // One glyph per crossing, on the darker side of the step, so a bright shape keeps its fill and gains an outline.
+        const sx=Math.round(gxs[i]/mag[i]),sy=Math.round(gys[i]/mag[i]);
+        if(mag[i]>strength(x-sx,y-sy)&&mag[i]>=strength(x+sx,y+sy)){
+          const turn=(Math.atan2(gys[i],gxs[i])*180/Math.PI+180)%180;
+          glyph=turn<22.5||turn>=157.5?'|':turn<67.5?'/':turn<112.5?'-':'\\';edges++;
+        }
+      }
+      chars[i]=glyph;
+      if(mode==='mono'){colors[i*3]=ASCII.mono[0];colors[i*3+1]=ASCII.mono[1];colors[i*3+2]=ASCII.mono[2]}
+      else{
+        // Glyph density already carries brightness; lift the colour so dark hues stay legible on the dark ground.
+        const r=pixels[i*4],g=pixels[i*4+1],b=pixels[i*4+2],peak=Math.max(r,g,b)/255;
+        const gain=peak>0?Math.max(ASCII.floor,Math.pow(peak,ASCII.lift))/peak:0;
+        colors[i*3]=Math.round(r*gain);colors[i*3+1]=Math.round(g*gain);colors[i*3+2]=Math.round(b*gain);
+      }
+    }
+    return {columns,rows,mode,chars:chars.join(''),colors,edges};
+  }
+  let asciiSampler=null;
+  function renderAscii(ctx,scratch,mode='color'){
+    const W=ctx.canvas.width,H=ctx.canvas.height,{columns,rows}=asciiGrid(W,H),sw=columns*ASCII.sample,sh=rows*ASCII.sample;
+    if(!asciiSampler||asciiSampler.width!==sw||asciiSampler.height!==sh){asciiSampler=document.createElement('canvas');asciiSampler.width=sw;asciiSampler.height=sh}
+    const s=asciiSampler.getContext('2d',{willReadFrequently:true});s.imageSmoothingEnabled=true;s.imageSmoothingQuality='high';s.drawImage(scratch,0,0,sw,sh);
+    const grid=asciiCells(asciiReduce(s.getImageData(0,0,sw,sh).data,sw,sh,ASCII.sample),columns,rows,mode),cw=W/columns,ch=H/rows;
+    ctx.save();ctx.setTransform(1,0,0,1,0,0);ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle=mode==='mono'?'#000':'#05080a';ctx.fillRect(0,0,W,H);
+    ctx.font=`bold ${(ch*1.08).toFixed(2)}px Consolas,"Cascadia Mono",Menlo,"DejaVu Sans Mono","Liberation Mono",monospace`;ctx.textAlign='center';ctx.textBaseline='middle';
+    let last=-1;
+    for(let y=0;y<rows;y++)for(let x=0;x<columns;x++){
+      const i=y*columns+x,glyph=grid.chars[i];if(glyph===' ')continue;
+      const key=grid.colors[i*3]<<16|grid.colors[i*3+1]<<8|grid.colors[i*3+2];
+      if(key!==last){ctx.fillStyle=`rgb(${grid.colors[i*3]},${grid.colors[i*3+1]},${grid.colors[i*3+2]})`;last=key}
+      ctx.fillText(glyph,(x+.5)*cw,(y+.5)*ch);
+    }
+    ctx.restore();
+  }
+  const api={pose,trackAt,fragmentPose,renderScene,renderAscii,asciiCells,asciiGrid,asciiLevel,asciiReduce,asciiTone,ASCII};if(typeof module!=='undefined')module.exports=api;else root.RekindraScene=api;
 })(globalThis);
