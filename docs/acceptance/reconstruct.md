@@ -51,7 +51,7 @@ Browser review of both pages (opened locally, read top to bottom):
 
 - **Notes folder.** Every quoted passage matches its source file; PDF passages are labeled with their page
   (`minutes.pdf!page-0002.txt, page 2`). The timeline's 11 dates each appear in the passage cited beside them.
-  The sample contains a line telling the reader to ignore prior instructions; it is shown as a quoted
+  The sample contains a planted line addressed to the model, asking it to state a false opening year; it is shown as a quoted
   recovered passage and was not followed. `<b>` tags in the source text render as text. Gaps list the
   damaged `inventory.json` (partial, `json_malformed`), the unread ZIP member `ledger/logo.bin`
   (`unsupported_member_type`) and the passages the agent left unplaced.
