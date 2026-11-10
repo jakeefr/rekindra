@@ -171,7 +171,7 @@ def _fit_summary(summary):
 RECOVER_ALL_ASSETS = 40
 RECOVER_ALL_SECONDS = 150
 RECOVER_ALL_FAILURES = 12
-_RETRY_ALONE = ('operation_failed', 'filesystem_error')
+_RETRY_ALONE = ('reader_busy', 'operation_failed', 'filesystem_error')
 _IMAGE_VIEW = ('format', 'width', 'height', 'partial', 'decoded_fraction', 'palette', 'warnings', 'path')
 
 
@@ -249,11 +249,16 @@ def recover_all(store, project_id, reader):
             continue
         if len(failed) > RECOVER_ALL_FAILURES:
             at = next((i for i in range(len(failed) - 1, -1, -1) if failed[i]['code'] not in _RETRY_ALONE), len(failed) - 1)
-            code = failed.pop(at)['code']
+            gone = failed.pop(at)
+            code = gone['code']
             unlisted = reply.setdefault('not_recovered_not_listed', {
                 'count': 0, 'codes': {}, 'next_step': 'rekindra_status lists every asset and artifact of this project'})
             unlisted['count'] += 1
             unlisted['codes'][code] = unlisted['codes'].get(code, 0) + 1
+            if code in _RETRY_ALONE and len(unlisted.setdefault('retry_asset_ids', [])) < RECOVER_ALL_FAILURES:
+                unlisted['retry_asset_ids'].append(gone['asset_id'])
+                unlisted['next_step'] = ('retry_asset_ids may recover when retried one at a time with asset_id; '
+                                         'rekindra_status lists every asset and artifact of this project')
             continue
         longest = max((r for r in recovered if r.get('evidence')), key=lambda r: len(r['evidence']), default=None)
         if longest is not None and len(longest['evidence']) > 1:

@@ -171,14 +171,17 @@ class SpeedPathTests(unittest.TestCase):
         real = store.recover.side_effect
 
         def recover(project_id, asset_id, reader):
-            if asset_id == assets[0]['asset_id']:
+            if asset_id == assets[98]['asset_id']:
+                raise packaged('projects').ReaderRetry('No reader process could be started in time')
+            if asset_id == assets[99]['asset_id']:
                 raise RuntimeError('reader bug')
             return real(project_id, asset_id, reader)
         store.recover.side_effect = recover
         with mock.patch.object(plugin.handlers, 'evidence_summary', return_value=quoted):
             reply = plugin.handlers.recover_all(store, self.pid, None)
         self.assertEqual(len(reply['recovered'][-1]['evidence']), 4)
-        self.assertEqual(reply['not_recovered'][0]['code'], 'operation_failed')
+        self.assertEqual([(f['asset_id'], f['code']) for f in reply['not_recovered'][-2:]],
+                         [(assets[98]['asset_id'], 'reader_busy'), (assets[99]['asset_id'], 'operation_failed')])
         self.assertEqual(sum(reply['not_recovered_not_listed']['codes'].values()), reply['not_recovered_not_listed']['count'])
         self.assertEqual(set(reply['not_recovered_not_listed']['codes']), {'invalid_input'})
         self.assertLessEqual(len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False)), plugin.handlers.SUMMARY_MAX_CHARS)
@@ -187,7 +190,18 @@ class SpeedPathTests(unittest.TestCase):
             self.assertEqual(row['width'], 640)
         self.assertTrue(reply['recovered'][-1]['evidence'])
         self.assertEqual(len(reply['not_recovered']) + reply['not_recovered_not_listed']['count'], 100)
-        self.assertTrue(all(f['code'] == 'invalid_input' for f in reply['not_recovered'][1:]))
+        self.assertTrue(all(f['code'] == 'invalid_input' for f in reply['not_recovered'][:-2]))
+
+    def test_unlisted_retryable_failures_keep_their_asset_ids(self):
+        assets = [{'asset_id': f'{i:032x}', 'source_path': 'n' * 100 + f'-{i:03d}.tga'} for i in range(120)]
+        store = self._image_store(assets)
+        store.recover.side_effect = RuntimeError('reader bug')
+        reply = plugin.handlers.recover_all(store, self.pid, None)
+        unlisted = reply['not_recovered_not_listed']
+        self.assertEqual(len(reply['not_recovered']) + unlisted['count'], 120)
+        self.assertEqual(unlisted['codes'], {'operation_failed': unlisted['count']})
+        self.assertEqual(len(unlisted['retry_asset_ids']), 12)
+        self.assertIn('retry_asset_ids', unlisted['next_step'])
 
     def test_a_malformed_result_on_one_asset_does_not_fail_the_call(self):
         assets = [{'asset_id': 'text', 'source_path': 'notes.txt'}, {'asset_id': 'a' * 32, 'source_path': 'scan.tga'}]
