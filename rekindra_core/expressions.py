@@ -33,7 +33,7 @@ def _offender(node,names):
             'Attribute':'attributes such as math.sin are not supported, call sin directly'}.get(type(node).__name__,'unsupported syntax')
 
 
-def compile_expression(source, names=None):
+def compile_expression(source, names=None, allowed=ALLOWED):
     if not isinstance(source,str):
         raise SceneError('Surface expressions require 1-512 characters: every expression is a string, even a constant '
                          f'("0", not 0; "sin(u*2*pi)"); got {type(source).__name__} {source!r:.40}')
@@ -41,7 +41,7 @@ def compile_expression(source, names=None):
         raise SceneError(f'Surface expressions require 1-512 characters; got {len(source)}. Move repeated terms into bindings')
     try:tree=ast.parse(source.strip(),mode='eval')
     except (SyntaxError,ValueError,RecursionError) as exc:
-        raise SceneError(f'Invalid surface expression {_echo(source)}: write one arithmetic expression. {ALLOWED}') from exc
+        raise SceneError(f'Invalid surface expression {_echo(source)}: write one arithmetic expression. {allowed}') from exc
     cost=0
     def visit(node,depth=0):
         nonlocal cost
@@ -65,6 +65,8 @@ def compile_expression(source, names=None):
             if len(node.args)!=arity:
                 raise SceneError(f'Wrong number of math function arguments: {node.func.id} takes {arity}, got {len(node.args)} in {_echo(source)}')
             return f'bound({name}('+','.join(visit(arg,depth+1) for arg in node.args)+'))'
+        if allowed is not ALLOWED:
+            raise SceneError(f'Unsupported expression: {_offender(node,None).split(" (")[0]} in {_echo(source)}. {allowed}')
         raise SceneError('Only u, v, t, pi, earlier local bindings, arithmetic and supported math functions are allowed: '
                          f'{_offender(node,names)} in {_echo(source)}. {ALLOWED}')
     glsl=visit(tree.body)

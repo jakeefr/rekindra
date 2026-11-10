@@ -132,6 +132,56 @@ class RejectionTests(unittest.TestCase):
         scene['objects'][0]['position']['x'] = 'u +'
         self.create(scene, "'u +'", 'one arithmetic expression')
 
+    def test_misspelled_optional_field_lists_the_optional_names(self):
+        scene = self.scene()
+        scene['environment']['fill_colour'] = '#FFFFFF'
+        self.create(scene, "'fill_colour'", 'Not accepted here', 'Optional environment fields', 'fill_color')
+        scene = self.scene()
+        scene['objects'][0]['shadeing'] = 'flat'
+        self.create(scene, "'shadeing'", 'Optional surface fields', 'shading')
+        scene = self.scene()
+        scene['camera'][0]['cutt'] = True
+        self.create(scene, "'cutt'", 'Optional camera state fields: cut')
+        scene = self.scene()
+        scene['environment'] = 'sunset'
+        self.create(scene, 'Invalid environment fields', 'JSON object', "'sunset'")
+        scene = self.scene()
+        scene['objects'][0]['segments'] = [8]
+        self.create(scene, 'two integers', '[u, v]', '[8]')
+
+    def test_assembly_rejections_name_the_value_and_the_valid_set(self):
+        def group(**change):
+            base = dict(id='hinge', translation={'x': '0', 'y': '0', 'z': '0'},
+                        rotation={'x': '0', 'y': '0', 'z': '.3*sin(t)'}, pivot=[0, 0, 0], scale=[1, 1, 1])
+            base.update(change)
+            return base
+
+        def refused(groups, *expected):
+            scene = self.scene()
+            scene['assemblies'] = groups
+            return self.create(scene, *expected)
+
+        wrong = group()
+        wrong['origin'] = wrong.pop('pivot')
+        refused([wrong], 'Invalid assembly fields', 'Missing: pivot', "'origin'", 'Optional assembly fields: parent')
+        refused([group(id='swing arm')], "'swing arm'", 'letters, digits, underscore or hyphen')
+        refused([group(), group()], "'hinge'", 'already uses')
+        refused([group(id='child', parent='root'), group(id='root')], "'root'", 'none, so omit parent')
+        refused([group(), group(id='child', parent='rooot')], "'rooot'", 'defined before this one: hinge')
+        refused([group(pivot=[0, 0])], 'pivot needs three values', 'between -80 and 80', '[0, 0]')
+        refused([group(translation=['0', '0', '0'])], 'Invalid assembly translation fields', 'x, y, z')
+        refused([group(rotation={'x': 0, 'y': '0', 'z': '0'})], '"0", not 0', 'int 0')
+        text = refused([group(rotation={'x': 'u*2', 'y': '0', 'z': '0'})], "'u*2'", 't/pi only')
+        text = refused([group(rotation={'x': 'spin*t', 'y': '0', 'z': '0'})], "'spin'", 't and pi only')
+        self.assertNotIn('the names u v t pi', text)
+        self.assertNotIn('bindings defined before', text)
+
+    def test_unknown_argument_names_are_echoed_safely(self):
+        text = self.message('rekindra_status', {'project_id': self.project['project_id'], 'a\x1b[2J\nb' + 'x' * 80: 1},
+                            'does not accept: a?[2J?b')
+        self.assertNotIn('\x1b', text)
+        self.assertNotIn('x' * 41, text)
+
     # --- revise, preview, export ----------------------------------------------------------
 
     def test_revise_rejections_list_the_valid_fields(self):
@@ -154,6 +204,22 @@ class RejectionTests(unittest.TestCase):
             self.assertIn(expected, str(caught.exception))
             self.assertIn('palette:top-band', str(caught.exception))
 
+    def test_many_bad_acknowledgments_stay_one_short_refusal(self):
+        warnings = [{'warning_id': 'palette:top-band', 'kind': 'palette_drift', 'message': 'top band drifted'}]
+        bad = [{'id': n} for n in range(8)] + [{'warning_id': 'palette:sky\x1b' + 'z' * 300, 'reason': 'kept deliberately dark'}] * 8
+        with self.assertRaises(export_gate.ExportBlocked) as caught:
+            export_gate._matched(bad, warnings, 0)
+        text = str(caught.exception)
+        self.assertIn('8 item(s) malformed', text)
+        self.assertEqual(text.count('(current: palette:top-band)'), 1)
+        self.assertEqual(text.count('shaped {"warning_id"'), 1)
+        self.assertNotIn('\x1b', text)
+        self.assertLess(len(text), 1200)
+        twice = [{'warning_id': 'palette:top-band', 'reason': 'kept deliberately dark'}] * 2
+        with self.assertRaises(export_gate.ExportBlocked) as caught:
+            export_gate._matched(twice, warnings, 0)
+        self.assertIn('acknowledged more than once', str(caught.exception))
+
 
 class SchemaTests(unittest.TestCase):
     """What the model reads before it calls: closed argument lists, id shapes and sources."""
@@ -173,6 +239,16 @@ class SchemaTests(unittest.TestCase):
     def test_handler_accepts_exactly_the_documented_arguments(self):
         handlers = plugin.handlers
         self.assertEqual(set(handlers.TOOL_NAMES.values()), set(plugin.schemas.SCHEMAS))
+        self.assertEqual(len(handlers.TOOL_NAMES), len(plugin.schemas.SCHEMAS))
+
+    def test_optional_colours_carry_the_same_pattern_as_required_ones(self):
+        environment = plugin.schemas.SCHEMAS['rekindra_create_world']['parameters']['properties']['scene']['properties']['environment']['properties']
+        pattern = environment['sky_top']['pattern']
+        for colour in (environment['fill_color'], environment['ground_color'],
+                       environment['point_lights']['items']['properties']['color'],
+                       environment['environment_panels']['items']['properties']['color']):
+            self.assertEqual(colour['pattern'], pattern)
+            self.assertTrue(colour['description'])
 
     def test_world_schema_states_the_ranges_the_validator_enforces(self):
         scene = plugin.schemas.SCHEMAS['rekindra_create_world']['parameters']['properties']['scene']['properties']
@@ -192,7 +268,10 @@ class SchemaTests(unittest.TestCase):
             for key in ('roughness', 'metalness', 'emission'):
                 rule = limits['objects']['items']['properties'][key]
                 self.assertTrue(rule['minimum'] <= surface[key] <= rule['maximum'], key)
-        self.assertIsNot(copy.deepcopy(scene), scene)
+        before = copy.deepcopy(scene)
+        from rekindra_core.worlds import validate_world
+        validate_world(scene, {'a' * 32})
+        self.assertEqual(scene, before)
 
 
 if __name__ == '__main__':

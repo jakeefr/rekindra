@@ -29,20 +29,21 @@ def shown(value):
     return repr(text[:40]+('...' if len(text)>40 else '')) if isinstance(value,str) else text[:48]
 
 
-def fields(value,names,label):
-    wanted=names.split()
+def fields(value,names,label,optional=''):
+    wanted=names.split();allowed=optional.split()
     if not isinstance(value,dict):
         raise SceneError(f'Invalid {label} fields: pass a JSON object with {", ".join(wanted)}; got {shown(value)}')
-    if set(value)==set(wanted):return
+    if set(wanted)<=set(value)<=set(wanted)|set(allowed):return
     missing=[k for k in wanted if k not in value]
-    extra=sorted(shown(k) for k in value if k not in wanted)[:8]
+    extra=sorted(shown(k) for k in value if k not in wanted and k not in allowed)[:8]
     raise SceneError(f'Invalid {label} fields.'+(f' Missing: {", ".join(missing)}.' if missing else '')
                      +(f' Not accepted here: {", ".join(extra)}.' if extra else '')
-                     +f' Required {label} fields: {", ".join(wanted)}')
+                     +f' Required {label} fields: {", ".join(wanted)}'
+                     +(f'. Optional {label} fields: {", ".join(allowed)}' if allowed else ''))
 
 
 def vector(value,label):
-    if not isinstance(value,list) or len(value)!=3:raise SceneError(f'{label} requires three coordinates')
+    if not isinstance(value,list) or len(value)!=3:raise SceneError(f'{label} requires three coordinates: pass an array of three numbers [x, y, z]; got {shown(value)}')
     for x in value:_number(x,-80,80,label)
     return value
 
@@ -133,7 +134,7 @@ def _text_references(refs):
 
 def validate_world(value,asset_ids):
     if not isinstance(value,dict):raise SceneError(f'Invalid world fields: scene must be a JSON object, not JSON-encoded text; got {shown(value)}')
-    fields({k:v for k,v in value.items() if k not in ('assemblies','text_references','references')},'schema_version title mood reason duration width height seed environment camera objects','world')
+    fields(value,'schema_version title mood reason duration width height seed environment camera objects','world','references text_references assemblies')
     s=copy.deepcopy(value)
     assemblies=compile_assemblies(s.get('assemblies',[]))
     if 'text_references' in s:_text_references(s['text_references'])
@@ -162,9 +163,8 @@ def validate_world(value,asset_ids):
             _text(ref[key],500,key)
             if not ref[key].strip():raise SceneError('Explain observed and created features')
     env=s['environment']
-    optional={'fill_color','fill_direction','fill_strength','exposure','ambient_strength','ground_color','ground_strength','point_lights','occlusion_strength','occlusion_radius','environment_panels'}
-    if not isinstance(env,dict):raise SceneError('Invalid environment fields')
-    fields({k:v for k,v in env.items() if k not in optional},'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment')
+    fields(env,'sky_top sky_bottom fog_color fog_density light_color light_direction sun_size sun_strength','environment',
+           'fill_color fill_direction fill_strength exposure ambient_strength ground_color ground_strength point_lights occlusion_strength occlusion_radius environment_panels')
     for key in ('sky_top','sky_bottom','fog_color','light_color'):color(env[key])
     _number(env['fog_density'],0,.15,'fog density');_number(env['sun_size'],.003,.15,'sun size');_number(env['sun_strength'],0,4,'sun strength')
     if sum(x*x for x in vector(env['light_direction'],'light direction'))<.0001:raise SceneError('Light direction cannot be zero')
@@ -203,8 +203,7 @@ def validate_world(value,asset_ids):
     if not isinstance(camera,list) or not 2<=len(camera)<=12:raise SceneError('Camera requires 2-12 states')
     last=-1;previous=None
     for key in camera:
-        if not isinstance(key,dict):raise SceneError('Invalid camera state fields')
-        fields({k:v for k,v in key.items() if k!='cut'},'at eye target fov','camera state')
+        fields(key,'at eye target fov','camera state','cut')
         if 'cut' in key and type(key['cut']) is not bool:raise SceneError('Camera cut must be a boolean')
         if previous is None and key.get('cut',False):raise SceneError('The first camera state cannot be a cut')
         _number(key['at'],0,s['duration'],'camera time');_number(key['fov'],15,100,'field of view')
@@ -224,8 +223,8 @@ def validate_world(value,asset_ids):
         raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
     ids=set();cells=work=detail_work=placements=active_reflectors=0
     for obj in s['objects']:
-        if not isinstance(obj,dict):raise SceneError('Invalid surface fields')
-        fields({k:v for k,v in obj.items() if k not in ('bindings','color_detail','bump_detail','color_pattern','caps','instances','assembly','shading','loft','reflection','glow')},'id position segments color color_high color_mix roughness metalness emission','surface')
+        fields(obj,'id position segments color color_high color_mix roughness metalness emission','surface',
+               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow')
         if 'reflection' in obj:
             reflection=obj['reflection'];fields(reflection,'strength blur','planar reflection')
             _number(reflection['strength'],0,1,'reflection strength');_number(reflection['blur'],0,8,'reflection blur')
@@ -244,15 +243,14 @@ def validate_world(value,asset_ids):
             _number(obj['glow'],.05,3,'glow')
             if 'reflection' in obj:raise SceneError('A glow surface cannot be the reflector')
         if 'shading' in obj and (not isinstance(obj['shading'],str) or obj['shading'] not in ('smooth','flat')):
-            raise SceneError('Surface shading must be smooth or flat')
+            raise SceneError(f'Surface shading must be smooth or flat: pass "smooth" or "flat", or omit it; got {shown(obj["shading"])}')
         caps=obj.get('caps',[])
         if not isinstance(caps,list) or len(caps)>2 or any(not isinstance(c,str) or c not in ('v0','v1') for c in caps) or len(set(caps))!=len(caps):
-            raise SceneError('Caps must be a unique list containing v0 and/or v1')
+            raise SceneError(f'Caps must be a unique list containing v0 and/or v1: pass ["v0"], ["v1"] or ["v0","v1"], or omit caps; got {shown(caps)}')
         instances=obj.get('instances',[{'offset':[0,0,0],'scale':[1,1,1]}])
         if not isinstance(instances,list) or not 1<=len(instances)<=16:raise SceneError('A surface requires 1-16 instances when specified')
         for instance in instances:
-            if not isinstance(instance,dict):raise SceneError('Invalid instance fields')
-            fields({k:v for k,v in instance.items() if k!='rotation'},'offset scale','instance')
+            fields(instance,'offset scale','instance','rotation')
             vector(instance['offset'],'instance offset')
             if 'rotation' in instance:
                 angles=instance['rotation']
@@ -273,7 +271,7 @@ def validate_world(value,asset_ids):
             compiled['cost']+=assemblies[obj['assembly']]['cost']
         detail_work+=compiled.get('detail_cost',0)*copies
         segments=obj['segments']
-        if not isinstance(segments,list) or len(segments)!=2:raise SceneError('Surface segments require two integers')
+        if not isinstance(segments,list) or len(segments)!=2:raise SceneError(f'Surface segments require two integers: pass [u, v] with u 4-128 and v 4-96; got {shown(segments)}')
         _number(segments[0],4,128,'u segments',True);_number(segments[1],4,96,'v segments',True)
         if 'loft' in obj and (segments[0]%len(obj['loft'][0]['points']) or segments[1]%(len(obj['loft'])-1)):
             raise SceneError('Loft segments must align: u multiple of ring point count, v multiple of section intervals')
@@ -342,18 +340,18 @@ WORLD_SCHEMA['properties']['environment']['properties'].update({
     'occlusion_strength':{'type':'number','minimum':0,'maximum':1,'description':'Optional screen-space indirect-light occlusion, default0. Does not shadow direct lights or emission; offscreen geometry is unavailable.'},
     'occlusion_radius':{'type':'number','minimum':.05,'maximum':4,'description':'Indirect occlusion radius in world units, default1. Only used when strength>0.'},
     'point_lights':{'type':'array','maxItems':4,'description':'Optional static unshadowed local lights. Finite-range inverse-square illumination; not attached to emissive meshes.',
-        'items':obj_schema({'position':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':200},'range':{'type':'number','minimum':.1,'maximum':80}})},
-    'fill_color':{'type':'string','description':'Optional unshadowed fill light color; default #B8D1FF.'},
+        'items':obj_schema({'position':VEC,'color':HEX,'intensity':{'type':'number','minimum':0,'maximum':200},'range':{'type':'number','minimum':.1,'maximum':80}})},
+    'fill_color':{**HEX,'description':'Optional unshadowed fill light color as #RRGGBB; default #B8D1FF.'},
     'fill_direction':VEC,
     'fill_strength':{'type':'number','minimum':0,'maximum':2,'description':'Optional fill intensity, default 0.25. Set 0 for no fill.'},
     'exposure':{'type':'number','minimum':.25,'maximum':4,'description':'Optional scene exposure multiplier, default 1.'},
     'ambient_strength':{'type':'number','minimum':0,'maximum':2,'description':'Diffuse ambient intensity only, default1. Lower for stronger form contrast; does not change key/fill/emission or sky specular.'},
-    'ground_color':{'type':'string','description':'Approximate lower hemisphere diffuse color, default #342A20. Does not sample geometry or provide occlusion.'},
+    'ground_color':{**HEX,'description':'#RRGGBB. Approximate lower hemisphere diffuse color, default #342A20. Does not sample geometry or provide occlusion.'},
     'ground_strength':{'type':'number','minimum':0,'maximum':1,'description':'Blend lower-facing diffuse illumination toward ground_color, default0 (legacy sky-only ambient). Not raytraced bounce or ambient occlusion.'}})
 WORLD_SCHEMA['properties']['environment']['properties']['environment_panels']={
     'type':'array','maxItems':4,
     'description':'Optional distant rectangular environment radiance lobes for broad reflections and approximate diffuse illumination. No local falloff, scene reflections, or panel shadows; sky background unchanged. Empty/omitted/off preserves legacy lighting. Size is tangent angular half-width/height (.03..1), rotation is radians about direction. Original bounded analytic approximation, not physical area-light integration.',
-    'items':obj_schema({'direction':VEC,'color':TEXT,'intensity':{'type':'number','minimum':0,'maximum':16},
+    'items':obj_schema({'direction':VEC,'color':HEX,'intensity':{'type':'number','minimum':0,'maximum':16},
         'size':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.03,'maximum':1}},
         'rotation':{'type':'number','minimum':-2*math.pi,'maximum':2*math.pi}})}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['reflection']=obj_schema({

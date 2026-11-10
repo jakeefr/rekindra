@@ -116,6 +116,11 @@ def _refusal(warnings, cycles, problems=()):
     return ' '.join(parts)
 
 
+def _brief(text):
+    text = ''.join(c if c.isprintable() else '?' for c in text)
+    return repr(text[:64] + ('...' if len(text) > 64 else ''))
+
+
 def _matched(acknowledgments, warnings, cycles):
     """Every warning answered by exactly one well-formed reason, or a refusal naming what is wrong."""
     wanted = [w['warning_id'] for w in warnings]
@@ -126,18 +131,27 @@ def _matched(acknowledgments, warnings, cycles):
         problems.append(f'acknowledgments must be a list of at most {MAX_ACKNOWLEDGMENTS} items')
         acknowledgments = []
     elif acknowledgments:
+        # One line per kind of fault, the current ids listed once: the refusal must stay well inside the host's result budget.
+        malformed, stale, repeated = 0, [], []
         for item in acknowledgments:
             parsed = _parsed(item)
             if parsed is None:
-                problems.append('each item needs exactly warning_id and a reason of '
-                                f'{MIN_REASON} to {MAX_REASON} characters, shaped {{"warning_id": "...", "reason": "..."}} '
-                                f'with warning_id copied from: {", ".join(wanted)}')
+                malformed += 1
             elif parsed['warning_id'] not in wanted:
-                problems.append(f"{parsed['warning_id']} is not a current warning for this plan (current: {', '.join(wanted)})")
+                stale.append(_brief(parsed['warning_id']))
             elif parsed['warning_id'] in answered:
-                problems.append(f"{parsed['warning_id']} was acknowledged twice")
+                repeated.append(parsed['warning_id'])
             else:
                 answered[parsed['warning_id']] = parsed
+        if malformed:
+            problems.append(f'{malformed} item(s) malformed: each item needs exactly warning_id and a reason of '
+                            f'{MIN_REASON} to {MAX_REASON} characters, shaped {{"warning_id": "...", "reason": "..."}} '
+                            f'with warning_id copied from: {", ".join(wanted)}')
+        if stale:
+            problems.append(f"{', '.join(dict.fromkeys(stale))} {'is' if len(set(stale)) == 1 else 'are'} not a current warning "
+                            f"for this plan (current: {', '.join(wanted)})")
+        if repeated:
+            problems.append(f"{', '.join(dict.fromkeys(repeated))} acknowledged more than once; send one item per warning")
         if not problems and len(answered) < len(wanted):
             problems.append('not acknowledged: ' + ', '.join(i for i in wanted if i not in answered))
     if problems or len(answered) < len(wanted):

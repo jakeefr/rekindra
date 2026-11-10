@@ -193,7 +193,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
             from .schemas import SCHEMAS
             parameters = SCHEMAS[tool]['parameters']
             accepted = list(parameters['properties'])
-            unknown = sorted(str(k)[:40] for k in args if k not in parameters['properties'])
+            unknown = sorted(''.join(c if c.isprintable() else '?' for c in str(k))[:40] for k in args if k not in parameters['properties'])
             if unknown:
                 nested = parameters['properties'].get('scene', {}).get('properties', {})
                 inside = [k for k in unknown if k in nested]
