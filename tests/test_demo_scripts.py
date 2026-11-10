@@ -5,7 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    # numpy is used only by the dev scripts under test, never by the plugin.
+    raise unittest.SkipTest('numpy is not installed; these tests cover dev scripts only')
 from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
