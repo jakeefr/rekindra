@@ -54,10 +54,13 @@ class IntentCheckTests(unittest.TestCase):
         p['scene']['objects'].append({'id': 'moon', 'glow': 1, 'color': '#000000', 'color_high': '#ffffff', 'color_mix': 0})
         p['scene']['objects'].append({'id': 'ok', 'glow': 1, 'color': '#000000', 'color_high': '#ffffff', 'color_mix': '1'})
         p['scene']['objects'].append({'id': 'varying', 'glow': 1, 'color': '#000000', 'color_high': '#ffffff', 'color_mix': 'sin(t)'})
+        p['scene']['objects'].append({'id': 'fade', 'glow': 1, 'color': '#ffcc88', 'color_high': '#000000', 'color_mix': '1',
+                                      'color_pattern': 'u*u*(3-2*u)'})
         out = intent_check(p)
         self.assertEqual([r['stated'] for r in out], ['lamp', 'moon'])
-        self.assertEqual(out[0]['hint'], "glow surface 'lamp' renders black because its color resolves to #000000; "
-                                         'set color to the light color.')
+        self.assertEqual(out[0]['hint'], "glow surface 'lamp' adds no light because its color_high is #000000; "
+                                         'set color_high to the color of the light.')
+        self.assertIn('its color is #000000', out[1]['hint'])
 
     def test_word_boundary(self):
         for text in ('A long street.', 'Leafy streets, foggier than expected.', 'Bushwick', 'Haloes? no: halogen'):

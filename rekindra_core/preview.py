@@ -267,7 +267,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             next_step += ' When satisfied, call rekindra_export with this plan_id; only its HTML can save video.'
         intent = intent_check(plan) if plan['scene'].get('schema_version') == 2 else []
         if intent:
-            next_step += ' intent_check lists features your notes ask for that the scene leaves off; turn them on and preview again.'
+            next_step += ' intent_check lists what the scene leaves off or renders dark against your own notes; follow each hint and preview again.'
         result = {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),

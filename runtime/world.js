@@ -306,15 +306,19 @@ ${hasInstances?'p+=instanceOffset;':''}${source.assembly??''}return clamp(p,vec3
       }
       const capPosition=hasCaps?`vec3 point(vec3 uv){if(uv.z>.5&&uv.z<1.5){vec3 center=vec3(0.);for(int i=0;i<${o.segments[0]};i++)center+=surface(float(i)/${o.segments[0]}.,uv.y);return center/${o.segments[0]}.;}return surface(uv.x,uv.y);}`:'';
       const p=program(`#version 300 es
-precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
-${uniforms}${math}${position}${capPosition}
+precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${leaf?'out vec3 leafPos;':''}${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
+${uniforms}${math}${position}${capPosition}${leaf?`
+#define t 0.
+${position.slice(position.indexOf('vec3 surface(')).replace('vec3 surface(','vec3 restSurface(')}
+#undef t
+`:''}
 void main(){float u=uv.x,v=uv.y;${hasDetail?'detailUV=uv.xy;':''}${hasCaps?'capFace=uv.z>.5?1.:0.;':''}${definitions}vec3 pos=${hasCaps?'point(uv)':'surface(u,v)'};
 vec3 du=surface(u+.0005,v)-surface(u-.0005,v),dv=surface(u,v+.0005)-surface(u,v-.0005);
 vec3 n=cross(dv,du);worldNormal=length(n)>.0000001?normalize(n):vec3(0.,1.,0.);
-worldPos=pos;blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
+worldPos=pos;${leaf?'leafPos=restSurface(u,v);':''}blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
 gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
-precision highp float;in vec3 worldPos,worldNormal;in float blend;out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
+precision highp float;in vec3 worldPos,worldNormal;in float blend;${leaf?'in vec3 leafPos;':''}out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
 ${uniforms}${reflectionUniforms}${reflectionShader}${shadowUniforms}uniform highp sampler2D shadowDepth;
 uniform vec3 baseColor,highColor;uniform float roughness,metalness,emission;${photo?'uniform sampler2D materialImage;':''}${soft||leaf?featureNoise:''}
 ${controlledAmbient?'uniform vec3 groundColor;uniform float ambientStrength,groundStrength;':''}${sky}${pointUniforms}${pointBRDF}${contactShader}${panelUniforms}${panelShader}
@@ -364,8 +368,9 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 `vec3 albedo=mix(baseColor,highColor,blend);
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
-${leaf?`// Leaf mass: world-space cells vary colour and facing; gaps are cut out at the end.
-vec3 leafP=worldPos/${fixed(leaf.leaf_size)},leafCell=floor(leafP*3.);float leafCover=cellNoise(leafP)*.6+cellNoise(leafP*2.7+11.3)*.4;
+${leaf?`// Leaf mass: cells vary colour and facing; gaps are cut out at the end. Cells are
+// placed on the surface as it stands at time 0, so they travel with a moving canopy.
+vec3 leafP=leafPos/${fixed(leaf.leaf_size)},leafCell=floor(leafP*3.);float leafCover=cellNoise(leafP)*.6+cellNoise(leafP*2.7+11.3)*.4;
 albedo=mix(baseColor,highColor,clamp(blend+(cellHash(leafCell)-.5)*2.*${fixed(leaf.variation??.5)},0.,1.));
 N=normalize(N+(vec3(cellHash(leafCell+17.),cellHash(leafCell+31.),cellHash(leafCell+47.))-.5)*1.1);`:''}
 ${photo?`albedo=mix(albedo,pow(texture(materialImage,detailUV*vec2(${fixed(photo.repeat?.[0]??1)},${fixed(photo.repeat?.[1]??1)})).rgb,vec3(2.2)),${fixed(photo.strength??1)});`:''}

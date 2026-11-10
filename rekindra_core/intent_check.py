@@ -92,14 +92,17 @@ def _black_glow(scene):
         if 'glow' not in obj:
             continue
         mix = _constant(obj['color_mix']) if 'color_mix' in obj else 0.0
+        if 'color_pattern' in obj:
+            mix = None  # the pattern picks the blend per pixel
         if mix == 1.0:
-            black = _black(obj.get('color_high'))
+            field = 'color_high' if _black(obj.get('color_high')) else None
         elif mix == 0.0:
-            black = _black(obj.get('color'))
+            field = 'color' if _black(obj.get('color')) else None
         else:
-            black = _black(obj.get('color')) and _black(obj.get('color_high'))
-        if black:
-            found.append(obj.get('id'))
+            both = _black(obj.get('color')) and _black(obj.get('color_high'))
+            field = 'color and color_high' if both else None
+        if field:
+            found.append((obj.get('id'), field))
     return found
 
 
@@ -124,8 +127,8 @@ def intent_check(plan):
             shown = ', '.join(f"'{s}'" for s in stated[:4])
             flagged.append({'feature': feature['feature'], 'stated': ', '.join(stated[:4]),
                             'hint': f"Your notes mention {shown} but {feature['field']} and preview again."})
-    for oid in _black_glow(scene):
+    for oid, field in _black_glow(scene):
         flagged.append({'feature': 'glow_color', 'stated': str(oid),
-                        'hint': f"glow surface '{oid}' renders black because its color resolves to #000000; "
-                                'set color to the light color.'})
+                        'hint': f"glow surface '{oid}' adds no light because its {field} is #000000; "
+                                f'set {field} to the color of the light.'})
     return flagged
