@@ -90,20 +90,28 @@ class PhotoMaterialTests(unittest.TestCase):
         self.assertEqual(out['status'], 'unused')
         self.assertIn('3 recovered images are', out['message'])
         self.assertEqual([(c['asset_id'][:1], c['use']) for c in out['candidates']],
-                         [('a', 'subject'), ('a', 'ground'), ('b', 'ground'), ('b', 'foliage'), ('c', 'surface')])
-        self.assertIn("image aaaaaaaa (you observed 'figure')", out['candidates'][0]['hint'])
-        self.assertIn('focal form', out['candidates'][0]['hint'])
+                         [('a', 'ground'), ('b', 'ground'), ('b', 'foliage'), ('c', 'surface')])
+        self.assertIn('image aaaaaaaa (you observed', out['candidates'][0]['hint'])
+        self.assertNotIn('subject', ' '.join(c['hint'] for c in out['candidates']))
         self.assertIn('material_image', out['candidates'][-1]['hint'])
         self.assertEqual(out, photo_material_candidates(plan(references=self.REFS)))
 
-    def test_a_subject_image_left_unused_is_named_even_when_the_ground_is_textured(self):
-        ground_only = plan(references=self.REFS, objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}},
-                                                          {'id': 'odd', 'material_image': 'x'}, 'junk'])
-        out = photo_material_candidates(ground_only)
-        self.assertEqual(out['status'], 'subject_unused')
-        self.assertEqual([(c['asset_id'], c['use']) for c in out['candidates']], [('aaaaaaaa1111', 'subject')])
-        self.assertIn('you observed', out['candidates'][0]['hint'])
-        self.assertIn('crude stand-in', out['message'])
+    def test_a_photo_standing_in_for_the_subject_is_flagged(self):
+        image = {'asset_id': 'aaaaaaaa1111', 'crop': [0, 0, 1, 1]}
+        ground = {'id': 'ground', 'position': {'x': '(u-.5)*40', 'y': '0', 'z': '(v-.5)*40'}, 'material_image': {'asset_id': 'bbbbbbbb2222'}}
+        card = {'id': 'figure', 'position': {'x': '(u-.5)*2', 'y': 'v*3', 'z': '-4'}, 'material_image': image}
+        light = {'id': 'angel', 'glow': 1, 'position': {'x': 'sin(u*6.28)', 'y': 'v*3', 'z': 'cos(u*6.28)'}, 'material_image': image}
+        wall = {'id': 'wall', 'position': {'x': '(u-.5)*20', 'y': 'v*5', 'z': '-9'}, 'material_image': dict(image, repeat=[6, 2])}
+        out = photo_material_candidates(plan(references=self.REFS, objects=[ground, card, light, wall, 'junk']))
+        self.assertEqual(out['status'], 'subject_photo')
+        self.assertEqual([(c['surface'], c['use']) for c in out['candidates']], [('figure', 'construct'), ('angel', 'construct')])
+        self.assertIn('flat upright sheet', out['candidates'][0]['hint'])
+        self.assertIn('glow form carrying a photo', out['candidates'][1]['hint'])
+        for c in out['candidates']:
+            self.assertIn('construct the subject instead', c['hint'])
+        self.assertIn('Photos texture surfaces only', out['message'])
+        # Ground and tiled wall textures alone are what photo materials are for.
+        self.assertIsNone(photo_material_candidates(plan(references=self.REFS, objects=[ground, wall])))
 
     def test_silent_when_a_surface_uses_one_or_nothing_was_recovered(self):
         used = plan(references=self.REFS[1:], objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}}])

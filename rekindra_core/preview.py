@@ -270,9 +270,11 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             next_step += ' intent_check lists what the scene leaves off or renders dark against your own notes; follow each hint and preview again.'
         photo = photo_material_candidates(plan) if plan['scene'].get('schema_version') == 2 else None
         if photo:
-            next_step += (' photo_materials names recovered images that texture nothing and what each could '
-                          'texture. A subject too intricate for simple shapes reads better as a crop of its image '
-                          'than as a sculpted stand-in: follow each hint and preview again.')
+            next_step += (' photo_materials flags a photo used as the subject: construct the subject from geometry '
+                          'instead, then preview again.' if photo['status'] == 'subject_photo' else
+                          ' photo_materials names recovered images that texture nothing and the surfaces each could '
+                          'texture (ground, bark, leaves, stone, fabric). Photos are texture only; subjects are built '
+                          'from geometry.')
         result = {'kind': 'rendered-frame-review', 'project_id': project_id, 'plan_id': plan_id,
                 'inspection_only': artifact['inspection_only'], 'review_camera': review_camera,
                 'plan_path': str(project / 'plans' / f'{plan_id}.json'),

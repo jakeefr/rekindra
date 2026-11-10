@@ -7,6 +7,7 @@ from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
 from .expressions import compile_expression, sampler, FUNCTIONS
 from .assemblies import compile_assemblies
 from .lofts import compile_loft
+from .constructs import compile_constructs
 
 MAX_SURFACES = 24
 _CITED_ID_CHARS = 64
@@ -60,6 +61,8 @@ def compile_surface(obj):
     names={};definitions=[];cost=0
     if 'loft' in obj:
         loft=compile_loft(obj['loft']);names.update(loft['names']);definitions.append(loft['definitions']);cost+=loft['cost']
+    for part in compile_constructs(obj):
+        names.update(part['names']);definitions.append(part['definitions']);cost+=part['cost']
     for binding in bindings:
         fields(binding,'name expression','local binding')
         name=binding['name']
@@ -254,7 +257,7 @@ def validate_world(value,asset_ids):
     ids=set();cells=work=detail_work=placements=active_reflectors=image_materials=0
     for obj in s['objects']:
         fields(obj,'id position segments color color_high color_mix roughness metalness emission','surface',
-               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow soft foliage material_image')
+               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow soft foliage material_image feathers drape ring')
         if 'soft' in obj:
             soft=obj['soft'];fields(soft,'u v','soft edge','breakup')
             if 'glow' not in obj:raise SceneError('soft feathers the edges of a glow surface: add glow to this surface, or remove soft')
@@ -478,6 +481,18 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']=o
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['required']=['asset_id','crop']
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['description']=('Optional. Takes this surface colour from a crop of one of the recovered images in scene.references, so leaves, bark, paving, stone or mist carry the real texture of the source. '
     'crop is [left, top, width, height] as fractions of the image; at repeat 1 the top of the crop lands at v=1 and its left at u=0 (repeats mirror, so every second tile is flipped). For a material, pick a patch that is all one material. repeat [u,v] tiles it across the surface (mirrored between tiles; default 1,1. Use an even count across a direction that wraps around, or the two ends meet in a seam). strength 0-1 mixes it over color/color_high (default 1). '
-    'Lighting, shadows, foliage and glow still apply, and the page lists it as recovered material. When a source image has a distinct subject that simple shapes cannot build (a figure, a face, an animal, ornate detail), do not sculpt a crude stand-in: put a tight crop of that subject on a soft glow form or on a surface that faces the camera, sized and placed where the subject stands. On a glow surface the dark parts of the crop add no light, so only the subject shows. Use crops for ground and leaf detail too. The scene stays 3D: a crop textures one form in it and is never the whole picture. At most 4 surfaces.')
+    'Lighting, shadows and foliage still apply, and the page lists it as recovered material. Photo materials are for surface texture only: ground, bark, leaves, stone, fabric, sky detail. Never show the subject of a source image as a photo on a flat or camera-facing surface: build the subject from geometry (feathers, drape, ring, loft, soft glow forms) and keep photos for the surfaces around it. The preview report flags a photo used as the subject. At most 4 surfaces.')
+WORLD_SCHEMA['properties']['objects']['items']['properties']['feathers']={'type':'object','additionalProperties':False,'required':['count','spread','length'],'properties':{
+    'count':{'type':'integer','minimum':2,'maximum':48},'spread':{'type':'number','minimum':.05,'maximum':40},'length':{'type':'number','minimum':.02,'maximum':40},
+    'curve':{'type':'number'},'fan':{'type':'number'},'taper':{'type':'number','minimum':.1,'maximum':4},'overlap':{'type':'number','minimum':0,'maximum':1},
+    'layer':{'type':'number','minimum':0,'maximum':2},'open':{'type':'string'},'mirror':{'type':'boolean'}},
+    'description':'Optional construction field: an array of many small tapered cards set along a curved spine, for wings, petals, leaves, scales and fins. Supplies feather_x/feather_y/feather_z to the position expressions (local, in the x-y plane, spine starting at the origin; add your own offset, scale or rotation in position). count 2-48 cards; spread is the spine length; curve bends the spine (radians over its length); fan turns each card further than the last (radians at the tip; 0 keeps them parallel, hanging down from the spine); length is the card length at the root and taper scales it toward the tip (below 1 shortens); overlap 0-1 widens cards over their neighbours; layer staggers them in depth. open is an expression over t from 0 (folded: short spine, cards parallel) to 1 (unfolded: full spread, curve and fan), so a wing or flower can open over time, like "clamp(t/8,0,1)". mirror flips x for the opposite side. u segments must be a multiple of count (2-4 per card). Layer two or three arrays of different length for depth. Works with glow and soft for a luminous, soft-edged result.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['drape']={'type':'object','additionalProperties':False,'required':['height','top_radius','hem_radius'],'properties':{
+    'height':{'type':'number','minimum':.1,'maximum':40},'top_radius':{'type':'number','minimum':.02,'maximum':20},'hem_radius':{'type':'number','minimum':.05,'maximum':40},
+    'pool':{'type':'number','minimum':0,'maximum':10},'folds':{'type':'integer','minimum':0,'maximum':24},'fold_depth':{'type':'number','minimum':0,'maximum':.5}},
+    'description':'Optional construction field: draped cloth, a surface that hangs from a narrow top, ripples into folds and flares to a hem. Supplies drape_x/drape_y/drape_z to the position expressions (local: top at y=height over the origin, hem on y=0). top_radius and hem_radius set the flare; folds is the number of ripples around and fold_depth their depth, growing toward the hem; pool above 0 lays the last part of the cloth flat on the ground, running outward by that distance. Use for robes, skirts, curtains, tablecloths, tents. Give v at least 12 segments. Works with glow and soft.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['ring']={'type':'object','additionalProperties':False,'required':['radius','thickness'],'properties':{
+    'radius':{'type':'number','minimum':.05,'maximum':40},'thickness':{'type':'number','minimum':.005,'maximum':10},'tilt':{'type':'number'}},
+    'description':'Optional construction field: a ring (torus) for halos, rims, hoops and wheels. Supplies ring_x/ring_y/ring_z to the position expressions (local, centred on the origin). radius is the ring radius and thickness the tube radius. tilt turns it about the x axis in radians: 0 lies flat like a hoop on the ground, 1.5708 stands it upright facing the camera on z. A flat ring seen from a level camera reads as a bar, so tilt it toward the viewer. Works with glow and soft.'}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['glow']={'type':'number','minimum':.05,'maximum':3,
     'description':'Optional see-through light volume: the surface ADDS albedo*glow to whatever is behind it, casts no shadow, ignores scene lighting, fades at its silhouette and with fog. Use for a light beam, halo or shaft, never for solid matter. Black albedo adds nothing, so a color_pattern toward color_high #000000 fades it out along its length. Opaque surfaces in front still hide it.'}

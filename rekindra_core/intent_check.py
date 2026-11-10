@@ -111,10 +111,6 @@ def _black_glow(scene):
 # What a recovered image could lend a surface, by words in what the agent observed in it.
 # Order is the output order; the first matching word is quoted back.
 PHOTO_USES = (
-    ('subject', ('figure', 'figures', 'face', 'faces', 'person', 'people', 'portrait', 'statue', 'sculpture',
-                 'animal', 'bird', 'creature', 'wing', 'wings', 'winged', 'ornate', 'carving', 'carved', 'mask'),
-     'has a distinct subject that simple shapes cannot build: put a crop of it on the focal form, as '
-     'material_image on a soft glow surface or a surface that faces the camera'),
     ('ground', ('pavement', 'paving', 'paver', 'pavers', 'paved', 'path', 'road', 'street', 'sidewalk', 'brick',
                 'bricks', 'cobble', 'cobbles', 'cobblestone', 'cobblestones', 'tile', 'tiles', 'floor', 'ground',
                 'gravel', 'sand', 'grass', 'soil', 'rock', 'rocks', 'rocky', 'stone', 'stones'),
@@ -127,7 +123,7 @@ _PHOTO_PATTERNS = [(use, [(w, _pattern(w)) for w in words], text) for use, words
 
 
 def photo_material_candidates(plan):
-    """None, or {status, message, candidates}: recovered images no surface uses, or a subject image left unused."""
+    """None, or {status, message, candidates}: recovered images no surface uses, or a photo used as the subject."""
     if not isinstance(plan, dict):
         return None
     scene = plan.get('scene') if isinstance(plan.get('scene'), dict) else {}
@@ -136,7 +132,7 @@ def photo_material_candidates(plan):
     if not references:
         return None
     if _USES['material_image'](scene):
-        return _unused_subjects(scene, references)
+        return _subject_photos(scene)
     candidates = []
     for ref in references:
         observed = ref.get('observed') if isinstance(ref.get('observed'), str) else ''
@@ -159,27 +155,38 @@ def photo_material_candidates(plan):
             'candidates': candidates}
 
 
-def _unused_subjects(scene, references):
-    """Some surface is textured, but an image whose subject simple shapes cannot build textures nothing."""
-    used = set()
+def _subject_photos(scene):
+    """Photo materials that show a picture instead of texturing a surface: on a light form, or untiled on a flat upright sheet."""
+    candidates = []
     for obj in scene.get('objects') or []:
         image = obj.get('material_image') if isinstance(obj, dict) else None
-        if isinstance(image, dict) and isinstance(image.get('asset_id'), str):
-            used.add(image['asset_id'])
-    use, patterns, text = _PHOTO_PATTERNS[0]
-    candidates = []
-    for ref in references:
-        observed = ref.get('observed') if isinstance(ref.get('observed'), str) else ''
-        match = next((m for m in (p.search(observed) for _, p in patterns) if m), None)
-        if match and ref['asset_id'] not in used:
-            candidates.append({'asset_id': ref['asset_id'], 'use': use,
-                               'hint': f"image {ref['asset_id'][:8]} (you observed '{match.group(0)}') {text}."})
+        if not isinstance(image, dict):
+            continue
+        position = obj.get('position')
+        upright = False
+        if isinstance(position, dict):
+            x, y, z = (_constant(position.get(k)) for k in ('x', 'y', 'z'))
+            upright = y is None and (x is not None or z is not None)
+        repeat = image.get('repeat')
+        tiled = isinstance(repeat, list) and any(isinstance(r, (int, float)) and not isinstance(r, bool) and r > 1 for r in repeat)
+        if 'glow' in obj:
+            why = 'is a glow form carrying a photo, so the picture itself is what glows'
+        elif upright and not tiled:
+            why = 'is a flat upright sheet carrying one untiled photo, so it reads as a picture pasted into the scene'
+        else:
+            continue
+        name = obj.get('id') if isinstance(obj.get('id'), str) else '?'
+        candidates.append({'surface': name, 'asset_id': image.get('asset_id') if isinstance(image.get('asset_id'), str) else '',
+                           'use': 'construct',
+                           'hint': f"surface '{name}' {why}. If it stands for the subject, remove material_image and "
+                                   'construct the subject instead: decompose it into parts and build them with feathers, '
+                                   'drape, ring, loft and soft glow forms. If it is a wall or backdrop material, tile it '
+                                   'with repeat above 1.'})
     if not candidates:
         return None
-    return {'status': 'subject_unused',
-            'message': 'A recovered image with a distinct subject textures nothing. If the scene builds that subject '
-                       'from plain shapes it will read as a crude stand-in: show the subject itself with a tight '
-                       'crop of its image on one form, placed and sized where it stands in the 3D scene.',
+    return {'status': 'subject_photo',
+            'message': 'A photo material is standing in for a subject. Photos texture surfaces only (ground, bark, '
+                       'leaves, stone, fabric, sky detail); subjects are built from geometry.',
             'candidates': candidates}
 
 

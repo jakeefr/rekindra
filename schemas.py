@@ -132,5 +132,8 @@ for _name in ('rekindra_create_world', 'rekindra_revise_world'):
     SCHEMAS[_name]['parameters']['properties']['preview'] = {
         'type': 'boolean', 'description': 'Optional. true renders the rekindra_preview contact sheet for the saved plan in this same call and returns it under preview: the same render and the same export gate, one less round trip. If the render fails the plan is still saved and preview_error says how to retry.'}
     SCHEMAS[_name]['description'] += ' Fastest: pass preview: true to get the rekindra_preview result in the same call instead of calling rekindra_preview afterwards.'
+_AUTHORING_RULES = ' Authoring rules. Build every subject from geometry: decompose the source subject into parts (silhouette, pose, proportions, main masses), build each part from surfaces and the construction fields (feathers for wings, petals, leaves, scales and fins; drape for cloth that falls to the ground; ring for halos, rims and wheels; loft for solid masses), and prefer layered detail (dozens of small parts) over one big shape. material_image is surface texture only (ground, bark, leaves, stone, fabric, sky detail): never put a photo of the subject on a flat or camera-facing surface. Use atmosphere for haze and depth, foliage for leaf masses, glow with soft for light and luminous forms. Compare every preview with the source images for silhouette and pose before revising anything else. If a preview fails, stop and report; never render or record outside these tools. Never modify skill files or plugin files.'
+for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
+    SCHEMAS[_name]['description'] += _AUTHORING_RULES
 from .rekindra_core.schema_hints import tighten
 tighten(SCHEMAS)

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,7 @@ class BrowserShaderPathTests(unittest.TestCase):
     def run_script(self, name):
         env = dict(os.environ)
         env.pop('REKINDRA_BROWSER_OUTPUT', None)
+        env.setdefault('REKINDRA_PYTHON', sys.executable)
         result = subprocess.run(['node', str(ROOT / 'scripts' / name)], cwd=ROOT, env=env,
                                 capture_output=True, text=True, timeout=120)
         output = result.stdout + result.stderr
@@ -44,6 +46,9 @@ class BrowserShaderPathTests(unittest.TestCase):
 
     def test_material_image(self):
         self.run_script('browser_material_image_test.cjs')
+
+    def test_constructs(self):
+        self.run_script('browser_constructs_test.cjs')
 
 
 if __name__ == '__main__':
