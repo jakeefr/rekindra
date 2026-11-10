@@ -125,6 +125,26 @@ class SpeedPathTests(unittest.TestCase):
         self.assertIn('summarized', note)
         self.assertIn('intake_status', note)
 
+    def test_refused_sources_do_not_use_up_the_one_call_allowance(self):
+        limit = plugin.handlers.RECOVER_ALL_ASSETS
+        assets = [{'asset_id': f'{i:032x}', 'source_path': f'n{i}.txt'} for i in range(limit + 6)]
+        refused = {a['asset_id'] for a in assets[:4]}
+        store = mock.Mock()
+        store.status.return_value = {'assets': assets}
+        store.recover.side_effect = lambda project_id, asset_id, reader: {
+            'dossier': {}, 'asset_id': asset_id, 'artifact': {'status': 'rejected' if asset_id in refused else 'recovered'}}
+
+        def view(result):
+            return {'asset_id': result['asset_id'], 'kind': 'evidence', 'evidence_omitted_from_summary': 0,
+                    'intake_status': result['artifact']['status'], 'warnings': ['json_malformed'] if result['asset_id'] in refused else []}
+        with mock.patch.object(plugin.handlers, 'evidence_summary', side_effect=view):
+            reply = plugin.handlers.recover_all(store, self.pid, None)
+        self.assertEqual(store.recover.call_count, limit + 4)
+        self.assertEqual([r['asset_id'] for r in reply['recovered']], [a['asset_id'] for a in assets[4:limit + 4]])
+        self.assertEqual({f['asset_id'] for f in reply['not_recovered']}, refused)
+        self.assertEqual({f['code'] for f in reply['not_recovered']}, {'json_malformed'})
+        self.assertEqual(reply['not_attempted']['count'], 2)
+
     def test_many_assets_stay_one_reply_under_the_host_budget(self):
         assets = [{'asset_id': f'{i:032x}', 'source_path': f'scan-{i:03d}-' + 'n' * 60 + '.tga'} for i in range(55)]
         image = {'format': 'tga', 'width': 640, 'height': 480, 'path': 'D:/' + 'p' * 150 + '.png',
