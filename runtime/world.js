@@ -274,7 +274,10 @@ vec3 reflectedRadiance(){
       const photo=o.material_image,soft=o.soft,leaf=o.foliage,fixed=x=>Number(x).toFixed(8);
       // Construction fields: a feather array is separate cards, so the cell joining one card to the next is not
       // drawn and soft fades each card's own edges; cloth and rings wrap, so soft leaves their seams alone.
-      const cards=o.feathers?`min(fract(clamp(detailUV.x,0.,.999999)*${fixed(o.feathers.count)})*${fixed(o.segments[0]/(o.segments[0]-o.feathers.count))},1.0001)`:'';
+      const cardCount=source.cards??o.feathers?.count;
+      const cards=cardCount?`min(fract(clamp(detailUV.x,0.,.999999)*${fixed(cardCount)})*${fixed(o.segments[0]/(o.segments[0]-cardCount))},1.0001)`:'';
+      // Separate body masses and wing feathers also leave their joining cells out of the shadow and depth passes.
+      const cardGap=source.cards?`if(min(fract(clamp(cardU,0.,.999999)*${fixed(cardCount)})*${fixed(o.segments[0]/(o.segments[0]-cardCount))},1.0001)>1.00005)discard;`:'';
       const wrapU=Boolean(o.drape||o.ring),wrapV=Boolean(o.ring);
       const hasDetail=hasColorDetail||hasBump||hasColorPattern||Boolean(photo)||Boolean(soft)||Boolean(cards);
       // A recovered-image crop becomes a small mirrored-repeat texture for this surface.
@@ -419,15 +422,15 @@ ${isReflector?`if(reflectionActive>.5)lit=mix(lit,reflectedRadiance(),${Number(o
 ${leaf?`if(leafCover<${leafGap})discard;`:''}
 pixel=vec4(displayColor(lit),${atmo?'min(emission,1.)*(1.-fog)':'1.'});}`);
       const depthProgram=program(`#version 300 es
-precision highp float;layout(location=0)in vec3 uv;uniform float t;${math}${shadowUniforms}${position}${capPosition}
-void main(){gl_Position=vec4(shadowPoint(${hasCaps?'point(uv)':'surface(uv.x,uv.y)'}),1.);}`,
+precision highp float;layout(location=0)in vec3 uv;${cardGap?'out float cardU;':''}uniform float t;${math}${shadowUniforms}${position}${capPosition}
+void main(){${cardGap?'cardU=uv.x;':''}gl_Position=vec4(shadowPoint(${hasCaps?'point(uv)':'surface(uv.x,uv.y)'}),1.);}`,
         `#version 300 es
-precision highp float;void main(){}`);
+precision highp float;${cardGap?'in float cardU;':''}void main(){${cardGap}}`);
       const cameraDepthProgram=contactEnabled?program(`#version 300 es
-precision highp float;layout(location=0)in vec3 uv;${reflector?'out vec3 worldPos;':''}${uniforms}${math}${position}${capPosition}
-void main(){vec3 pos=${hasCaps?'point(uv)':'surface(uv.x,uv.y)'};${reflector?'worldPos=pos;':''}vec3 d=pos-eye;float z=dot(d,forward);gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
+precision highp float;layout(location=0)in vec3 uv;${cardGap?'out float cardU;':''}${reflector?'out vec3 worldPos;':''}${uniforms}${math}${position}${capPosition}
+void main(){${cardGap?'cardU=uv.x;':''}vec3 pos=${hasCaps?'point(uv)':'surface(uv.x,uv.y)'};${reflector?'worldPos=pos;':''}vec3 d=pos-eye;float z=dot(d,forward);gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
-precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void main(){${reflectionClip}}`):null;
+precision highp float;${cardGap?'in float cardU;':''}${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void main(){${cardGap}${reflectionClip}}`):null;
       const {vertices,indices}=surfaceMesh(o.segments,o.caps);
       const vao=gl.createVertexArray();gl.bindVertexArray(vao);
       const vb=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,vb);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(vertices),gl.STATIC_DRAW);gl.enableVertexAttribArray(0);gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);

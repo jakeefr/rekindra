@@ -3,9 +3,9 @@ import copy
 from .scenes import SceneError
 from .worlds import validate_world, WORLD_SCHEMA, shown
 
-SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies', 'text_references'))
-OPTIONAL_SCENE_FIELDS = frozenset(('text_references',))
-OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail', 'color_pattern','assembly','shading','loft','reflection','glow','feathers','drape','ring'))
+SCENE_FIELDS = frozenset(('title', 'mood', 'reason', 'camera', 'environment', 'assemblies', 'text_references', 'rigs'))
+OPTIONAL_SCENE_FIELDS = frozenset(('text_references', 'rigs'))
+OPTIONAL_FIELDS = frozenset(('bindings', 'caps', 'instances', 'color_detail', 'bump_detail', 'color_pattern','assembly','shading','loft','reflection','glow','feathers','drape','ring','figure','wing','mount'))
 OBJECT_FIELDS = frozenset(WORLD_SCHEMA['properties']['objects']['items']['properties']) - {'id'}
 
 

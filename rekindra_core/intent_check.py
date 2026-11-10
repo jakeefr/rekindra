@@ -180,7 +180,7 @@ def _subject_photos(scene):
                            'use': 'construct',
                            'hint': f"surface '{name}' {why}. If it stands for the subject, remove material_image and "
                                    'construct the subject instead: decompose it into parts and build them with feathers, '
-                                   'drape, ring, loft and soft glow forms. If it is a wall or backdrop material, tile it '
+                                   'drape, ring, figure, wing, loft and soft glow forms. If it is a wall or backdrop material, tile it '
                                    'with repeat above 1.'})
     if not candidates:
         return None

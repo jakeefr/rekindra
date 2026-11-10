@@ -7,7 +7,8 @@ from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
 from .expressions import compile_expression, sampler, FUNCTIONS
 from .assemblies import compile_assemblies
 from .lofts import compile_loft
-from .constructs import compile_constructs
+from .constructs import compile_constructs,_f
+from .rigs import rig_context,resolve_mount,POSES,JOINTS,PROPORTIONS,ANCHORS,PARTS
 
 MAX_SURFACES = 24
 _CITED_ID_CHARS = 64
@@ -54,15 +55,16 @@ def color(value):
     if not isinstance(value,str) or not _COLOR.fullmatch(value):raise SceneError(f'World colors must be #RRGGBB strings with six hex digits, like "#1A2B3C"; got {shown(value)}')
 
 
-def compile_surface(obj):
+def compile_surface(obj,context=None):
     bindings=obj.get('bindings',[])
     if not isinstance(bindings,list) or len(bindings)>16:raise SceneError('Surface allows at most 16 local bindings: bindings is an array of 0-16 {name, expression} objects; got '
                          +(f'{len(bindings)} items' if isinstance(bindings,list) else shown(bindings)))
     names={};definitions=[];cost=0
     if 'loft' in obj:
         loft=compile_loft(obj['loft']);names.update(loft['names']);definitions.append(loft['definitions']);cost+=loft['cost']
-    for part in compile_constructs(obj):
-        names.update(part['names']);definitions.append(part['definitions']);cost+=part['cost']
+    mount=resolve_mount(obj,context) if 'mount' in obj else None;cards=None
+    for part in compile_constructs(obj,dict(context or {},mount=mount) if context or mount else None):
+        names.update(part['names']);definitions.append(part['definitions']);cost+=part['cost'];cards=part.get('cards',cards)
     for binding in bindings:
         fields(binding,'name expression','local binding')
         name=binding['name']
@@ -84,8 +86,14 @@ def compile_surface(obj):
         definitions.append(f'float {shader_name}={value["glsl"]};');cost+=value['cost']
     pos=[compile_expression(obj['position'][k],names) for k in ('x','y','z')]
     blend=compile_expression(obj['color_mix'],names)
-    result={'position':[p['glsl'] for p in pos],'color_mix':blend['glsl'],
+    position=[p['glsl'] for p in pos]
+    if mount:
+        # The surface's own coordinates are turned with the rig and moved to its attachment point.
+        definitions.append('vec3 rk_ml=vec3('+','.join(position)+');');cost+=24
+        position=[f'({_f(mount["origin"][i])}+dot(vec3({",".join(_f(x) for x in mount["matrix"][i])}),rk_ml))' for i in range(3)]
+    result={'position':position,'color_mix':blend['glsl'],
             'definitions':'\n'.join(definitions),'cost':cost+sum(p['cost'] for p in pos)+blend['cost']}
+    if cards:result['cards']=cards
     for field in ('color_detail','bump_detail','color_pattern'):
         if field not in obj:continue
         detail=obj[field]
@@ -160,7 +168,7 @@ ATMOSPHERE_RANGES=(('bloom',0,2),('halo',0,2),('haze_density',0,.3),('haze_heigh
 
 def validate_world(value,asset_ids):
     if not isinstance(value,dict):raise SceneError(f'Invalid world fields: scene must be a JSON object, not JSON-encoded text; got {shown(value)}')
-    fields(value,'schema_version title mood reason duration width height seed environment camera objects','world','references text_references assemblies')
+    fields(value,'schema_version title mood reason duration width height seed environment camera objects','world','references text_references assemblies rigs')
     s=copy.deepcopy(value)
     assemblies=compile_assemblies(s.get('assemblies',[]))
     if 'text_references' in s:_text_references(s['text_references'])
@@ -252,12 +260,13 @@ def validate_world(value,asset_ids):
                                                                                          'Add an intermediate state that goes around the target, or set cut:true on this state')
         previous=delta
     if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError(f'Camera must span the full duration: the first state needs at 0 and the last needs at {s["duration"]}; got {camera[0]["at"]} and {camera[-1]["at"]}')
+    context=rig_context(s)
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=MAX_SURFACES:
         raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
     ids=set();cells=work=detail_work=placements=active_reflectors=image_materials=0
     for obj in s['objects']:
         fields(obj,'id position segments color color_high color_mix roughness metalness emission','surface',
-               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow soft foliage material_image feathers drape ring')
+               'bindings color_detail bump_detail color_pattern caps instances assembly shading loft reflection glow soft foliage material_image feathers drape ring figure wing mount')
         if 'soft' in obj:
             soft=obj['soft'];fields(soft,'u v','soft edge','breakup')
             if 'glow' not in obj:raise SceneError('soft feathers the edges of a glow surface: add glow to this surface, or remove soft')
@@ -318,7 +327,7 @@ def validate_world(value,asset_ids):
         copies=len(instances);placements+=copies
         if not isinstance(obj['id'],str) or not _LAYER_ID.fullmatch(obj['id']) or obj['id'] in ids:raise SceneError('Surface IDs must be unique, 1-40 characters, using only letters, digits, underscore or hyphen')
         ids.add(obj['id']);fields(obj['position'],'x y z','surface position')
-        compiled=compile_surface(obj)
+        compiled=compile_surface(obj,context)
         if any('rotation' in p for p in instances):compiled['cost']+=60
         if 'assembly' in obj:
             if not isinstance(obj['assembly'],str) or obj['assembly'] not in assemblies:
@@ -354,9 +363,9 @@ def validate_world(value,asset_ids):
 
 def compile_world(scene):
     assemblies=compile_assemblies(scene.get('assemblies',[]))
-    result=[]
+    result=[];context=rig_context(scene)
     for obj in scene['objects']:
-        compiled={k:v for k,v in compile_surface(obj).items() if k not in ('cost','detail_cost')}
+        compiled={k:v for k,v in compile_surface(obj,context).items() if k not in ('cost','detail_cost')}
         if 'assembly' in obj:compiled['assembly']=assemblies[obj['assembly']]['glsl']
         result.append(compiled)
     return result
@@ -481,7 +490,7 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']=o
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['required']=['asset_id','crop']
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['description']=('Optional. Takes this surface colour from a crop of one of the recovered images in scene.references, so leaves, bark, paving, stone or mist carry the real texture of the source. '
     'crop is [left, top, width, height] as fractions of the image; at repeat 1 the top of the crop lands at v=1 and its left at u=0 (repeats mirror, so every second tile is flipped). For a material, pick a patch that is all one material. repeat [u,v] tiles it across the surface (mirrored between tiles; default 1,1. Use an even count across a direction that wraps around, or the two ends meet in a seam). strength 0-1 mixes it over color/color_high (default 1). '
-    'Lighting, shadows and foliage still apply, and the page lists it as recovered material. Photo materials are for surface texture only: ground, bark, leaves, stone, fabric, sky detail. Never show the subject of a source image as a photo on a flat or camera-facing surface: build the subject from geometry (feathers, drape, ring, loft, soft glow forms) and keep photos for the surfaces around it. The preview report flags a photo used as the subject. At most 4 surfaces.')
+    'Lighting, shadows and foliage still apply, and the page lists it as recovered material. Photo materials are for surface texture only: ground, bark, leaves, stone, fabric, sky detail. Never show the subject of a source image as a photo on a flat or camera-facing surface: build the subject from geometry (figure, wing, feathers, drape, ring, loft, soft glow forms) and keep photos for the surfaces around it. The preview report flags a photo used as the subject. At most 4 surfaces.')
 WORLD_SCHEMA['properties']['objects']['items']['properties']['feathers']={'type':'object','additionalProperties':False,'required':['count','spread','length'],'properties':{
     'count':{'type':'integer','minimum':2,'maximum':48},'spread':{'type':'number','minimum':.05,'maximum':40},'length':{'type':'number','minimum':.02,'maximum':40},
     'curve':{'type':'number'},'fan':{'type':'number'},'taper':{'type':'number','minimum':.1,'maximum':4},'overlap':{'type':'number','minimum':0,'maximum':1},
@@ -494,5 +503,24 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['drape']={'type':'o
 WORLD_SCHEMA['properties']['objects']['items']['properties']['ring']={'type':'object','additionalProperties':False,'required':['radius','thickness'],'properties':{
     'radius':{'type':'number','minimum':.05,'maximum':40},'thickness':{'type':'number','minimum':.005,'maximum':10},'tilt':{'type':'number'}},
     'description':'Optional construction field: a ring (torus) for halos, rims, hoops and wheels. Supplies ring_x/ring_y/ring_z to the position expressions (local, centred on the origin). radius is the ring radius and thickness the tube radius. tilt turns it about the x axis in radians: 0 lies flat like a hoop on the ground, 1.5708 stands it upright facing the camera on z. A flat ring seen from a level camera reads as a bar, so tilt it toward the viewer. Works with glow and soft.'}
+WORLD_SCHEMA['properties']['rigs']={'type':'array','minItems':1,'maxItems':4,'items':{'type':'object','additionalProperties':False,'required':['id','position','height'],'properties':{
+    'id':{'type':'string'},'position':{'type':'array','items':{'type':'number'},'minItems':3,'maxItems':3},'height':{'type':'number','minimum':.2,'maximum':20},'facing':{'type':'number'},
+    'pose':{'anyOf':[{'type':'string','enum':sorted(POSES)},{'type':'array','items':{'type':'string','enum':sorted(POSES)},'minItems':1,'maxItems':4}]},
+    'joints':{'type':'object','additionalProperties':False,'properties':{name:{'type':'array','items':{'type':'number'},'minItems':3,'maxItems':3} for name in JOINTS}},
+    'proportions':{'type':'object','additionalProperties':False,'properties':{name:{'type':'number','minimum':.4,'maximum':2.5} for name in PROPORTIONS}}}},
+    'description':'Optional posed skeletons for anything with a body: a person, statue, puppet, robot or upright creature. A rig draws nothing itself; a surface with the figure field draws its body masses, and other surfaces attach to it with mount. position is the ground point under it, height its standing height, facing turns it about the vertical axis in radians (0 faces +z). pose is one preset or a list combined in order: '+', '.join(sorted(POSES))+'. joints fine-tunes after the pose, each [forward, outward, twist] in radians: '+', '.join(JOINTS)+'. proportions are multipliers (default 1) for '+', '.join(PROPORTIONS)+': a long neck, short legs or a heavy build make a creature or a stylised statue. The lowest body mass always rests on the ground point. Attachment points: '+', '.join(ANCHORS)+'. Revise a pose by replacing the scene field rigs.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['figure']={'type':'object','additionalProperties':False,'required':['rig'],'properties':{
+    'rig':{'type':'string'},'parts':{'type':'array','items':{'type':'string','enum':list(PARTS)},'minItems':1,'maxItems':4}},
+    'description':'Optional construction field: the body of a rig, as rounded masses on its bones (a real head, neck, torso with shoulders, upper and lower arms with hands, upper and lower legs with feet). Supplies figure_x/figure_y/figure_z to the position expressions, already in world coordinates and posed: use them as the position unchanged. parts limits it to some of head, torso, arms, legs (omit for the whole body), so two surfaces on one rig can have different materials, such as skin and clothing. With all parts u segments must be 96, 112 or 128 (16 masses, at least 6 each); v 12 or more. Works with soft and glow.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['wing']={'type':'object','additionalProperties':False,'required':['span'],'properties':{
+    'span':{'type':'number','minimum':.1,'maximum':40},'side':{'type':'string','enum':['left','right']},'raise':{'type':'number','minimum':-.6,'maximum':1.5},'open':{'type':'string'},
+    'count':{'type':'integer','minimum':4,'maximum':24},'rows':{'type':'integer','minimum':1,'maximum':3},'feather_length':{'type':'number','minimum':.02,'maximum':40},
+    'width':{'type':'number','minimum':.4,'maximum':3},'overlap':{'type':'number','minimum':0,'maximum':1},'layer':{'type':'number','minimum':0,'maximum':2}},
+    'description':'Optional construction field: one whole wing, built as layered rows of broad feathers on an arm: long flight feathers behind, shorter rows covering their bases. Supplies wing_x/wing_y/wing_z to the position expressions (local, in the x-y plane, root at the origin, reaching toward +x for side right and -x for side left). span is the arm length from root to tip; raise is the arm angle above horizontal in radians when open (about 1 is raised high in a V, 0.3 is spread wide, negative droops); open is an expression over t from 0 (folded down against the body) to 1 (fully raised and fanned), so the wing visibly opens over time, like "clamp((t-2)/8,0,1)". count feathers per row (default 10) and rows 1-3 (default 3); feather_length is the longest feather (default 0.6 of span); width broadens every feather (default 1.5); overlap and layer as in feathers. u segments must be a multiple of count*rows with 2-4 per feather (10 and 3 give 60, 90 or 120). Build a left and a right surface and attach both to a rig with mount at back.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['mount']={'type':'object','additionalProperties':False,'required':['rig','anchor'],'properties':{
+    'rig':{'type':'string'},'anchor':{'type':'string','enum':list(ANCHORS)},'face_camera':{'type':'number','minimum':0,'maximum':1}},
+    'description':'Optional: attaches this surface to a rig. Its position expressions become local to the attachment point, turned with the rig facing, so the part follows the body when the rig is moved or re-posed and never floats beside it. anchor is one of the rig attachment points. face_camera 0-1 tips the part toward the first camera position (a ring defaults to 0.6, so a flat ring over head_top reads as a ring, not a bar; others default to 0). A mounted drape hangs from the anchor to the ground under it: its height is set for you, and under a kneeling or sitting pose it pools on the ground with ripples unless you set pool yourself. Not for the figure surface itself.'}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['drape']['properties']['ripples']={'type':'integer','minimum':0,'maximum':8}
+WORLD_SCHEMA['properties']['objects']['items']['properties']['drape']['description']+=' ripples 1-8 wrinkles the pooled cloth into rings of low folds on the ground (needs pool above 0).'
 WORLD_SCHEMA['properties']['objects']['items']['properties']['glow']={'type':'number','minimum':.05,'maximum':3,
     'description':'Optional see-through light volume: the surface ADDS albedo*glow to whatever is behind it, casts no shadow, ignores scene lighting, fades at its silhouette and with fog. Use for a light beam, halo or shaft, never for solid matter. Black albedo adds nothing, so a color_pattern toward color_high #000000 fades it out along its length. Opaque surfaces in front still hide it.'}
