@@ -7,10 +7,10 @@ from pathlib import Path
 
 try:
     import numpy as np
+    from PIL import Image
 except ImportError:
     # numpy is used only by the dev scripts under test, never by the plugin.
-    raise unittest.SkipTest('numpy is not installed; these tests cover dev scripts only')
-from PIL import Image
+    raise unittest.SkipTest('numpy or Pillow is not installed; these tests cover dev scripts only')
 
 SCRIPTS = Path(__file__).resolve().parents[1] / 'scripts'
 
