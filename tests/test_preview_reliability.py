@@ -72,8 +72,12 @@ class FrameWarningTests(unittest.TestCase):
             return {'scene': {'environment': environment}}     # no schema version: only the frame checks run
         ids = lambda p: [w['warning_id'] for w in gate.current_warnings(p, gate_tests.CLEAN, BLOWN)]
         self.assertEqual(ids(plan(sky_top='#0A0B0C', sky_bottom='#141820', fog_color='#101216')), ['frames:blown_out'])
-        for pale in ({'sky_top': '#FFEBC1'}, {'sky_bottom': '#C5DBCB'}, {'fog_color': '#E8E8EC'}):
+        for pale in ({'sky_top': '#FFEBC1', 'sky_bottom': '#FFF0D0'}, {'fog_color': '#E8E8EC', 'fog_density': .02}):
             self.assertEqual(ids(plan(**dict({'sky_top': '#0A0B0C'}, **pale))), [], pale)
+        # A pale horizon under a dark sky, or pale fog that is switched off, leaves a night scene gated.
+        for night in ({'sky_bottom': '#C5DBCB'}, {'fog_color': '#E8E8EC'}, {'fog_color': '#E8E8EC', 'fog_density': 0},
+                      {'fog_color': '#E8E8EC', 'fog_density': True}):
+            self.assertEqual(ids(plan(**dict({'sky_top': '#0A0B0C'}, **night))), ['frames:blown_out'], night)
         # One bright channel is a saturated colour, not a pale backdrop; malformed values never hide the warning.
         for dark in ({'sky_top': '#FF9020'}, {'sky_top': 'white'}, {'sky_top': '#GGGGGG'}, {'sky_top': None}, {}):
             self.assertEqual(ids(plan(**dark)), ['frames:blown_out'], dark)

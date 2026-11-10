@@ -112,15 +112,21 @@ def _pale_backdrop(scene):
     environment = scene.get('environment') if isinstance(scene, dict) else None
     if not isinstance(environment, dict):
         return False
-    for key in ('sky_top', 'sky_bottom', 'fog_color'):
+    def pale(key):
         value = environment.get(key)
         if isinstance(value, str) and len(value) == 7 and value[0] == '#':
             try:
-                if min(int(value[i:i + 2], 16) for i in (1, 3, 5)) >= PALE_BACKDROP:
-                    return True
+                return min(int(value[i:i + 2], 16) for i in (1, 3, 5)) >= PALE_BACKDROP
             except ValueError:
                 pass
-    return False
+        return False
+
+    # The whole sky must be pale, or pale fog must actually be in the air: one pale stop is only a
+    # bright horizon, and fog_color shows nothing at density 0. The level sits under the 190 the
+    # frames are measured at because sun and fill lift an authored colour on screen.
+    density = environment.get('fog_density')
+    foggy = isinstance(density, (int, float)) and not isinstance(density, bool) and density > 0
+    return (pale('sky_top') and pale('sky_bottom')) or (foggy and pale('fog_color'))
 
 
 def current_warnings(plan, drift, frames=None):
