@@ -260,9 +260,9 @@ def validate_world(value,asset_ids):
             if 'glow' not in obj:raise SceneError('soft feathers the edges of a glow surface: add glow to this surface, or remove soft')
             _number(soft['u'],0,1,'soft u');_number(soft['v'],0,1,'soft v');_number(soft.get('breakup',0),0,1,'soft breakup')
         if 'foliage' in obj:
-            foliage=obj['foliage'];fields(foliage,'leaf_size density','foliage','variation')
+            foliage=obj['foliage'];fields(foliage,'leaf_size density','foliage','variation rest_time')
             if 'glow' in obj or 'reflection' in obj:raise SceneError('foliage is a solid leaf mass: it cannot be combined with glow or reflection')
-            _number(foliage['leaf_size'],.03,2,'foliage leaf_size');_number(foliage['density'],.2,1,'foliage density');_number(foliage.get('variation',.5),0,1,'foliage variation')
+            _number(foliage['leaf_size'],.03,2,'foliage leaf_size');_number(foliage['density'],.2,1,'foliage density');_number(foliage.get('variation',.5),0,1,'foliage variation');_number(foliage.get('rest_time',0),0,600,'foliage rest_time')
         if 'material_image' in obj:
             material=obj['material_image'];fields(material,'asset_id crop','material image','repeat strength')
             if not isinstance(material['asset_id'],str) or material['asset_id'] not in used:
@@ -468,11 +468,11 @@ WORLD_SCHEMA['properties']['objects']['items']['properties']['soft']['required']
 WORLD_SCHEMA['properties']['objects']['items']['properties']['soft']['description']=('Optional, glow surfaces only. Fades the light toward the surface edges so a figure of light, wing, aura or halo has no hard outline. '
     'u and v give the faded share of the surface from each pair of edges (0 none, 1 fades all the way to the middle). breakup 0-1 frays the fade into fine streaks that run along v, for feathers or wisps. '
     'Use it whenever a source shows light with soft or feathered edges; a glow sheet without soft has a hard cut edge.')
-WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']=obj_schema({'leaf_size':{'type':'number','minimum':.03,'maximum':2},'density':{'type':'number','minimum':.2,'maximum':1},'variation':{'type':'number','minimum':0,'maximum':1}})
+WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']=obj_schema({'leaf_size':{'type':'number','minimum':.03,'maximum':2},'density':{'type':'number','minimum':.2,'maximum':1},'variation':{'type':'number','minimum':0,'maximum':1},'rest_time':{'type':'number','minimum':0,'maximum':600}})
 WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']['required']=['leaf_size','density']
 WORLD_SCHEMA['properties']['objects']['items']['properties']['foliage']['description']=('Optional. Turns a closed surface into a leaf mass: leaf-sized patches vary between color and color_high and face different ways, and gaps are cut out so the outline is ragged and you see into the canopy. '
     'leaf_size is the patch size in world units (0.1-0.3 for a tree seen from the ground), density 0.2 sparse to 1 nearly solid, variation 0-1 colour spread. Take color and color_high from two leaf tones in the source. '
-    'Build a canopy from several overlapping lumpy masses (instances) on a tapered trunk with a few branch surfaces, never one smooth ball on a pole. Not with glow or reflection. Shadows stay solid.')
+    'Build a canopy from several overlapping lumpy masses (instances) on a tapered trunk with a few branch surfaces, never one smooth ball on a pole. The leaf pattern is fixed to the surface as it stands at rest_time seconds (default 0) and moves with it; if the canopy grows in or unfolds, set rest_time to a time when it has its full shape. Not with glow or reflection. Shadows stay solid.')
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']=obj_schema({'asset_id':{'type':'string'},'crop':{'type':'array','minItems':4,'maxItems':4,'items':{'type':'number','minimum':0,'maximum':1}},
     'repeat':{'type':'array','minItems':2,'maxItems':2,'items':{'type':'number','minimum':.1,'maximum':32}},'strength':{'type':'number','minimum':0,'maximum':1}})
 WORLD_SCHEMA['properties']['objects']['items']['properties']['material_image']['required']=['asset_id','crop']

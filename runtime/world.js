@@ -308,14 +308,14 @@ ${hasInstances?'p+=instanceOffset;':''}${source.assembly??''}return clamp(p,vec3
       const p=program(`#version 300 es
 precision highp float;layout(location=0)in vec3 uv;out vec3 worldPos,worldNormal;out float blend;${leaf?'out vec3 leafPos;':''}${hasDetail?'out vec2 detailUV;':''}${hasCaps?'flat out float capFace;':''}
 ${uniforms}${math}${position}${capPosition}${leaf?`
-#define t 0.
-${position.slice(position.indexOf('vec3 surface(')).replace('vec3 surface(','vec3 restSurface(')}
+#define t ${fixed(leaf.rest_time??0)}
+${position.slice(position.indexOf('vec3 surface(')).replace('vec3 surface(','vec3 restSurface(')}${capPosition.replace('vec3 point(','vec3 restPoint(').replaceAll('surface(','restSurface(')}
 #undef t
 `:''}
 void main(){float u=uv.x,v=uv.y;${hasDetail?'detailUV=uv.xy;':''}${hasCaps?'capFace=uv.z>.5?1.:0.;':''}${definitions}vec3 pos=${hasCaps?'point(uv)':'surface(u,v)'};
 vec3 du=surface(u+.0005,v)-surface(u-.0005,v),dv=surface(u,v+.0005)-surface(u,v-.0005);
 vec3 n=cross(dv,du);worldNormal=length(n)>.0000001?normalize(n):vec3(0.,1.,0.);
-worldPos=pos;${leaf?'leafPos=restSurface(u,v);':''}blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
+worldPos=pos;${leaf?`leafPos=${hasCaps?'restPoint(uv)':'restSurface(u,v)'};`:''}blend=clamp(${source.color_mix},0.,1.);vec3 d=pos-eye;float z=dot(d,forward);
 gl_Position=vec4(dot(d,right)/(tanHalf*aspect),dot(d,up)/tanHalf,${DEPTH_A}*z-${DEPTH_B},z);}`,
         `#version 300 es
 precision highp float;in vec3 worldPos,worldNormal;in float blend;${leaf?'in vec3 leafPos;':''}out vec4 pixel;${hasDetail?'in vec2 detailUV;'+math:''}${hasCaps?'flat in float capFace;':''}
@@ -369,7 +369,7 @@ vec3 albedo=mix(baseColor,highColor,${hasCaps?'capFace>.5?blend:patternBlend':'p
 ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${leaf?`// Leaf mass: cells vary colour and facing; gaps are cut out at the end. Cells are
-// placed on the surface as it stands at time 0, so they travel with a moving canopy.
+// placed on the surface as it stands at rest_time (default 0), so they travel with a moving canopy.
 vec3 leafP=leafPos/${fixed(leaf.leaf_size)},leafCell=floor(leafP*3.);float leafCover=cellNoise(leafP)*.6+cellNoise(leafP*2.7+11.3)*.4;
 albedo=mix(baseColor,highColor,clamp(blend+(cellHash(leafCell)-.5)*2.*${fixed(leaf.variation??.5)},0.,1.));
 N=normalize(N+(vec3(cellHash(leafCell+17.),cellHash(leafCell+31.),cellHash(leafCell+47.))-.5)*1.1);`:''}
