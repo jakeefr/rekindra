@@ -171,6 +171,7 @@ def _fit_summary(summary):
 RECOVER_ALL_ASSETS = 40
 RECOVER_ALL_SECONDS = 150
 RECOVER_ALL_FAILURES = 12
+_RETRY_ALONE = ('operation_failed', 'filesystem_error')
 _IMAGE_VIEW = ('format', 'width', 'height', 'partial', 'decoded_fraction', 'palette', 'warnings', 'path')
 
 
@@ -236,26 +237,30 @@ def recover_all(store, project_id, reader):
 
     def size():
         return len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False))
-    # Trim the longest evidence list first; quoted evidence is the last thing to go.
+    # Order of trimming: failure rows, then extra quoted passages, then image details, then
+    # the last quoted passage of a text source.
     while size() > SUMMARY_MAX_CHARS:
+        # Failure rows give way before anything recovered: shorten the reasons (the code
+        # stays), then count the rows beyond RECOVER_ALL_FAILURES per code instead of listing
+        # them. Rows worth retrying alone are the last of them to go.
+        long_reason = next((row for row in failed if len(row['message']) > SUMMARY_NAME_CHARS), None)
+        if long_reason is not None:
+            long_reason['message'] = long_reason['message'][:SUMMARY_NAME_CHARS]
+            continue
+        if len(failed) > RECOVER_ALL_FAILURES:
+            at = next((i for i in range(len(failed) - 1, -1, -1) if failed[i]['code'] not in _RETRY_ALONE), len(failed) - 1)
+            code = failed.pop(at)['code']
+            unlisted = reply.setdefault('not_recovered_not_listed', {
+                'count': 0, 'codes': {}, 'next_step': 'rekindra_status lists every asset and artifact of this project'})
+            unlisted['count'] += 1
+            unlisted['codes'][code] = unlisted['codes'].get(code, 0) + 1
+            continue
         longest = max((r for r in recovered if r.get('evidence')), key=lambda r: len(r['evidence']), default=None)
         if longest is not None and len(longest['evidence']) > 1:
             longest['evidence'].pop()
             longest['evidence_omitted_from_summary'] += 1
             longest['evidence_truncated'] = (_more(longest['evidence_omitted_from_summary'])
                                              + '; call rekindra_recover with this asset_id for more, or read dossier_path')
-            continue
-        # Failure rows give way before any recovered detail: shorten the reasons (the code
-        # stays), then count the tail beyond RECOVER_ALL_FAILURES instead of listing it.
-        long_reason = next((row for row in failed if len(row['message']) > SUMMARY_NAME_CHARS), None)
-        if long_reason is not None:
-            long_reason['message'] = long_reason['message'][:SUMMARY_NAME_CHARS]
-            continue
-        if len(failed) > RECOVER_ALL_FAILURES:
-            failed.pop()
-            reply['not_recovered_not_listed'] = {
-                'count': reply.get('not_recovered_not_listed', {}).get('count', 0) + 1,
-                'next_step': 'rekindra_status lists every asset and artifact of this project'}
             continue
         # Image details go before the last quoted passage of any text source.
         wide = (next((r for r in reversed(recovered) if len(r) > 3 and r.get('kind') == 'image'), None)
@@ -269,13 +274,16 @@ def recover_all(store, project_id, reader):
             continue
         # Last resort: count the tail instead of listing it. Every asset is still recovered;
         # rekindra_status lists them all.
-        rows =recovered if len(recovered) >= len(failed) else failed
+        rows = recovered if len(recovered) >= len(failed) else failed
         if not rows:
             break
-        rows.pop()
+        gone = rows.pop()
         key = 'recovered_not_listed' if rows is recovered else 'not_recovered_not_listed'
-        reply[key] = {'count': reply.get(key, {}).get('count', 0) + 1,
-                      'next_step': 'rekindra_status lists every asset and artifact of this project'}
+        note = reply.setdefault(key, {'count': 0, 'next_step': 'rekindra_status lists every asset and artifact of this project'})
+        note['count'] += 1
+        if rows is failed:
+            codes = note.setdefault('codes', {})
+            codes[gone['code']] = codes.get(gone['code'], 0) + 1
     return reply
 
 

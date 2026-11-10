@@ -166,17 +166,28 @@ class SpeedPathTests(unittest.TestCase):
         assets = [{'asset_id': f'{i:032x}', 'source_path': f'file-{i:03d}.bin'} for i in range(104)]
         assets.append({'asset_id': 'text', 'source_path': 'notes.txt'})
         quoted = {'asset_id': 'text', 'kind': 'evidence', 'evidence_omitted_from_summary': 0,
-                  'evidence': [{'evidence_id': 'ev-0', 'text': 'q' * 200}]}
+                  'evidence': [{'evidence_id': f'ev-{i}', 'text': 'q' * 200} for i in range(4)]}
         store = self._image_store(assets, fail={a['asset_id'] for a in assets[:100]})
+        real = store.recover.side_effect
+
+        def recover(project_id, asset_id, reader):
+            if asset_id == assets[0]['asset_id']:
+                raise RuntimeError('reader bug')
+            return real(project_id, asset_id, reader)
+        store.recover.side_effect = recover
         with mock.patch.object(plugin.handlers, 'evidence_summary', return_value=quoted):
             reply = plugin.handlers.recover_all(store, self.pid, None)
+        self.assertEqual(len(reply['recovered'][-1]['evidence']), 4)
+        self.assertEqual(reply['not_recovered'][0]['code'], 'operation_failed')
+        self.assertEqual(sum(reply['not_recovered_not_listed']['codes'].values()), reply['not_recovered_not_listed']['count'])
+        self.assertEqual(set(reply['not_recovered_not_listed']['codes']), {'invalid_input'})
         self.assertLessEqual(len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False)), plugin.handlers.SUMMARY_MAX_CHARS)
         self.assertEqual(len(reply['recovered']), 5)
         for row in reply['recovered'][:4]:
             self.assertEqual(row['width'], 640)
         self.assertTrue(reply['recovered'][-1]['evidence'])
         self.assertEqual(len(reply['not_recovered']) + reply['not_recovered_not_listed']['count'], 100)
-        self.assertTrue(all(f['code'] == 'invalid_input' for f in reply['not_recovered']))
+        self.assertTrue(all(f['code'] == 'invalid_input' for f in reply['not_recovered'][1:]))
 
     def test_a_malformed_result_on_one_asset_does_not_fail_the_call(self):
         assets = [{'asset_id': 'text', 'source_path': 'notes.txt'}, {'asset_id': 'a' * 32, 'source_path': 'scan.tga'}]
