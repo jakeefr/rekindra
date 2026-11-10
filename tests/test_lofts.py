@@ -36,6 +36,19 @@ class LoftTests(unittest.TestCase):
             s=scene();s['objects'][0]['loft']=value
             with self.subTest(value=value),self.assertRaises(SceneError):validate_world(s,{'a'*32})
 
+    def test_ring_rejections_name_the_section_the_point_and_the_fix(self):
+        # glm-5.3 hit the bare "consistent winding" text in a live take and had nothing to act on.
+        r=loft();r[1]['points'].reverse();s=scene();s['objects'][0]['loft']=r
+        with self.assertRaises(SceneError) as caught:validate_world(s,{'a'*32})
+        text=str(caught.exception)
+        for part in ('consistent winding','loft section 1','point 2 [0.4, -0.4]','same direction','separate convex objects'):
+            self.assertIn(part,text)
+        r=loft();r[0]['points'][1]=[-1,-1];s=scene();s['objects'][0]['loft']=r
+        with self.assertRaises(SceneError) as caught:validate_world(s,{'a'*32})
+        text=str(caught.exception)
+        for part in ('nondegenerate','loft section 0','repeats or lies on the line','no repeated point'):
+            self.assertIn(part,text)
+
     def test_alignment_and_work(self):
         s=scene();s['objects'][0]['segments']=[7,8]
         with self.assertRaisesRegex(SceneError,'align'):validate_world(s,{'a'*32})

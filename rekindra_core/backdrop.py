@@ -79,7 +79,7 @@ def _in_frame(view, point, fog_density):
 def _placed(item):
     """f(u,v,t) giving world position after the runtime's clamps, or None for a surface not modeled here."""
     instances = item.get('instances')
-    if 'loft' in item or 'assembly' in item or (instances and (len(instances) > 1 or 'rotation' in instances[0])):
+    if 'loft' in item or 'feathers' in item or 'drape' in item or 'ring' in item or 'figure' in item or 'wing' in item or 'mount' in item or 'assembly' in item or (instances and (len(instances) > 1 or 'rotation' in instances[0])):
         return None
     place = instances[0] if instances else None
     position = item['position']

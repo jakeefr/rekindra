@@ -4,6 +4,7 @@ Pillow parses untrusted bytes in ``_image_worker.py``, never in the gateway. Dam
 keep only the pixels that were really decoded and are marked partial; nothing is invented.
 The original TGA decoder stays separate and does not need Pillow.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -103,6 +104,46 @@ def _stopped() -> ImageRefused:
 
 def measure_review_sheet(png: bytes) -> list | None:
     """Rendered colors per band of a preview sheet, or None when they could not be measured."""
+    header = _review_header(png)
+    return _clean_regions(header.get('regions')) if header is not None else None
+
+
+REVIEW_FRAME_KEYS = ('spread', 'change', 'white')
+# Keys a frames record may also carry; each is checked where it is read.
+OPTIONAL_FRAME_KEYS = ('white_off_emitter',)
+
+
+def measure_review_frames(png: bytes) -> dict | None:
+    """Per-frame brightness spread (0-255), near-white share (percent) and frame-to-frame change, or None."""
+    header = _review_header(png)
+    frames = header.get('frames') if header is not None else None
+    if (not isinstance(frames, dict) or not set(REVIEW_FRAME_KEYS) <= set(frames)
+            or not set(frames) <= set(REVIEW_FRAME_KEYS + OPTIONAL_FRAME_KEYS)
+            or not isinstance(frames['white'], list) or len(frames['white']) != 6
+            or any(type(v) not in (int, float) or not 0 <= v <= 100 for v in frames['white'])
+            or not isinstance(frames['spread'], list) or len(frames['spread']) != 6
+            or not isinstance(frames['change'], list) or len(frames['change']) != 5
+            or any(type(v) is not int or not 0 <= v <= 255 for v in frames['spread'])
+            or any(type(v) not in (int, float) or not 0 <= v <= 255 for v in frames['change'])):
+        return None
+    return frames
+
+
+_LAST_REVIEW = (None, None)     # one preview asks twice about the same sheet; read it once
+
+
+def _review_header(png: bytes) -> dict | None:
+    global _LAST_REVIEW
+    digest = hashlib.sha256(png).digest()
+    if _LAST_REVIEW[0] == digest:
+        return _LAST_REVIEW[1]
+    header = _read_review_header(png)
+    if header is not None:
+        _LAST_REVIEW = (digest, header)
+    return header
+
+
+def _read_review_header(png: bytes) -> dict | None:
     reader_dir, python = _reader_dir(), _python()
     if reader_dir is None or python is None or not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS):
         return None
@@ -119,7 +160,7 @@ def measure_review_sheet(png: bytes) -> list | None:
         header = json.loads(line)
     except ValueError:
         return None
-    return _clean_regions(header.get('regions')) if isinstance(header, dict) and header.get('kind') == 'ok' else None
+    return header if isinstance(header, dict) and header.get('kind') == 'ok' else None
 
 
 def read_image(data: bytes, tag: str) -> dict:

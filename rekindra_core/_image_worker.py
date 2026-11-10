@@ -33,6 +33,7 @@ SHEET_FRAME = (640, 360)
 SHEET_ROW = 376     # each frame plus its time label, which must not be measured
 SHEET_SHRINK = (128, 72)
 SHEET_COLORS = 4
+SHEET_WHITE = 190   # every channel at or above this (of 255) counts as near-white
 
 
 class Refuse(Exception):
@@ -251,10 +252,20 @@ def measure_review_sheet(data: bytes, max_pixels: int) -> dict:
     sheet = sheet.convert('RGB')
     bands = [bytearray() for _ in _BAND_NAMES]
     width, height = SHEET_SHRINK
+    spread, change, white, previous = [], [], [], None
     for index in range(SHEET_FRAMES):
         left, top = index % 2 * SHEET_FRAME[0], index // 2 * SHEET_ROW
         box = (left, top, left + SHEET_FRAME[0], top + SHEET_FRAME[1])
         raw = sheet.crop(box).resize(SHEET_SHRINK, Image.Resampling.NEAREST).tobytes()     # blends nothing
+        # How much there is to see in a frame, and how far it moved since the frame before.
+        luma = sorted((raw[i] * 299 + raw[i + 1] * 587 + raw[i + 2] * 114) // 1000 for i in range(0, len(raw), 3))
+        spread.append(luma[len(luma) * 95 // 100] - luma[len(luma) * 5 // 100])
+        # Share of the frame where every channel is near full scale: a light that has washed the picture out.
+        bright = sum(1 for i in range(0, len(raw), 3) if min(raw[i], raw[i + 1], raw[i + 2]) >= SHEET_WHITE)
+        white.append(round(bright * 300 / len(raw), 1))
+        if previous is not None:
+            change.append(round(sum(abs(a - b) for a, b in zip(raw, previous)) / len(raw), 3))
+        previous = raw
         for row in range(height):
             bands[row * 3 // height] += raw[row * width * 3:(row + 1) * width * 3]
     regions = []
@@ -269,7 +280,7 @@ def measure_review_sheet(data: bytes, max_pixels: int) -> dict:
         ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
         regions.append({'region': name, 'colors': [{'hex': color, 'coverage': round(count * 100 / pixels, 1)}
                                                    for color, count in ranked]})
-    return {'kind': 'ok', 'regions': regions}
+    return {'kind': 'ok', 'regions': regions, 'frames': {'spread': spread, 'change': change, 'white': white}}
 
 
 def recover(data: bytes, tag: str, max_pixels: int, scene_budget: int) -> tuple:

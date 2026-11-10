@@ -11,6 +11,7 @@ provides_tools:
   - rekindra_inspect
   - rekindra_recover
   - rekindra_status
+  - rekindra_reconstruct
   - rekindra_plan
   - rekindra_build
   - rekindra_compose

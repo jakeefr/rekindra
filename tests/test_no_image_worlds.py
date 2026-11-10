@@ -199,7 +199,8 @@ class NoImageProjectTests(recover_tests.RecoverEvidenceTests):
         scene = world(photo); scene['references'].append(dict(scene['references'][0]))
         out = self.create(scene, asset_ids=[photo])
         self.assertFalse(out['ok'], out)
-        self.assertEqual(out['error']['message'], 'Invalid or repeated world source')
+        self.assertTrue(out['error']['message'].startswith('Invalid or repeated world source'), out)
+        self.assertIn(photo, out['error']['message'])
 
     def test_no_image_and_no_text_is_refused(self):
         out = self.create(text_only())

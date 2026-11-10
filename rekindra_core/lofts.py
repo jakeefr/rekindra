@@ -6,7 +6,9 @@ def compile_loft(sections):
     if not isinstance(sections,list) or not 2<=len(sections)<=8:
         raise SceneError('Loft requires 2-8 sections')
     count=None;winding=None;previous=None
-    for section in sections:
+    fix=('List each ring as 3-16 [x, z] corners in one direction around the outline, every ring in the same direction, '
+         'with no repeated point, no three corners on one line and no inward dent; split a dented outline into separate convex objects')
+    for index,section in enumerate(sections):
         if not isinstance(section,dict) or set(section)!={'height','points'}:
             raise SceneError('Loft section requires height and points only')
         height=section['height'];_number(height,-80,80,'loft height')
@@ -26,10 +28,15 @@ def compile_loft(sections):
             for j,p in enumerate(points):
                 if j in (i,(i+1)%count):continue
                 cross=(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])
-                if abs(cross)<=1.e-8:raise SceneError('Loft rings must be strictly convex and nondegenerate')
+                if abs(cross)<=1.e-8:
+                    raise SceneError(f'Loft rings must be strictly convex and nondegenerate: in loft section {index}, point {j} {p} '
+                                     f'repeats or lies on the line through points {i} {a} and {(i+1)%count} {b}. {fix}')
                 sign=1 if cross>0 else -1
                 if winding is None:winding=sign
-                if sign!=winding:raise SceneError('Loft rings must be convex with consistent winding')
+                if sign!=winding:
+                    raise SceneError(f'Loft rings must be convex with consistent winding: in loft section {index}, point {j} {p} is on the '
+                                     f'wrong side of the edge from point {i} {a} to point {(i+1)%count} {b}, so this ring is dented, crosses '
+                                     f'itself, or runs the opposite way round from an earlier section. {fix}')
     number=lambda n:format(float(n),'.9f')
     code=[f'float rk_lu=clamp(u,0.,1.)*{count}.;',
           f'int rk_li=min(int(floor(rk_lu)),{count-1});',
