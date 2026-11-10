@@ -206,6 +206,44 @@ class PageWordingTests(unittest.TestCase):
         self.assertEqual(reconstruct._plain('unsupported_image_format; run rekindra_recover on it'), 'unsupported image format')
         self.assertEqual(reconstruct._plain('photo_01.tga'), 'photo 01.tga')   # why file names bypass it
 
+    def test_known_reader_codes_are_said_in_plain_words(self):
+        self.assertEqual(reconstruct._plain('json_non_finite_number'), 'contains an invalid number (NaN or Infinity)')
+        self.assertEqual(reconstruct._plain('json_malformed'), 'malformed JSON')
+        for code, words in reconstruct._PLAIN_CODES.items():
+            self.assertNotIn('_', words, code)
+            self.assertEqual(reconstruct._plain(code), words)
+
+        class Page:
+            def __init__(self):
+                self.parts = []
+
+            def add(self, html):
+                self.parts.append(html)
+
+            @staticmethod
+            def text(value):
+                return str(value)
+
+        page = Page()
+        gaps = {key: [] for key in GAP_KEYS}
+        gaps['inventory_truncated'] = False
+        gaps['intake'] = [{'source_path': 'corrupt.json', 'status': 'rejected', 'warnings': ['json_non_finite_number'], 'members': []},
+                          {'source_path': 'broken.json', 'status': 'rejected', 'warnings': ['json_malformed'], 'members': []}]
+        reconstruct._render_gaps(page, gaps)
+        html = ''.join(page.parts)
+        self.assertIn('contains an invalid number (NaN or Infinity)', html)
+        self.assertIn('malformed JSON', html)
+        self.assertNotIn('json non finite number', html)
+        self.assertNotIn('json_', html)
+
+    def test_small_images_are_enlarged_by_a_whole_factor(self):
+        self.assertEqual(reconstruct._enlarged({'width': 160, 'height': 120}), (800, 5))
+        self.assertEqual(reconstruct._enlarged({'width': 64, 'height': 300}), (128, 2))
+        self.assertIsNone(reconstruct._enlarged({'width': 400, 'height': 300}))
+        self.assertIsNone(reconstruct._enlarged({'width': 300, 'height': 399}))   # no whole factor fits
+        self.assertIsNone(reconstruct._enlarged({'width': None, 'height': 120}))
+        self.assertIn('img.small{image-rendering:pixelated', reconstruct._STYLE)
+
     def test_gap_rows_keep_file_names_and_reword_codes(self):
         class Page:
             def __init__(self):

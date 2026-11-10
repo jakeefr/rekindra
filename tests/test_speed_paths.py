@@ -70,11 +70,60 @@ class SpeedPathTests(unittest.TestCase):
         with mock.patch.object(self.store, 'recover', side_effect=flaky):
             out = self.call('rekindra_recover', {'project_id': self.pid})[1]
         self.assertTrue(out['ok'], out)
-        failed = out['result']['not_recovered']
+        failed = [f for f in out['result']['not_recovered'] if f['source_path'] != 'bad.json']
         self.assertEqual([(f['asset_id'], f['source_path'], f['code']) for f in failed],
                          [(self.ids['photo.tga'], 'photo.tga', 'invalid_input')])
         self.assertIn('truncated pixel data', failed[0]['message'])
         self.assertIn(self.ids['notes.txt'], [r['asset_id'] for r in out['result']['recovered']])
+
+    def test_rejected_and_unsupported_sources_are_not_listed_as_recovered(self):
+        (self.source / 'blob.txt').write_bytes(bytes(range(256)) * 8)
+        inspected = self.call('rekindra_inspect', {'folder': str(self.source)})[1]
+        self.assertTrue(inspected['ok'], inspected)
+        self.pid = inspected['result']['project_id']
+        self.ids = {a['source_path']: a['asset_id'] for a in inspected['result']['assets']}
+        out = self.call('rekindra_recover', {'project_id': self.pid})[1]
+        self.assertTrue(out['ok'], out)
+        result = out['result']
+        for row in result['recovered']:
+            self.assertNotIn(row.get('intake_status'), ('rejected', 'unsupported'), row)
+        missing = {f['source_path']: f for f in result['not_recovered']}
+        bad = missing['bad.json']
+        self.assertEqual((bad['asset_id'], bad['code'], bad['intake_status']),
+                         (self.ids['bad.json'], 'json_non_finite_number', 'rejected'))
+        self.assertIn('nothing was recovered', bad['message'])
+        self.assertIn('blob.txt', missing)
+        self.assertTrue(missing['blob.txt']['code'], missing['blob.txt'])
+        self.assertNotIn('bad.json', [r['source_path'] for r in result['recovered']])
+        # Every asset is accounted for exactly once.
+        listed = [r['asset_id'] for r in result['recovered']] + [f['asset_id'] for f in result['not_recovered']]
+        self.assertEqual(sorted(listed), sorted(self.ids.values()))
+        self.assertEqual(result['asset_count'], len(self.ids))
+
+    def test_shortened_entries_keep_their_status_and_are_not_called_recovered(self):
+        assets = [{'asset_id': f'{i:032x}', 'source_path': f'note-{i:03d}-' + 'n' * 60 + '.txt'} for i in range(30)]
+        store = mock.Mock()
+        store.status.return_value = {'assets': assets}
+        statuses = ('recovered', 'partial', 'recovered_with_warnings')
+
+        def recover(project_id, asset_id, reader):
+            return {'dossier': {}, 'asset_id': asset_id}
+        store.recover.side_effect = recover
+        views = {a['asset_id']: {'asset_id': a['asset_id'], 'kind': 'evidence',
+                                 'intake_status': statuses[i % 3], 'dossier_status': 'ready', 'evidence_omitted_from_summary': 0,
+                                 'warnings': ['w' * 150] * 4, 'evidence': [{'evidence_id': 'ev-' + 'a' * 24, 'text': 't' * 300}] * 3}
+                 for i, a in enumerate(assets)}
+        with mock.patch.object(plugin.handlers, 'evidence_summary', side_effect=lambda result: dict(views[result['asset_id']])):
+            reply = plugin.handlers.recover_all(store, self.pid, None)
+        self.assertLessEqual(len(json.dumps({'ok': True, 'result': reply}, ensure_ascii=False)), plugin.handlers.SUMMARY_MAX_CHARS)
+        short = [r for r in reply['recovered'] if 'evidence' not in r]
+        self.assertTrue(short, reply)
+        for row in short:
+            self.assertEqual(row['intake_status'], views[row['asset_id']]['intake_status'])
+        note = reply['recovered_note']
+        self.assertNotIn('were recovered', note)
+        self.assertIn('summarized', note)
+        self.assertIn('intake_status', note)
 
     def test_many_assets_stay_one_reply_under_the_host_budget(self):
         assets = [{'asset_id': f'{i:032x}', 'source_path': f'scan-{i:03d}-' + 'n' * 60 + '.tga'} for i in range(55)]
@@ -111,7 +160,7 @@ class SpeedPathTests(unittest.TestCase):
             with mock.patch.object(self.store, 'recover', side_effect=flaky):
                 out = self.call('rekindra_recover', {'project_id': self.pid})[1]
             self.assertTrue(out['ok'], out)
-            failed = out['result']['not_recovered']
+            failed = [f for f in out['result']['not_recovered'] if f['source_path'] != 'bad.json']
             self.assertEqual([(f['asset_id'], f['code']) for f in failed], [(self.ids['photo.tga'], code)])
             self.assertNotIn(str(error), failed[0]['message'])
             self.assertIn(self.ids['notes.txt'], [r['asset_id'] for r in out['result']['recovered']])

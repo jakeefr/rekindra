@@ -449,6 +449,7 @@ padding:3px 6px;border-radius:3px;vertical-align:middle;margin-right:6px}
 .legend{background:#fff;border:1px solid #c9c2b4;padding:10px 12px;margin:16px 0}
 figure{margin:18px 0;padding:10px;background:#fff;border:1px solid #c9c2b4}
 figure img{display:block;max-width:100%;height:auto;image-rendering:auto}
+figure img.small{image-rendering:pixelated;image-rendering:crisp-edges;image-rendering:pixelated}
 figcaption{font:13px/1.5 system-ui,sans-serif;color:#4a463f;margin-top:8px;overflow-wrap:anywhere}
 blockquote{margin:18px 0;padding:10px 14px;background:#fff;border:1px solid #c9c2b4;border-left:4px solid #1f5f3f}
 blockquote pre{margin:0 0 8px;white-space:pre-wrap;overflow-wrap:anywhere;font:15px/1.5 Georgia,serif}
@@ -550,12 +551,30 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
                                    'not filled in. The recovered block is drawn at the top left; its exact offset in '
                                    'the original frame was not recorded')
                 else:
-                    page.add(f'<figure><img src="{uri}" alt="{alt}">')
+                    enlarged = _enlarged(artifact) if note['shown'] == 'full' else None
+                    if enlarged:
+                        page.add(f'<figure><img class="small" src="{uri}" alt="{alt}" style="width:{enlarged[0]}px">')
+                        caption.append(f'shown enlarged {enlarged[1]}&times; so it can be read; pixels are repeated, not smoothed')
+                    else:
+                        page.add(f'<figure><img src="{uri}" alt="{alt}">')
                 page.add(f'<figcaption>{" &middot; ".join(caption)}</figcaption></figure>')
         page.add('</section>')
     _render_gaps(page, gaps)
     page.add(f'<p class="meta">{t(OUT_OF_SCOPE)} Source files were read, never changed.</p></main></body></html>\n')
     return shown
+
+
+SMALL_IMAGE = 400   # an image whose longer side is under this is drawn larger on the page
+SHOWN_WIDTH = 800
+
+
+def _enlarged(artifact: dict):
+    """(display width, whole-number factor) for a small image, or None. The embedded pixels are unchanged."""
+    width, height = artifact.get('width'), artifact.get('height')
+    if type(width) is not int or type(height) is not int or width < 1 or height < 1 or max(width, height) >= SMALL_IMAGE:
+        return None
+    factor = min(SHOWN_WIDTH // width, 640 // height, 8)
+    return (width * factor, factor) if factor >= 2 else None
 
 
 def _image_bytes(directory: Path, aid: str, artifact: dict, budget: int) -> tuple:
@@ -576,10 +595,70 @@ _CODE = re.compile(r'[a-z0-9]+(_[a-z0-9]+)+')
 _AGENT_HINT = '; run rekindra_recover on it'
 
 
+_PLAIN_CODES = {
+    'json_non_finite_number': 'contains an invalid number (NaN or Infinity)',
+    'json_malformed': 'malformed JSON',
+    'json_depth_exceeded': 'JSON nested too deeply to read',
+    'json_lone_surrogate': 'JSON holds a broken text character',
+    'json_duplicate_keys': 'JSON repeats a key',
+    'json_not_parsed': 'JSON was not parsed',
+    'csv_malformed': 'malformed CSV',
+    'csv_field_too_large': 'a CSV field is too large',
+    'csv_inconsistent_width': 'CSV rows differ in width',
+    'csv_formula_like_cells': 'CSV holds cells that look like formulas',
+    'encoding_invalid': 'text encoding could not be read',
+    'encoding_truncated': 'text ends in the middle of a character',
+    'binary_content': 'binary content, not text',
+    'input_too_large': 'file too large to read',
+    'unsupported_extension': 'file type not supported',
+    'utf32_unsupported': 'UTF-32 text is not supported',
+    'markdown_unclosed_fence': 'a Markdown code block is never closed',
+    'encrypted_pdf': 'password-protected PDF',
+    'malformed_pdf': 'damaged PDF',
+    'pdf_too_large': 'PDF too large to read',
+    'pdf_timeout': 'PDF took too long to read',
+    'pdf_reader_stopped': 'the PDF reader stopped',
+    'pdf_reader_unavailable': 'no PDF reader available',
+    'pdf_memory_limit': 'PDF needed too much memory',
+    'no_extractable_text': 'no text to read (scanned pages; no OCR)',
+    'page_no_text': 'page has no text',
+    'page_failed': 'page could not be read',
+    'page_limit': 'past the page limit',
+    'zip_bomb_guard': 'archive expands far beyond its size, so it was not opened',
+    'encrypted_archive': 'password-protected archive',
+    'encrypted_member': 'password-protected',
+    'corrupt_archive': 'damaged archive',
+    'corrupt_member': 'damaged',
+    'ambiguous_archive': 'archive has more than one possible layout',
+    'multiple_eocd_candidates': 'archive has more than one end marker',
+    'prepended_data_unsupported': 'archive has extra data in front of it',
+    'trailing_data': 'archive has extra data after its end',
+    'partial_archive_not_read': 'archive is incomplete',
+    'not_a_zip': 'not a ZIP archive',
+    'eocd_missing': 'archive end marker is missing',
+    'zip64_unsupported': 'ZIP64 archives are not supported',
+    'multidisk_unsupported': 'multi-part archives are not supported',
+    'strong_encryption_unsupported': 'encrypted archives are not supported',
+    'nested_archive_not_read': 'an archive inside the archive, not opened',
+    'nested_archive_not_inspected': 'an archive inside the archive, not opened',
+    'unsafe_member': 'unsafe file name',
+    'unsupported_member_type': 'not a text file',
+    'unsupported_compression': 'compression method not supported',
+    'member_too_large': 'too large to read',
+    'member_compresses_heavily': 'expands far beyond its stored size',
+    'member_limit': 'past the limit of files read from one archive',
+    'total_read_limit': 'past the total size read from one archive',
+    'time_budget_exhausted': 'ran out of reading time',
+    'text_intake_rejected': 'not readable as text',
+    'project_source_limit': 'past the limit of text sources for one folder',
+    'project_evidence_size_limit': 'past the size limit for recovered text',
+}
+
+
 def _plain(value) -> str:
     """Wording for a reader of the page: no tool names, and reader codes spelled as words."""
     text = str(value).replace(_AGENT_HINT, '')
-    return _CODE.sub(lambda found: found.group().replace('_', ' '), text)
+    return _CODE.sub(lambda found: _PLAIN_CODES.get(found.group()) or found.group().replace('_', ' '), text)
 
 
 def _render_gaps(page, gaps: dict) -> None:
