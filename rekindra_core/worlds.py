@@ -1,5 +1,6 @@
 """Scene v2: source-grounded procedural geometry with bounded GPU work."""
 import copy
+import functools
 import math
 import re
 from .scenes import SceneError, _number, _text, _COLOR, _LAYER_ID
@@ -62,9 +63,14 @@ def compile_surface(obj):
     for binding in bindings:
         fields(binding,'name expression','local binding')
         name=binding['name']
-        if not isinstance(name,str) or not re.fullmatch('[a-z][a-z0-9_]{0,23}',name) or name in names or name in FUNCTIONS or name in ('u','v','t','pi'):
-            why=('is not a lowercase identifier' if not isinstance(name,str) or not re.fullmatch('[a-z][a-z0-9_]{0,23}',name)
-                 else 'is already defined on this surface' if name in names else 'is a reserved math name')
+        why=(None if isinstance(name,str) and re.fullmatch('[a-z][a-z0-9_]{0,23}',name) else
+             f'has {len(name)} characters; the limit is 24' if isinstance(name,str) and re.fullmatch('[a-z][a-z0-9_]*',name)
+             else 'is not a lowercase identifier')
+        if why is None and name in names:
+            why='is already defined on this surface'+('' if any(b is not binding and isinstance(b,dict) and b.get('name')==name for b in bindings)
+                                                      else " by the surface's loft")
+        if why is None and (name in FUNCTIONS or name in ('u','v','t','pi')):why='is a reserved math name'
+        if why:
             raise SceneError(f'Binding names must be unique lowercase identifiers, not reserved math names: got {shown(name)}, which {why}. '
                              'Use a lowercase letter then up to 23 lowercase letters, digits or underscores, not u, v, t, pi or '
                              +', '.join(FUNCTIONS))
@@ -99,7 +105,11 @@ _STRIPE_CYCLES=16
 _STRIPE_SWING=.08
 
 
+@functools.lru_cache(maxsize=512)
 def _refuse_stripes(source):
+    # A pure function of the expression text, and one create/preview/export cycle validates the
+    # same scene many times, so a pattern that passed is not sampled again. A refusal raises and
+    # is therefore never cached.
     f=sampler(source);n=2048
     for t in (0.0,1.0,7.3):
         for fixed in (.25,.5,.75):
@@ -125,7 +135,10 @@ def _text_references(refs):
     for ref in refs:
         fields(ref,'asset_id evidence_ids interpretation','text reference')
         aid=ref['asset_id']
-        if not isinstance(aid,str) or not 1<=len(aid)<=64 or aid in seen:raise SceneError('Invalid or repeated text reference asset_id: pass the asset_id of one recovered text source, '
+        if isinstance(aid,str) and aid in seen:
+            raise SceneError(f'Invalid or repeated text reference asset_id: {shown(aid)} already appears in text_references; '
+                             'use one entry per source and put all of its evidence_ids in that entry')
+        if not isinstance(aid,str) or not 1<=len(aid)<=64:raise SceneError('Invalid or repeated text reference asset_id: pass the asset_id of one recovered text source, '
                                                                                         f'1-64 characters, once per source; got {shown(aid)}')
         seen.add(aid)
         ids=ref['evidence_ids']

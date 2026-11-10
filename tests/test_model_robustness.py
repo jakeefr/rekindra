@@ -60,8 +60,10 @@ class RejectionTests(unittest.TestCase):
                     'asset_ids', text_references=[])
 
     def test_missing_required_argument_names_it_and_its_source(self):
-        self.message('rekindra_recover', {'project_id': self.project['project_id']},
-                     'asset_id is missing', 'rekindra_inspect or rekindra_status')
+        self.message('rekindra_preview', {'project_id': self.project['project_id']},
+                     'plan_id is missing', 'rekindra_create_world')
+        self.message('rekindra_recover', {'project_id': self.project['project_id'], 'asset_id': 7},
+                     'asset_id is int', 'rekindra_inspect or rekindra_status')
         self.message('rekindra_status', {'project_id': 7}, 'project_id is int', 'rekindra_inspect')
         self.message('rekindra_status', [], 'one JSON object', 'got list')
 
@@ -191,6 +193,15 @@ class RejectionTests(unittest.TestCase):
         refused([{'name': 'sin', 'expression': 'u'}], "'sin'", 'reserved math name')
         refused([{'name': 'w', 'expression': 'u'}, {'name': 'w', 'expression': 'v'}], "'w'", 'already defined')
         refused('w=u', 'at most 16 local bindings', "'w=u'")
+        refused([{'name': 'a' * 30, 'expression': 'u'}], 'has 30 characters', 'limit is 24')
+        refused([{'name': f'b{i}', 'expression': 'u'} for i in range(17)], 'at most 16 local bindings', '17 items')
+
+    def test_text_reference_asset_id_rejection_names_the_fault(self):
+        ref = {'asset_id': self.ids['notes.txt'], 'evidence_ids': ['ev-' + '0' * 24], 'interpretation': 'A note about the place.'}
+        for refs, expected in (([ref, dict(ref)], 'already appears in text_references'), ([dict(ref, asset_id=7)], 'int 7')):
+            scene = self.scene()
+            scene['text_references'] = refs
+            self.create(scene, 'text reference asset_id', *([expected]))
 
     def test_unknown_argument_names_are_echoed_safely(self):
         text = self.message('rekindra_status', {'project_id': self.project['project_id'], 'a\x1b[2J\nb' + 'x' * 80: 1},

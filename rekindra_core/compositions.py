@@ -120,11 +120,16 @@ class CompositionStore:
             if len(original) > self.projects.limits.max_file_bytes or hashlib.sha256(original).hexdigest() != asset['sha256']:
                 raise ProjectError('Source integrity check failed before creative processing')
             if asset['format'] in ('tga', 'tga_candidate'):
-                recovered = self.projects.recover(project_id, aid, measure_palette=False)
-                path = Path(recovered['path']); _no_links(path)
-                with path.open('rb') as inp: data = inp.read(2_000_001)
-                if hashlib.sha256(data).hexdigest() != recovered['sha256']:
-                    raise ProjectError('Recovered image integrity check failed')
+                # One create/preview/export cycle asks for the same sources many times. The PNG
+                # decoded from these exact bytes is reused while it still hashes to what was
+                # recorded; anything else (missing, changed, never decoded) is decoded afresh.
+                data = self._saved_tga(project, asset)
+                if data is None:
+                    recovered = self.projects.recover(project_id, aid, measure_palette=False)
+                    path = Path(recovered['path']); _no_links(path)
+                    with path.open('rb') as inp: data = inp.read(2_000_001)
+                    if hashlib.sha256(data).hexdigest() != recovered['sha256']:
+                        raise ProjectError('Recovered image integrity check failed')
                 mime, kind = 'image/png', 'recovered'
             elif asset['format'] in IMAGE_FORMATS:
                 data, mime, kind = self._image_source(project_id, project, asset, original)
@@ -148,6 +153,21 @@ class CompositionStore:
                            'data': data, 'source_sha256': asset['sha256'], 'image_sha256': hashlib.sha256(data).hexdigest(),
                            'kind': kind})
         return result
+
+    @staticmethod
+    def _saved_tga(project: dict, asset: dict) -> bytes | None:
+        """The PNG already decoded from this TGA's current bytes, or None when it must be decoded again."""
+        saved = next((a for a in project['artifacts'] if isinstance(a, dict) and a.get('asset_id') == asset['asset_id']
+                      and a.get('kind') == 'recovered' and a.get('decoder') == 'rekindra-tga-v1'
+                      and a.get('source_sha256') == asset['sha256']), None)
+        if saved is None or not isinstance(saved.get('path'), str):
+            return None
+        try:
+            path = Path(saved['path']); _no_links(path)
+            with path.open('rb') as inp: data = inp.read(2_000_001)
+        except (OSError, ProjectError):
+            return None
+        return data if hashlib.sha256(data).hexdigest() == saved.get('sha256') else None
 
     def _image_source(self, project_id: str, project: dict, asset: dict, original: bytes) -> tuple:
         """(bytes, mime, kind) for one image: the original when it is whole and fits, else the recovered copy."""
