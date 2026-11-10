@@ -19,6 +19,8 @@ STILL_CHANGE = 0.25     # mean per-channel change (0-255) between sampled frames
 # bloom core and the washed halo round it). Previews that read well measure 0.4 or less; a frame that reads
 # as one white bloom measured 4.0. Three sits well clear of the first and under the second.
 BLOWN_SHARE = 3.0
+# A sky or fog authored this pale fills the frame with near-white on purpose, so the share says nothing there.
+PALE_BACKDROP = 170
 
 
 class ExportBlocked(SceneError):
@@ -105,8 +107,26 @@ def blown_out_warnings(frames):
                         'the warning with that reason.'}]
 
 
+def _pale_backdrop(scene):
+    """True when the scene's own sky or fog is authored near-white: daylight, overcast, snow light."""
+    environment = scene.get('environment') if isinstance(scene, dict) else None
+    if not isinstance(environment, dict):
+        return False
+    for key in ('sky_top', 'sky_bottom', 'fog_color'):
+        value = environment.get(key)
+        if isinstance(value, str) and len(value) == 7 and value[0] == '#':
+            try:
+                if min(int(value[i:i + 2], 16) for i in (1, 3, 5)) >= PALE_BACKDROP:
+                    return True
+            except ValueError:
+                pass
+    return False
+
+
 def current_warnings(plan, drift, frames=None):
     found = frame_warnings(frames)
+    if _pale_backdrop(plan.get('scene')):
+        found = [w for w in found if w['warning_id'] != 'frames:blown_out']
     if drift['status'] == 'drift':
         found += [{'warning_id': 'palette:' + row['region'].replace(' ', '-'), 'kind': 'palette_drift',
                    'message': row['flag']} for row in drift['regions'] if row['over_threshold']]

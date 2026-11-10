@@ -127,14 +127,16 @@ _PHOTO_PATTERNS = [(use, [(w, _pattern(w)) for w in words], text) for use, words
 
 
 def photo_material_candidates(plan):
-    """None, or {status, message, candidates} when recovered images are referenced but none is used as a texture."""
+    """None, or {status, message, candidates}: recovered images no surface uses, or a subject image left unused."""
     if not isinstance(plan, dict):
         return None
     scene = plan.get('scene') if isinstance(plan.get('scene'), dict) else {}
     references = [r for r in scene.get('references') or []
                   if isinstance(r, dict) and isinstance(r.get('asset_id'), str) and r['asset_id']]
-    if not references or _USES['material_image'](scene):
+    if not references:
         return None
+    if _USES['material_image'](scene):
+        return _unused_subjects(scene, references)
     candidates = []
     for ref in references:
         observed = ref.get('observed') if isinstance(ref.get('observed'), str) else ''
@@ -154,6 +156,30 @@ def photo_material_candidates(plan):
             'message': f"No surface uses a photo material, though {count} recovered image{'s' if count != 1 else ''} "
                        f"{'are' if count != 1 else 'is'} in scene.references. The shapes stay 3D and invented; "
                        'only their texture is recovered.',
+            'candidates': candidates}
+
+
+def _unused_subjects(scene, references):
+    """Some surface is textured, but an image whose subject simple shapes cannot build textures nothing."""
+    used = set()
+    for obj in scene.get('objects') or []:
+        image = obj.get('material_image') if isinstance(obj, dict) else None
+        if isinstance(image, dict) and isinstance(image.get('asset_id'), str):
+            used.add(image['asset_id'])
+    use, patterns, text = _PHOTO_PATTERNS[0]
+    candidates = []
+    for ref in references:
+        observed = ref.get('observed') if isinstance(ref.get('observed'), str) else ''
+        match = next((m for m in (p.search(observed) for _, p in patterns) if m), None)
+        if match and ref['asset_id'] not in used:
+            candidates.append({'asset_id': ref['asset_id'], 'use': use,
+                               'hint': f"image {ref['asset_id'][:8]} (you observed '{match.group(0)}') {text}."})
+    if not candidates:
+        return None
+    return {'status': 'subject_unused',
+            'message': 'A recovered image with a distinct subject textures nothing. If the scene builds that subject '
+                       'from plain shapes it will read as a crude stand-in: show the subject itself with a tight '
+                       'crop of its image on one form, placed and sized where it stands in the 3D scene.',
             'candidates': candidates}
 
 

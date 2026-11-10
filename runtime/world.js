@@ -374,13 +374,13 @@ ${leaf?`// Leaf mass: cells vary colour and facing; gaps are cut out at the end.
 vec3 leafP=leafPos/${fixed(leaf.leaf_size)},leafCell=floor(leafP*3.);float leafCover=cellNoise(leafP)*.6+cellNoise(leafP*2.7+11.3)*.4;
 albedo=mix(baseColor,highColor,clamp(blend+(cellHash(leafCell)-.5)*2.*${fixed(leaf.variation??.5)},0.,1.));
 N=normalize(N+(vec3(cellHash(leafCell+17.),cellHash(leafCell+31.),cellHash(leafCell+47.))-.5)*1.1);`:''}
-${photo?`albedo=mix(albedo,pow(texture(materialImage,detailUV*vec2(${fixed(photo.repeat?.[0]??1)},${fixed(photo.repeat?.[1]??1)})).rgb,vec3(2.2)),${fixed(photo.strength??1)});`:''}
+${photo?`vec3 photoTexel=pow(texture(materialImage,detailUV*vec2(${fixed(photo.repeat?.[0]??1)},${fixed(photo.repeat?.[1]??1)})).rgb,vec3(2.2));albedo=mix(albedo,photoTexel,${fixed(photo.strength??1)});`:''}
 ${leaf?`albedo*=.4+.6*smoothstep(${leafGap}-.05,${leafGap}+.3,leafCover);`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
 ${soft?`{vec2 rim=min(detailUV,1.-detailUV);float feather=${soft.u>0?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
 feather=clamp(feather-${fixed((soft.breakup??0)*1.6)}*cellNoise(vec3(detailUV*vec2(46.,9.),0.))*(1.-feather),0.,1.);glowEdge*=feather*feather;}`:''}
-${photo?'glowEdge*=smoothstep(.03,.3,max(albedo.r,max(albedo.g,albedo.b)));':''}${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
+${photo?`glowEdge*=mix(1.,smoothstep(.03,.3,max(photoTexel.r,max(photoTexel.g,photoTexel.b))),${fixed(photo.strength??1)});`:''}${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);

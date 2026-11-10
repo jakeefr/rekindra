@@ -67,6 +67,17 @@ class FrameWarningTests(unittest.TestCase):
         self.assertEqual([w['warning_id'] for w in gate.frame_warnings(dict(STILL, white=[9.5] * 6))],
                          ['frames:motionless', 'frames:blown_out'])
 
+    def test_a_scene_authored_with_a_pale_sky_is_not_called_blown_out(self):
+        def plan(**environment):
+            return {'scene': {'environment': environment}}     # no schema version: only the frame checks run
+        ids = lambda p: [w['warning_id'] for w in gate.current_warnings(p, gate_tests.CLEAN, BLOWN)]
+        self.assertEqual(ids(plan(sky_top='#0A0B0C', sky_bottom='#141820', fog_color='#101216')), ['frames:blown_out'])
+        for pale in ({'sky_top': '#FFEBC1'}, {'sky_bottom': '#C5DBCB'}, {'fog_color': '#E8E8EC'}):
+            self.assertEqual(ids(plan(**dict({'sky_top': '#0A0B0C'}, **pale))), [], pale)
+        # One bright channel is a saturated colour, not a pale backdrop; malformed values never hide the warning.
+        for dark in ({'sky_top': '#FF9020'}, {'sky_top': 'white'}, {'sky_top': '#GGGGGG'}, {'sky_top': None}, {}):
+            self.assertEqual(ids(plan(**dark)), ['frames:blown_out'], dark)
+
     def test_records_without_the_near_white_share_never_block_on_it(self):
         old = {'spread': LIVELY['spread'], 'change': LIVELY['change']}
         for white in ('absent', None, [], ['x'] * 6, [True] * 6, 'white'):

@@ -96,9 +96,21 @@ class PhotoMaterialTests(unittest.TestCase):
         self.assertIn('material_image', out['candidates'][-1]['hint'])
         self.assertEqual(out, photo_material_candidates(plan(references=self.REFS)))
 
+    def test_a_subject_image_left_unused_is_named_even_when_the_ground_is_textured(self):
+        ground_only = plan(references=self.REFS, objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}},
+                                                          {'id': 'odd', 'material_image': 'x'}, 'junk'])
+        out = photo_material_candidates(ground_only)
+        self.assertEqual(out['status'], 'subject_unused')
+        self.assertEqual([(c['asset_id'], c['use']) for c in out['candidates']], [('aaaaaaaa1111', 'subject')])
+        self.assertIn('you observed', out['candidates'][0]['hint'])
+        self.assertIn('crude stand-in', out['message'])
+
     def test_silent_when_a_surface_uses_one_or_nothing_was_recovered(self):
-        used = plan(references=self.REFS, objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}}])
+        used = plan(references=self.REFS[1:], objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}}])
         self.assertIsNone(photo_material_candidates(used))
+        both = plan(references=self.REFS, objects=[{'id': 'g', 'material_image': {'asset_id': 'bbbbbbbb2222'}},
+                                                   {'id': 'f', 'material_image': {'asset_id': 'aaaaaaaa1111'}}])
+        self.assertIsNone(photo_material_candidates(both))
         self.assertIsNone(photo_material_candidates(plan(references=[])))
         self.assertIsNone(photo_material_candidates(plan(references=[{'observed': 'a figure'}])))
         for value in (None, {}, {'scene': None}, {'scene': {'references': 'x'}}):
