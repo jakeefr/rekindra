@@ -65,7 +65,7 @@
     return {center,right:b.right,up:b.up,forward:b.forward,extent,depthExtent};
   }
   // Atmosphere strengths at field value 1, as GLSL literals. Set by eye against foggy night scenes.
-  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.',HALO_REACH='.35',SPILL_CAP='.7';
+  const HALO_SCATTER='.05',BLOOM_GAIN='.6',HALO_GAIN='3.',HALO_REACH='.35',SPILL_CAP='.3';
   const math=`
 float bound(float a){return clamp(a,-10000.,10000.);}
 float rdiv(float a,float b){return bound(a/(abs(b)<.0001?(b<0.?-.0001:.0001):b));}
