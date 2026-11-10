@@ -13,6 +13,8 @@ MAX_ACKNOWLEDGMENTS = 16
 MAX_LINEAGE = 64
 MAX_RECORD_BYTES = 512_000
 _DRIFT_STATUSES = ('drift', 'ok', 'not_measured', 'unavailable')
+EMPTY_SPREAD = 8        # brightness range (0-255) below which a frame is one flat color
+STILL_CHANGE = 0.25     # mean per-channel change (0-255) between sampled frames below which nothing moved
 
 
 class ExportBlocked(SceneError):
@@ -41,8 +43,8 @@ def _well_formed(drift):
         and (not row['over_threshold'] or isinstance(row.get('flag'), str)) for row in rows)
 
 
-def _read_drift(store, project_id, plan_id):
-    """The latest presentation preview's drift report, or None when there is no usable record."""
+def _read_record(store, project_id, plan_id):
+    """The latest presentation preview's record, or None when there is no usable one."""
     path = _record_path(store, project_id, plan_id)
     try:
         if path.stat().st_size > MAX_RECORD_BYTES:
@@ -52,11 +54,37 @@ def _read_drift(store, project_id, plan_id):
         return None
     if not isinstance(record, dict) or record.get('plan_id') != plan_id or not _well_formed(record.get('palette_drift')):
         return None
-    return record['palette_drift']
+    return record
 
 
-def current_warnings(plan, drift):
+def _read_drift(store, project_id, plan_id):
+    record = _read_record(store, project_id, plan_id)
+    return None if record is None else record['palette_drift']
+
+
+def frame_warnings(frames):
+    """A preview whose frames show nothing, or never change, is not a video worth saving."""
+    try:
+        spread, change = max(frames['spread']), max(frames['change'])
+    except (TypeError, KeyError, ValueError):
+        return []       # not measured: an older record, or the image reader was unavailable
+    if not isinstance(spread, (int, float)) or not isinstance(change, (int, float)):
+        return []
     found = []
+    if spread < EMPTY_SPREAD:
+        found.append({'warning_id': 'frames:empty', 'kind': 'empty_frames',
+                      'message': 'Every sampled frame is close to one flat color, so the video would show nothing. '
+                                 'Check that the camera faces the objects, that they are lit, and that fog or '
+                                 'exposure is not hiding them.'})
+    elif change < STILL_CHANGE:
+        found.append({'warning_id': 'frames:motionless', 'kind': 'motionless_frames',
+                      'message': 'The six sampled frames are almost identical, so the video would look like a '
+                                 'still image. Move the camera along its path or animate something visible.'})
+    return found
+
+
+def current_warnings(plan, drift, frames=None):
+    found = frame_warnings(frames)
     if drift['status'] == 'drift':
         found += [{'warning_id': 'palette:' + row['region'].replace(' ', '-'), 'kind': 'palette_drift',
                    'message': row['flag']} for row in drift['regions'] if row['over_threshold']]
@@ -73,8 +101,8 @@ def flagged_cycles(compositions, project_id, plan):
         if current['plan_id'] in seen or not isinstance(model, dict) or model.get('origin') != 'caller-revised':
             break
         seen.add(current['plan_id'])
-        drift = _read_drift(compositions.projects, project_id, current['plan_id'])
-        if drift is not None and current_warnings(current, drift):
+        record = _read_record(compositions.projects, project_id, current['plan_id'])
+        if record is not None and current_warnings(current, record['palette_drift'], record.get('frames')):
             count += 1
         try:
             current = compositions.load_plan(project_id, model.get('parent_plan_id'))
@@ -83,14 +111,17 @@ def flagged_cycles(compositions, project_id, plan):
     return count
 
 
-def preview_gate(store, project_id, plan, drift, review_camera):
+def preview_gate(store, project_id, plan, drift, review_camera, frames=None):
     """Remember a presentation preview of a world and say what export will ask of it."""
     if plan['scene']['schema_version'] != 2 or review_camera is not None:
         return None
-    payload = json.dumps({'plan_id': plan['plan_id'], 'palette_drift': drift}, ensure_ascii=False, allow_nan=False)
+    record = {'plan_id': plan['plan_id'], 'palette_drift': drift}
+    if frames is not None:
+        record['frames'] = frames
+    payload = json.dumps(record, ensure_ascii=False, allow_nan=False)
     _atomic(_record_path(store, project_id, plan['plan_id']), payload.encode('utf-8'))
     cycles = flagged_cycles(CompositionStore(store), project_id, plan)
-    return {'warnings': current_warnings(plan, drift), 'revise_preview_cycles': cycles,
+    return {'warnings': current_warnings(plan, drift, frames), 'revise_preview_cycles': cycles,
             'cycle_cap': MAX_FLAGGED_CYCLES}
 
 
@@ -181,11 +212,13 @@ def export_world(store, project_id, plan_id, acknowledgments=None):
     plan = compositions.load_plan(project_id, plan_id)
     if plan['scene']['schema_version'] != 2:
         raise SceneError('rekindra_export is for worlds; a composition saves video from its own HTML.')
-    drift = _read_drift(store, project_id, plan_id)
-    if drift is None:
+    saved = _read_record(store, project_id, plan_id)
+    if saved is None:
         raise ExportBlocked(f'Plan {plan_id} has no preview on record. Call rekindra_preview with this plan_id and '
-                            'no review_camera, inspect it, then call rekindra_export.')
-    warnings = current_warnings(plan, drift)
+                            'no review_camera, inspect it, then call rekindra_export. Only rekindra_preview can '
+                            'make that record; if it fails, stop and tell the user.')
+    drift = saved['palette_drift']
+    warnings = current_warnings(plan, drift, saved.get('frames'))
     cycles = flagged_cycles(compositions, project_id, plan)
     if not warnings:
         status, answered = 'clear', []

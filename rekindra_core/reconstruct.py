@@ -572,28 +572,43 @@ def _image_bytes(directory: Path, aid: str, artifact: dict, budget: int) -> tupl
     return data, note
 
 
+_CODE = re.compile(r'[a-z0-9]+(_[a-z0-9]+)+')
+_AGENT_HINT = '; run rekindra_recover on it'
+
+
+def _plain(value) -> str:
+    """Wording for a reader of the page: no tool names, and reader codes spelled as words."""
+    text = str(value).replace(_AGENT_HINT, '')
+    return _CODE.sub(lambda found: found.group().replace('_', ' '), text)
+
+
 def _render_gaps(page, gaps: dict) -> None:
-    t = page.text
+    t = page.text       # file names stay exactly as found; only statuses, codes and reasons are reworded
+
+    def p(value):
+        return t(_plain(value))
     page.add('<section><h2><span class="tag gap">gap</span>Gaps: not recovered, rejected or left out</h2>')
     rows = []
     for row in gaps['skipped_at_inspect']:
-        rows.append(f'<li><code>{t(row["source_path"])}</code>: skipped at inspect ({t(row["reason"])})</li>')
+        rows.append(f'<li><code>{t(row["source_path"])}</code>: skipped when the folder was first read ({p(row["reason"])})</li>')
     if gaps['inventory_truncated']:
-        rows.append('<li>The folder held more files than one inspect reads; the rest were never inventoried.</li>')
+        rows.append('<li>The folder held more files than are read in one pass; the rest were never listed.</li>')
     for row in gaps['not_recovered']:
-        rows.append(f'<li><code>{t(row["source_path"])}</code>: not recovered. {t(row["reason"])}</li>')
+        reason = _plain(row['reason'])
+        rows.append(f'<li><code>{t(row["source_path"])}</code>: '
+                    f'{"" if reason.startswith("not recovered") else "not recovered. "}{t(reason)}</li>')
     for row in gaps['intake']:
-        detail = f'<li><code>{t(row["source_path"])}</code>: {t(row["status"])}'
+        detail = f'<li><code>{t(row["source_path"])}</code>: {p(row["status"])}'
         if row.get('count'):
-            names = ', '.join(f'<code>{t(m["name"])}</code> ({t(m["code"])})' for m in row.get('members', []))
+            names = ', '.join(f'<code>{t(m["name"])}</code> ({p(m["code"])})' for m in row.get('members', []))
             detail += f' ({row["count"]})' + (f': {names}' if names else '')
             if row['count'] > len(row.get('members', [])):
                 detail += ', and more'
         if row.get('warnings'):
-            detail += '. ' + ', '.join(t(w) for w in row['warnings'][:12])
+            detail += '. ' + ', '.join(p(w) for w in row['warnings'][:12])
         rows.append(detail + '</li>')
     for row in gaps['partial_images']:
-        rows.append(f'<li><code>{t(row["source_path"])}</code>: {t(row["reason"])}</li>')
+        rows.append(f'<li><code>{t(row["source_path"])}</code>: {p(row["reason"])}</li>')
     for row in gaps['unplaced_images']:
         rows.append(f'<li><code>{t(row["source_path"])}</code>: recovered image, not placed in this reconstruction</li>')
     for row in gaps['unplaced_text']:

@@ -7,7 +7,9 @@
   const qualityNotice=()=>renderQuality()?.limited?' Using standard quality because this graphics device cannot render the higher-quality frame.':'';
   const scratch=document.createElement('canvas');scratch.width=1280;scratch.height=720;const sc=scratch.getContext('2d');
   $('title').textContent=scene.title;$('mood').textContent=scene.mood.toUpperCase();$('reason').textContent=scene.reason;
-  $('seek').max=scene.duration;$('model').textContent=data.model.model?`Creative plan: ${data.model.provider} / ${data.model.model}`:'Creative plan: local authored fixture';
+  $('seek').max=scene.duration;const named=v=>typeof v==='string'&&v&&v!=='not-attested';
+  // The plugin cannot verify which model called it, so an unnamed one is said in plain words, not as a field value.
+  $('model').textContent=!data.model.model?'Creative plan: local authored fixture':named(data.model.provider)&&named(data.model.model)?`Creative plan: ${data.model.provider} / ${data.model.model}`:`Creative plan: ${data.model.origin==='caller-revised'?'revised':'written'} by the AI agent in this session. Which model it was is not recorded.`;
   const asciiMode=()=>$('asciiColor').checked?'color':'mono';
   function draw(t,ascii=$('ascii').checked,target=ctx,mode=asciiMode()){
     if(world){const frame=world.render(t);if(ascii)RekindraScene.renderAscii(target,frame,mode);else target.drawImage(frame,0,0);return}
@@ -19,14 +21,17 @@
   function reviewFrames(){
     if(exporting)throw Error('Wait for video export before capturing review frames');
     stop();const saved=time,c=document.createElement('canvas');c.width=1280;c.height=1128;
-    const x=c.getContext('2d'),times=[];x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
+    const x=c.getContext('2d'),times=[],frames=[],f=document.createElement('canvas');f.width=640;f.height=360;
+    const fx=f.getContext('2d');x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
     try{
       for(let i=0;i<6;i++){
         const t=(i+.5)*scene.duration/6;times.push(t);draw(t,false,sc);
         const px=i%2*640,py=Math.floor(i/2)*376;
         x.drawImage(scratch,px,py,640,360);x.fillStyle='#eee';x.font='12px monospace';x.fillText(t.toFixed(2)+' s',px+8,py+372);
+        // Each frame alone, small enough for a vision model that times out on the whole sheet.
+        fx.drawImage(scratch,0,0,640,360);frames.push(f.toDataURL('image/png').split(',')[1]);
       }
-      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1]};
+      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
     }finally{display(saved)}
   }
   function reportReview(result){
