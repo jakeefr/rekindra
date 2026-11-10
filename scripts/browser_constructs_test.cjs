@@ -48,12 +48,13 @@ function instrument(){
    const away={position:['(u-.5)*4.','.5+v*2.','40.'],color_mix:'0.'};
    const shot=(segments,program,time,extra)=>__capture({width:W,height:H,duration:12,camera:[camera,{...camera,at:12}],environment:env,objects:[{...light(segments),...extra}]},[program],time);
    const at=p=>RekindraWorld.projectPoint(p,camera,W,H).map(Math.round);
-   return {W,H,background:shot([24,24],away,0),folded:shot([48,8],P.feathers,0),open:shot([48,8],P.feathers,10),
-    softOpen:shot([48,8],P.feathers,10,{soft:{u:.1,v:.5}}),drape:shot([48,16],P.drape,0),ring:shot([48,12],P.ring,0),
+   return {W,H,background:shot([24,24],away,0),folded:shot([48,8],P.feathers,0,{feathers:{count:12}}),open:shot([48,8],P.feathers,10,{feathers:{count:12}}),
+    webbed:shot([48,8],P.feathers,10),softRing:shot([48,12],P.ring,0,{ring:{},soft:{u:.4,v:.4}}),
+    softOpen:shot([48,8],P.feathers,10,{feathers:{count:12},soft:{u:.6,v:.5}}),drape:shot([48,16],P.drape,0,{drape:{}}),ring:shot([48,12],P.ring,0,{ring:{}}),
     pts:{ringCentre:at([0,1.5,0]),ringRim:at([.9,1.5,0]),hem:at([0,.3,0]),top:at([0,2.3,0])},
     gl:{renderer:__gl.renderer,compiled:__gl.compiled,linked:__gl.linked}};
   },programs);
-  const frames=['background','folded','open','softOpen','drape','ring'];
+  const frames=['background','folded','open','webbed','softOpen','softRing','drape','ring'];
   for(const k of frames)fs.writeFileSync(path.join(out,k+'.png'),Buffer.from(r[k].png,'base64'));
   const idx=(x,y)=>(y*r.W+x)*4,lum=(img,i)=>img.px[i]+img.px[i+1]+img.px[i+2];
   const added=(img,x,y)=>lum(img,idx(x,y))-lum(r.background,idx(x,y));
@@ -63,7 +64,8 @@ function instrument(){
    glErrors:frames.map(k=>r[k].glError),lost:frames.filter(k=>r[k].lost),pts:r.pts,
    folded:lit(r.folded),open:lit(r.open),softOpen:lit(r.softOpen),drape:lit(r.drape),ring:lit(r.ring),
    hemWidth:lit(r.drape,r.pts.hem[1]).width,topWidth:lit(r.drape,r.pts.top[1]).width,
-   ringCentre:added(r.ring,...r.pts.ringCentre),ringRim:added(r.ring,...r.pts.ringRim)};
+   webbed:lit(r.webbed),ringCentre:added(r.ring,...r.pts.ringCentre),ringRim:added(r.ring,...r.pts.ringRim),
+   softRingSeam:added(r.softRing,...r.pts.ringRim)};
   fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(metrics,null,2));console.log(metrics);
   assert.match(r.gl.renderer,/SwiftShader/i,'Must run on the SwiftShader software renderer');
   assert.ok(r.gl.compiled.length>0&&r.gl.compiled.every(Boolean),'Every shader must compile');
@@ -73,6 +75,8 @@ function instrument(){
   assert.ok(metrics.folded.n>100,'The folded feather array must be visible');
   assert.ok(metrics.open.width>metrics.folded.width*1.5,'The feather array must spread as open rises over time');
   assert.ok(metrics.softOpen.n>50&&metrics.softOpen.n<metrics.open.n,'soft must feather the cards and leave them visible');
+  assert.ok(metrics.open.n<metrics.webbed.n*.97,'The cells joining one feather card to the next must not be drawn');
+  assert.ok(metrics.softRingSeam>20,'soft must not cut a notch at the seam of a ring');
   assert.ok(metrics.drape.n>500,'The draped cloth must be visible');
   assert.ok(metrics.hemWidth>metrics.topWidth*2,'The cloth must flare from its top to a hem on the ground');
   assert.ok(metrics.ring.n>100&&metrics.ringRim>20,'The ring must be visible along its rim');

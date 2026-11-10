@@ -272,7 +272,11 @@ vec3 reflectedRadiance(){
       const hasColorDetail=source.color_detail!==undefined,hasBump=source.bump_detail!==undefined;
       const hasColorPattern=source.color_pattern!==undefined;
       const photo=o.material_image,soft=o.soft,leaf=o.foliage,fixed=x=>Number(x).toFixed(8);
-      const hasDetail=hasColorDetail||hasBump||hasColorPattern||Boolean(photo)||Boolean(soft);
+      // Construction fields: a feather array is separate cards, so the cell joining one card to the next is not
+      // drawn and soft fades each card's own edges; cloth and rings wrap, so soft leaves their seams alone.
+      const cards=o.feathers?`min(fract(clamp(detailUV.x,0.,.999999)*${fixed(o.feathers.count)})*${fixed(o.segments[0]/(o.segments[0]-o.feathers.count))},1.0001)`:'';
+      const wrapU=Boolean(o.drape||o.ring),wrapV=Boolean(o.ring);
+      const hasDetail=hasColorDetail||hasBump||hasColorPattern||Boolean(photo)||Boolean(soft)||Boolean(cards);
       // A recovered-image crop becomes a small mirrored-repeat texture for this surface.
       let materialTexture=null;
       if(photo){
@@ -376,9 +380,10 @@ albedo=mix(baseColor,highColor,clamp(blend+(cellHash(leafCell)-.5)*2.*${fixed(le
 N=normalize(N+(vec3(cellHash(leafCell+17.),cellHash(leafCell+31.),cellHash(leafCell+47.))-.5)*1.1);`:''}
 ${photo?`vec3 photoTexel=pow(texture(materialImage,detailUV*vec2(${fixed(photo.repeat?.[0]??1)},${fixed(photo.repeat?.[1]??1)})).rgb,vec3(2.2));albedo=mix(albedo,photoTexel,${fixed(photo.strength??1)});`:''}
 ${leaf?`albedo*=.4+.6*smoothstep(${leafGap}-.05,${leafGap}+.3,leafCover);`:''}
+${cards?`if(${cards}>1.00005)discard;`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
-${soft?`{vec2 rim=min(detailUV,1.-detailUV);float feather=${soft.u>0?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
+${soft?`{${cards?`vec2 softUV=vec2(${cards},detailUV.y);vec2 rim=min(softUV,1.-softUV);`:'vec2 rim=min(detailUV,1.-detailUV);'}float feather=${soft.u>0&&!wrapU?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0&&!wrapV?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
 feather=clamp(feather-${fixed((soft.breakup??0)*1.6)}*cellNoise(vec3(detailUV*vec2(46.,9.),0.))*(1.-feather),0.,1.);glowEdge*=feather*feather;}`:''}
 ${photo?`glowEdge*=mix(1.,smoothstep(.03,.3,max(photoTexel.r,max(photoTexel.g,photoTexel.b))),${fixed(photo.strength??1)});`:''}${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
