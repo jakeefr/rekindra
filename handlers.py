@@ -1,5 +1,6 @@
 """Thin JSON boundary; failures never escape into the Hermes tool loop."""
 import json
+import time
 from pathlib import Path
 from .rekindra_core.projects import ProjectStore, ProjectError, ReaderRetry, EarlierReadKept, ImageRefusal  # noqa: F401
 from .rekindra_core.scenes import SceneError, validate_scene, enforce_text_preference
@@ -168,6 +169,7 @@ def _fit_summary(summary):
 
 
 RECOVER_ALL_ASSETS = 40
+RECOVER_ALL_SECONDS = 150
 _IMAGE_VIEW = ('format', 'width', 'height', 'partial', 'decoded_fraction', 'palette', 'warnings', 'path')
 
 
@@ -176,10 +178,16 @@ def recover_all(store, project_id, reader):
 
     Each asset goes through the same store.recover as a single call, so nothing about what is
     accepted changes. One asset failing never stops the rest: it is listed with its reason.
+    The call stops after RECOVER_ALL_ASSETS recovered assets or RECOVER_ALL_SECONDS, whichever
+    comes first; files that cannot be recovered do not use up the asset allowance.
     """
     assets = [a for a in store.status(project_id)['assets'] if isinstance(a, dict)]
     recovered, failed, evidence = [], [], []
-    for asset in assets[:RECOVER_ALL_ASSETS]:
+    started, attempted = time.monotonic(), 0
+    for asset in assets:
+        if len(recovered) >= RECOVER_ALL_ASSETS or (attempted and time.monotonic() - started > RECOVER_ALL_SECONDS):
+            break
+        attempted += 1
         aid, name = asset.get('asset_id'), str(asset.get('source_path'))[:SUMMARY_NAME_CHARS]
         try:
             result = store.recover(project_id, aid, reader)
@@ -188,6 +196,14 @@ def recover_all(store, project_id, reader):
             continue
         except ProjectError as exc:
             failed.append({'asset_id': aid, 'source_path': name, 'code': 'invalid_input', 'message': str(exc)[:SUMMARY_CHARS]})
+            continue
+        except OSError:
+            failed.append({'asset_id': aid, 'source_path': name, 'code': 'filesystem_error',
+                           'message': 'Cannot read or write this asset in the local project. Check paths and permissions.'})
+            continue
+        except Exception:
+            failed.append({'asset_id': aid, 'source_path': name, 'code': 'operation_failed',
+                           'message': 'Rekindra could not recover this asset. Call rekindra_recover with this asset_id to retry it alone.'})
             continue
         if isinstance(result, dict) and 'dossier' in result:
             evidence.append((len(recovered), result))
@@ -204,10 +220,11 @@ def recover_all(store, project_id, reader):
                                                      if a.get('asset_id') == view['asset_id']), ''))[:SUMMARY_NAME_CHARS], **view}
     reply = {'project_id': project_id, 'untrusted_content': True, 'notice': EVIDENCE_NOTICE,
              'asset_count': len(assets), 'recovered': recovered, 'not_recovered': failed}
-    if len(assets) > RECOVER_ALL_ASSETS:
-        reply['not_attempted'] = {'count': len(assets) - RECOVER_ALL_ASSETS,
-                                  'asset_ids': [a.get('asset_id') for a in assets[RECOVER_ALL_ASSETS:RECOVER_ALL_ASSETS + 12]],
-                                  'next_step': 'One call recovers the first 40 assets; recover the rest one at a time with asset_id'}
+    if attempted < len(assets):
+        reply['not_attempted'] = {'count': len(assets) - attempted,
+                                  'asset_ids': [a.get('asset_id') for a in assets[attempted:attempted + 12]],
+                                  'next_step': f'One call recovers up to {RECOVER_ALL_ASSETS} assets within {RECOVER_ALL_SECONDS} seconds; '
+                                               'recover the rest one at a time with asset_id'}
     if evidence:
         reply['guidance'] = EVIDENCE_GUIDANCE
 
@@ -222,7 +239,9 @@ def recover_all(store, project_id, reader):
             longest['evidence_truncated'] = (_more(longest['evidence_omitted_from_summary'])
                                              + '; call rekindra_recover with this asset_id for more, or read dossier_path')
             continue
-        wide = next((r for r in reversed(recovered) if len(r) > 3), None)
+        # Image details go before the last quoted passage of any text source.
+        wide = (next((r for r in reversed(recovered) if len(r) > 3 and r.get('kind') == 'image'), None)
+                or next((r for r in reversed(recovered) if len(r) > 3), None))
         if wide is not None:
             kept = {k: wide[k] for k in ('asset_id', 'source_path', 'kind') if k in wide}
             wide.clear()
@@ -303,8 +322,12 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 try:
                     return {**saved_result, 'preview': preview_scene(store, args['project_id'], saved_result['plan_id'], draft=True)}
                 except (ProjectError, SceneError) as exc:
-                    return {**saved_result, 'preview_error': {'code': getattr(exc, 'code', 'invalid_input'), 'message': str(exc),
-                                                              'next_step': 'The plan is saved. Call rekindra_preview with this plan_id to retry the render.'}}
+                    problem = {'code': getattr(exc, 'code', 'invalid_input'), 'message': str(exc)}
+                except OSError:
+                    problem = {'code': 'filesystem_error', 'message': 'Cannot read or write the local project. Check paths and permissions.'}
+                except Exception:
+                    problem = {'code': 'operation_failed', 'message': 'The preview render could not be completed.'}
+                return {**saved_result, 'preview_error': {**problem, 'next_step': 'The plan is saved. Call rekindra_preview with this plan_id to retry the render.'}}
             if operation == 'inspect':
                 result = store.inspect(Path(args['folder']))
             elif operation == 'recover':
