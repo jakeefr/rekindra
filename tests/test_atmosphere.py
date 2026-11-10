@@ -26,13 +26,28 @@ class AtmosphereTests(unittest.TestCase):
         schema = env['properties']['atmosphere']
         self.assertFalse(schema['additionalProperties'])
         self.assertEqual(set(schema['properties']),
-                         {k for k, _, _ in ATMOSPHERE_RANGES} | {'haze_color'})
+                         {k for k, _, _ in ATMOSPHERE_RANGES} | {'haze_color', 'highlights'})
 
     def test_each_field_alone_is_enough(self):
         for key, value in atmosphere().items():
             with self.subTest(key=key):
                 s = world(); s['environment']['atmosphere'] = {key: value}
                 validate_world(s, {'a' * 32})
+
+    def test_soft_highlights_is_the_only_highlight_option(self):
+        s = world(); s['environment']['atmosphere'] = {'highlights': 'soft'}
+        self.assertEqual(validate_world(s, {'a' * 32})['environment']['atmosphere'], {'highlights': 'soft'})
+        for value in ('off', 'hard', '', None, True, 1, ['soft']):
+            with self.subTest(value=value):
+                s = world(); s['environment']['atmosphere'] = {'bloom': .5, 'highlights': value}
+                with self.assertRaises(SceneError):
+                    validate_world(s, {'a' * 32})
+        schema = WORLD_SCHEMA['properties']['environment']['properties']['atmosphere']['properties']['highlights']
+        self.assertEqual(schema['enum'], ['soft'])
+
+    def test_runtime_emits_soft_tone_only_when_asked(self):
+        source = (RUNTIME / 'world.js').read_text(encoding='utf-8')
+        self.assertIn("softHighlights=atmo?.highlights==='soft'", source)
 
     def test_rejects_empty_unknown_and_out_of_range(self):
         invalid = [None, {}, [], 'fog', {'glow': 1}]

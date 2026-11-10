@@ -18,22 +18,38 @@
   }
   function display(t){time=Math.max(0,Math.min(scene.duration-.0001,t));draw(time);$('seek').value=time;$('time').textContent=`${time.toFixed(1)} / ${scene.duration}s`}
   function stop(){playing=false;$('play').textContent='Play'}
+  // Percent of a 640x360 review frame that is near-white where no glow surface lights it, sampled at the same
+  // 128x72 nearest-neighbour points and level (190) as the sheet measurement, so it never exceeds that share.
+  function offEmitterWhite(fx,mask){
+    const px=fx.getImageData(0,0,640,360).data,sx=mask.width/640,sy=mask.height/360;let count=0;
+    for(let y=0;y<72;y++)for(let x=0;x<128;x++){
+      const fxX=x*5+2,fxY=y*5+2,at=(fxY*640+fxX)*4;
+      if(Math.min(px[at],px[at+1],px[at+2])<190)continue;
+      let lit=0;for(let j=Math.floor(fxY*sy);j<Math.ceil((fxY+1)*sy);j++)for(let i=Math.floor(fxX*sx);i<Math.ceil((fxX+1)*sx);i++)lit=Math.max(lit,mask.data[j*mask.width+i]);
+      if(lit<64)count++;   // a glow surface adding a quarter of full scale or more here owns this pixel
+    }
+    return Math.round(count*1000/(128*72))/10;
+  }
   function reviewFrames(){
     if(exporting)throw Error('Wait for video export before capturing review frames');
     stop();const saved=time,c=document.createElement('canvas');c.width=1280;c.height=1128;
-    const x=c.getContext('2d'),times=[],frames=[],f=document.createElement('canvas');f.width=640;f.height=360;
+    const x=c.getContext('2d'),times=[],frames=[],offEmitter=[],f=document.createElement('canvas');f.width=640;f.height=360;
     const fx=f.getContext('2d');x.fillStyle='#111';x.fillRect(0,0,c.width,c.height);
     try{
       // Grain differs every frame, so it would make a motionless scene measure as moving. Review without it.
       if(world)world.setGrain(false);
       for(let i=0;i<6;i++){
         const t=(i+.5)*scene.duration/6;times.push(t);draw(t,false,sc);
+        const mask=world?world.emitterMask(t):null;
         const px=i%2*640,py=Math.floor(i/2)*376;
         x.drawImage(scratch,px,py,640,360);x.fillStyle='#eee';x.font='12px monospace';x.fillText(t.toFixed(2)+' s',px+8,py+372);
         // Each frame alone, small enough for a vision model that times out on the whole sheet.
         fx.drawImage(scratch,0,0,640,360);frames.push(f.toDataURL('image/png').split(',')[1]);
+        if(mask)offEmitter.push(offEmitterWhite(fx,mask));
       }
-      return {kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
+      const result={kind:'rendered-frame-review',times,width:c.width,height:c.height,renderQuality:renderQuality(),png:c.toDataURL('image/png').split(',')[1],frames};
+      if(offEmitter.length===6)result.whiteOffEmitter=offEmitter;
+      return result;
     }finally{if(world)world.setGrain(true);display(saved)}
   }
   function reportReview(result){

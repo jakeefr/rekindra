@@ -163,6 +163,7 @@ def _text_references(refs):
 
 
 # Optional screen-space finish applied after the 3D render. Every field is optional and absent by default.
+HIGHLIGHT_MODES=('soft',)
 ATMOSPHERE_RANGES=(('bloom',0,2),('halo',0,2),('haze_density',0,.3),('haze_height',.25,80),('haze_floor',-80,80),('vignette',0,1),('grain',0,.08))
 
 
@@ -201,8 +202,10 @@ def validate_world(value,asset_ids):
            'fill_color fill_direction fill_strength exposure ambient_strength ground_color ground_strength point_lights occlusion_strength occlusion_radius environment_panels atmosphere')
     if 'atmosphere' in env:
         atmosphere=env['atmosphere']
-        fields(atmosphere,'','atmosphere',' '.join(k for k,_,_ in ATMOSPHERE_RANGES)+' haze_color')
-        if not atmosphere:raise SceneError('Atmosphere needs at least one of bloom, halo, haze_density, vignette or grain; omit atmosphere for a plain render')
+        fields(atmosphere,'','atmosphere',' '.join(k for k,_,_ in ATMOSPHERE_RANGES)+' haze_color highlights')
+        if not atmosphere:raise SceneError('Atmosphere needs at least one of bloom, halo, haze_density, vignette, grain or highlights; omit atmosphere for a plain render')
+        if 'highlights' in atmosphere and atmosphere['highlights'] not in HIGHLIGHT_MODES:
+            raise SceneError('Atmosphere highlights must be "soft"; omit it for the standard tone curve')
         for key,low,high in ATMOSPHERE_RANGES:
             if key in atmosphere:_number(atmosphere[key],low,high,'atmosphere '+key.replace('_',' '))
         if 'haze_color' in atmosphere:color(atmosphere['haze_color'])
@@ -430,7 +433,8 @@ WORLD_SCHEMA['properties']['environment']['properties']['atmosphere']={
         'haze_height':{'type':'number','minimum':.25,'maximum':80,'description':'Optional height in world units over which mist thins above haze_floor. Omit for mist that is equally thick at every height.'},
         'haze_floor':{'type':'number','minimum':-80,'maximum':80,'description':'World y where height mist is thickest, default 0.'},
         'vignette':{'type':'number','minimum':0,'maximum':1,'description':'Corner darkening, default 0. Start 0.3.'},
-        'grain':{'type':'number','minimum':0,'maximum':.08,'description':'Film grain amplitude, default 0. Subtle 0.015-0.03. Fixed by seed and frame.'}}}
+        'grain':{'type':'number','minimum':0,'maximum':.08,'description':'Film grain amplitude, default 0. Subtle 0.015-0.03. Fixed by seed and frame.'},
+        'highlights':{'type':'string','enum':list(HIGHLIGHT_MODES),'description':'Optional "soft": the brightest tones roll off toward white instead of clipping, and glow layers combine without saturating. Omit for the standard tone curve. Use it when a bright lamp, flame or glowing core should keep its shape and colour rather than flatten into a white blob.'}}}
 WORLD_SCHEMA['properties']['objects']['items']['properties']['reflection']=obj_schema({
     'strength':{'type':'number','minimum':0,'maximum':1},
     'blur':{'type':'number','minimum':0,'maximum':8}})

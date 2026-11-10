@@ -327,5 +327,51 @@ class ReviewFrameMeasurementTests(unittest.TestCase):
         self.assertIsNone(recovery.measure_review_frames(png.encode_png(tga.Raster(4, 4, bytes(64)))))
 
 
+class OffEmitterWhiteTests(unittest.TestCase):
+    """Near-white on a glow surface is the emitter itself; only white spilling past it is blown out."""
+
+    def test_white_on_glow_surfaces_alone_does_not_fire(self):
+        frames = dict(BLOWN, white_off_emitter=[0.1, 0.0, 0.2, 0.3, 0.5, 1.0])
+        self.assertEqual(gate.frame_warnings(frames), [])
+
+    def test_white_off_the_emitters_still_fires_and_states_both_shares(self):
+        frames = dict(BLOWN, white=[0.4, 0.2, 0.3, 0.8, 9.0, 4.0], white_off_emitter=[0.1, 0.0, 0.2, 0.3, 5.5, 1.0])
+        found = gate.frame_warnings(frames)
+        self.assertEqual([w['warning_id'] for w in found], ['frames:blown_out'])
+        self.assertIn('frame 5 is 5.5% near-white outside its glow surfaces (9% counting them; limit 3%)',
+                      found[0]['message'])
+        for fix in ('glow strength', 'bloom and halo', 'pull the camera back', 'shrink the emitter'):
+            self.assertIn(fix, found[0]['message'])
+
+    def test_falls_back_to_the_whole_frame_share_without_a_usable_mask(self):
+        expected = gate.frame_warnings(BLOWN)
+        for off in (None, [0.0] * 5, [0.0] * 5 + [True], [0.0] * 5 + ['0'], 'none'):
+            frames = dict(BLOWN) if off is None else dict(BLOWN, white_off_emitter=off)
+            self.assertEqual(gate.frame_warnings(frames), expected, off)
+        self.assertIn('frame 6 is 4% near-white (limit 3%)', expected[0]['message'])
+
+    def test_review_result_carries_the_share_only_when_well_formed(self):
+        def decoded(off):
+            body = document()
+            if off is not None:
+                body = body.replace('"kind": "rendered-frame-review"',
+                                    f'"kind": "rendered-frame-review", "whiteOffEmitter": {json.dumps(off)}')
+            return preview._decode_review_full(body, 6)[3]
+        self.assertEqual(decoded([0, 1.5, 2, 0, 0, 100]), [0, 1.5, 2, 0, 0, 100])
+        for off in (None, [0] * 5, [0] * 5 + [101], [0] * 5 + [-1], [0] * 5 + [False], 'x'):
+            self.assertIsNone(decoded(off), off)
+        self.assertEqual(len(preview._decode_review(document(), 6)), 3)
+
+    def test_sheet_measurement_accepts_the_optional_key_but_no_others(self):
+        base = dict(LIVELY)
+        for frames, ok in ((base, True), (dict(base, white_off_emitter=[0] * 6), True),
+                           (dict(base, unexpected=1), False), ({'spread': base['spread'], 'change': base['change']}, False)):
+            header = {'kind': 'ok', 'frames': frames}
+            with mock.patch.object(recovery, '_LAST_REVIEW', (None, None)), \
+                    mock.patch.object(recovery, '_read_review_header', return_value=header):
+                self.assertEqual(recovery.measure_review_frames(b'sheet') is not None, ok, frames)
+        self.assertIn('white_off_emitter', recovery.OPTIONAL_FRAME_KEYS)
+
+
 if __name__ == '__main__':
     unittest.main()

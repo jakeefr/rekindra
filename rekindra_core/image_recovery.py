@@ -108,11 +108,17 @@ def measure_review_sheet(png: bytes) -> list | None:
     return _clean_regions(header.get('regions')) if header is not None else None
 
 
+REVIEW_FRAME_KEYS = ('spread', 'change', 'white')
+# Keys a frames record may also carry; each is checked where it is read.
+OPTIONAL_FRAME_KEYS = ('white_off_emitter',)
+
+
 def measure_review_frames(png: bytes) -> dict | None:
     """Per-frame brightness spread (0-255), near-white share (percent) and frame-to-frame change, or None."""
     header = _review_header(png)
     frames = header.get('frames') if header is not None else None
-    if (not isinstance(frames, dict) or set(frames) != {'spread', 'change', 'white'}
+    if (not isinstance(frames, dict) or not set(REVIEW_FRAME_KEYS) <= set(frames)
+            or not set(frames) <= set(REVIEW_FRAME_KEYS + OPTIONAL_FRAME_KEYS)
             or not isinstance(frames['white'], list) or len(frames['white']) != 6
             or any(type(v) not in (int, float) or not 0 <= v <= 100 for v in frames['white'])
             or not isinstance(frames['spread'], list) or len(frames['spread']) != 6
