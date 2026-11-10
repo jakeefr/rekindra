@@ -10,10 +10,10 @@
   $('seek').max=scene.duration;const named=v=>typeof v==='string'&&v&&v!=='not-attested';
   // The plugin cannot verify which model called it, so an unnamed one is said in plain words, not as a field value.
   $('model').textContent=!data.model.model?'Creative plan: local authored fixture':named(data.model.provider)&&named(data.model.model)?`Creative plan: ${data.model.provider} / ${data.model.model}`:`Creative plan: ${data.model.origin==='caller-revised'?'revised':'written'} by the AI agent in this session. Which model it was is not recorded.`;
-  const asciiMode=()=>$('asciiColor').checked?'color':'mono';
-  function draw(t,ascii=$('ascii').checked,target=ctx,mode=asciiMode()){
-    if(world){const frame=world.render(t);if(ascii)RekindraScene.renderAscii(target,frame,mode);else target.drawImage(frame,0,0);return}
-    if(ascii){RekindraScene.renderScene(sc,scene,images,t);RekindraScene.renderAscii(target,scratch,mode)}
+  const asciiMode=()=>$('asciiColor').checked?'color':'mono',asciiDetail=()=>({detail:$('asciiDetail')?.value||'standard'});
+  function draw(t,ascii=$('ascii').checked,target=ctx,mode=asciiMode(),detail=asciiDetail()){
+    if(world){const frame=world.render(t);if(ascii)RekindraScene.renderAscii(target,frame,mode,detail);else target.drawImage(frame,0,0);return}
+    if(ascii){RekindraScene.renderScene(sc,scene,images,t);RekindraScene.renderAscii(target,scratch,mode,detail)}
     else RekindraScene.renderScene(target,scene,images,t);
   }
   function display(t){time=Math.max(0,Math.min(scene.duration-.0001,t));draw(time);$('seek').value=time;$('time').textContent=`${time.toFixed(1)} / ${scene.duration}s`}
@@ -49,15 +49,15 @@
     // Preserve smooth gradients in opening keyframes; 3 Mbps produced visible blocks.
     const config={codec:'vp8',width:1280,height:720,bitrate:8_000_000,framerate:30};
     if(!(await VideoEncoder.isConfigSupported(config)).supported)throw Error('Native VP8 encoding is unavailable in this browser.');
-    stop();exporting=true;cancelled=false;$('export').disabled=true;$('play').disabled=true;$('seek').disabled=true;$('ascii').disabled=true;$('asciiColor').disabled=true;$('cancel').hidden=false;
-    const wasTime=time,ascii=$('ascii').checked,mode=asciiMode(),chunks=[],out=document.createElement('canvas');out.width=1280;out.height=720;
+    stop();exporting=true;cancelled=false;$('export').disabled=true;$('play').disabled=true;$('seek').disabled=true;$('ascii').disabled=true;$('asciiColor').disabled=true;$('asciiDetail')&&($('asciiDetail').disabled=true);$('cancel').hidden=false;
+    const wasTime=time,ascii=$('ascii').checked,mode=asciiMode(),detail=asciiDetail(),chunks=[],out=document.createElement('canvas');out.width=1280;out.height=720;
     const oc=out.getContext('2d');let failure,totalBytes=0;
     const encoder=new VideoEncoder({output(c){const bytes=new Uint8Array(c.byteLength);c.copyTo(bytes);totalBytes+=bytes.length;if(totalBytes>100_000_000){failure=Error('Encoded video exceeds 100 MB limit');return}chunks.push({timestamp:c.timestamp,type:c.type,data:bytes})},error(e){failure=e}});
     try{
       encoder.configure(config);const frames=Math.round(scene.duration*30);
       for(let i=0;i<frames;i++){
         if(cancelled)throw Error('Export cancelled');if(failure)throw failure;
-        draw(i/30,ascii,oc,mode);const frame=new VideoFrame(out,{timestamp:Math.round(i*1_000_000/30),duration:33333});
+        draw(i/30,ascii,oc,mode,detail);const frame=new VideoFrame(out,{timestamp:Math.round(i*1_000_000/30),duration:33333});
         try{encoder.encode(frame,{keyFrame:i%30===0})}finally{frame.close()}
         if(encoder.encodeQueueSize>8)await encoder.flush();
         if(i%10===0){$('status').textContent=`Rendering ${i+1} of ${frames} frames...`;await new Promise(r=>setTimeout(r,0))}
@@ -67,7 +67,7 @@
       const bytes=RekindraWebM.muxWebM(chunks,1280,720,frames/30*1000),blob=new Blob([bytes],{type:'video/webm'});
       if(download){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='rekindra-scene.webm';a.click();setTimeout(()=>URL.revokeObjectURL(url),60_000)}
       $('status').textContent=`Video ready. ${frames} frames, ${(blob.size/1024/1024).toFixed(1)} MB.${qualityNotice()}`;return blob;
-    }finally{if(encoder.state!=='closed')encoder.close();exporting=false;$('export').disabled=false;$('play').disabled=false;$('seek').disabled=false;$('ascii').disabled=false;$('asciiColor').disabled=false;$('cancel').hidden=true;display(wasTime)}
+    }finally{if(encoder.state!=='closed')encoder.close();exporting=false;$('export').disabled=false;$('play').disabled=false;$('seek').disabled=false;$('ascii').disabled=false;$('asciiColor').disabled=false;$('asciiDetail')&&($('asciiDetail').disabled=false);$('cancel').hidden=true;display(wasTime)}
   }
   try{
     for(const source of data.sources){
@@ -94,7 +94,7 @@
     if(data.export_locked){$('status').textContent='Draft preview. Use rekindra_export to get the file that can save video.';$('export').disabled=true;}
     $('status').textContent+=qualityNotice();
     $('play').onclick=()=>{if(playing)stop();else{playing=true;start=performance.now()-time*1000;$('play').textContent='Pause'}};
-    $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=$('asciiColor').onchange=()=>display(time);
+    $('seek').oninput=()=>{stop();display(Number($('seek').value))};$('ascii').onchange=$('asciiColor').onchange=()=>display(time);if($('asciiDetail'))$('asciiDetail').onchange=()=>display(time);
     $('export').onclick=()=>exportVideo().catch(e=>$('status').textContent=e.message);
     $('cancel').onclick=()=>cancelled=true;
     globalThis.rekindra={ready:true,scene,data,renderQuality:renderQuality(),renderAt:display,exportVideo,reviewFrames,cancelExport:()=>cancelled=true};
