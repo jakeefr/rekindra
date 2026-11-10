@@ -446,8 +446,8 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       const vertex=`#version 300 es
 precision highp float;out vec2 screen;void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);screen=p*2.-1.;gl_Position=vec4(screen,0.,1.);}`;
       const head=`#version 300 es
-precision highp float;in vec2 screen;out vec4 pixel;`;
-      const linear=`vec3 sceneLight(vec3 c){return min(-log(max(1.-pow(c,vec3(2.2)),vec3(1.e-6)))/exposure,vec3(6.));}
+precision highp float;precision highp sampler2D;in vec2 screen;out vec4 pixel;`;
+      const linear=`vec3 sceneLight(vec3 c){return min(-log(max(1.-pow(c,vec3(2.2)),vec3(1.e-6))),vec3(6.))/exposure;}
 float viewDepth(float d){return d>=1.?160.:min(${DEPTH_B}/(${DEPTH_A}-(d*2.-1.)),160.);}`;
       const bright=program(vertex,`${head}${uniforms}
 uniform sampler2D sceneColor;uniform highp sampler2D sceneDepth;uniform vec2 tapOffset;uniform float atmoHaze;
@@ -470,13 +470,15 @@ uniform vec3 atmoHazeColor;uniform float atmoBloom,atmoHalo,atmoHaze,atmoHazeHei
 ${linear}${codec}
 void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*aspect+up*screen.y*tanHalf;
  float rayLength=length(viewRay),reach=min(viewDepth(texture(sceneDepth,uv).r)*rayLength,160.);vec3 dir=viewRay/rayLength;
- vec3 L=sceneLight(texture(sceneColor,uv).rgb);
+ vec4 lit=texture(sceneColor,uv);vec3 L=sceneLight(lit.rgb);
  float optical=atmoHaze*reach;
  if(atmoHazeHeight>0.){
   // Density falls off exponentially above the floor; integrate it along the view ray in closed form.
   float k=dir.y/atmoHazeHeight,x=clamp(k*reach,-30.,30.),path=abs(x)<1.e-4?reach:(1.-exp(-x))/k;
   optical=min(atmoHaze*exp(clamp(-(eye.y-atmoHazeFloor)/atmoHazeHeight,-30.,0.))*path,optical);}
- L=mix(L,atmoHazeColor,1.-exp(-optical));
+ // Glow surfaces write no depth, so the depth here is whatever lies behind them. Light sources (alpha) are
+ // hazed less instead, which keeps a near glow in front of open sky from dissolving into the haze color.
+ L=mix(L,atmoHazeColor,(1.-exp(-optical))*(1.-.85*min(lit.a,1.)));
  float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
   float q=h/pointRange${i},fade=max(1.-q*q,0.);
