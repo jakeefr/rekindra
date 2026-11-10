@@ -37,7 +37,7 @@ def find_browser():
     if override:
         path = Path(override)
         if not path.is_absolute() or not path.is_file():
-            raise SceneError('REKINDRA_BROWSER must name an absolute installed browser executable')
+            raise SceneError('REKINDRA_BROWSER must name an absolute installed browser executable.' + _STOP)
         return path
     candidates = []
     if sys.platform == 'win32':
@@ -56,7 +56,8 @@ def find_browser():
     for candidate in candidates:
         if candidate.is_file():
             return candidate.resolve()
-    raise SceneError('Local preview needs installed Chrome, Chromium or Edge. Install one or set REKINDRA_BROWSER to its executable path. No browser was downloaded.')
+    raise SceneError('Local preview needs installed Chrome, Chromium or Edge, and none was found. The user can install one or set '
+                     'REKINDRA_BROWSER to its executable path. No browser was downloaded.' + _STOP)
 
 
 class _ReviewResult(HTMLParser):

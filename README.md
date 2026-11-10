@@ -1,4 +1,4 @@
-# Rekindra
+﻿# Rekindra
 
 An original Hermes Agent plugin for recovering, reconstructing, and reimagining forgotten files.
 
@@ -87,7 +87,7 @@ Known limits. Input limits are reported by the agent; none crashes.
 
 ## Verification
 
-Latest local core verification: 787 Python tests pass, and 22 Node tests pass. The current plugin declares eleven tools including reconstruction, native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
+Latest local core verification: 789 Python tests pass, and 22 Node tests pass. The current plugin declares eleven tools including reconstruction, native preview, immutable revision and gated export; see docs/progress.md and docs/acceptance/ for live verification and remaining gaps. Hermes research/development pin: `7ab170ea6d36fb6ac7a4e7c6607293759df38480`, Python 3.14.9. The registry smoke harnesses that drive an installed Hermes directly use private Hermes internals, so they are kept outside this repository and do not ship with the plugin.
 
 Tested models: end-to-end runs (inspect, recover, create world, preview, revise, export) were verified with gpt-6.1-sol and glm-5.3 (z.ai, high reasoning). Model choice affects visual quality: both models completed the flow, but the rendered worlds differed in how closely they matched the source. As a weak-model stress test, glm-4.5-flash (z.ai, high reasoning) was run once on the same folder: it made every tool call correctly and reached export, but the world it authored rendered as an empty gradient with no recognizable subject and no motion. The export gate now warns when the previewed frames are nearly uniform or barely change, and refuses export until the agent revises or gives a reason; it is a coarse brightness measure that the agent can acknowledge past, and it is skipped when the frames cannot be measured, so still treat a small model's output as unreviewed until you have looked at it. See docs/acceptance/model-robustness.md. The export gate records acknowledged drift, so a world exported past a palette warning carries that warning in its provenance, along with the agent's reason when one was given. After three flagged revise and preview cycles a reason is not required.
 

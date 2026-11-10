@@ -354,7 +354,9 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                     problem = {'code': 'filesystem_error', 'message': 'Cannot read or write the local project. Check paths and permissions.'}
                 except Exception:
                     problem = {'code': 'operation_failed', 'message': 'The preview render could not be completed.'}
-                return {**saved_result, 'preview_error': {**problem, 'next_step': 'The plan is saved. Call rekindra_preview with this plan_id to retry the render.'}}
+                stop = 'Stop and tell the user' in problem['message']
+                return {**saved_result, 'preview_error': {**problem, 'next_step': 'The plan is saved. Do what the message says before anything else.' if stop
+                                                          else 'The plan is saved. Call rekindra_preview with this plan_id to retry the render.'}}
             if operation == 'inspect':
                 result = store.inspect(Path(args['folder']))
             elif operation == 'recover':

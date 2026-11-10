@@ -205,6 +205,21 @@ class PreviewOutputTests(unittest.TestCase):
         self.assertNotIn('Administrator', str(caught.exception))
         self.assertIn('Stop and tell the user', str(caught.exception))
 
+    def test_missing_browser_stops_the_agent(self):
+        with mock.patch.dict(preview.os.environ, {'REKINDRA_BROWSER': 'not-a-path'}):
+            with self.assertRaises(SceneError) as caught:
+                preview.find_browser()
+        self.assertIn('Stop and tell the user', str(caught.exception))
+
+    def test_one_sheet_read_serves_both_measurements_and_failures_are_not_kept(self):
+        header = {'kind': 'ok', 'regions': None, 'frames': dict(STILL, spread=[80] * 6, change=[0, 0, 0, 0, 0])}
+        with mock.patch.object(recovery, '_LAST_REVIEW', (None, None)), \
+                mock.patch.object(recovery, '_read_review_header', side_effect=[None, header]) as read:
+            self.assertIsNone(recovery.measure_review_frames(b'sheet'))
+            self.assertEqual(recovery.measure_review_frames(b'sheet')['spread'], [80] * 6)
+            self.assertIsNone(recovery.measure_review_sheet(b'sheet'))
+        self.assertEqual(read.call_count, 2)
+
     def test_browser_is_told_not_to_drop_elevation(self):
         source = (gate_tests.ROOT / 'rekindra_core' / 'preview.py').read_text(encoding='utf-8')
         self.assertIn("'--do-not-de-elevate'", source)
@@ -225,7 +240,7 @@ class PreviewOutputTests(unittest.TestCase):
     def test_tool_description_tells_the_agent_to_stop_on_failure(self):
         text = plugin.schemas.SCHEMAS['rekindra_preview']['description']
         self.assertIn('When its error says to stop, stop and tell the user', text)
-        self.assertIn('its other errors say how to retry', text)
+        self.assertIn('after any other error you may retry or revise the scene', text)
         self.assertIn('never render, measure or record a preview any other way', text)
         self.assertIn('do not retry it', text)
 
