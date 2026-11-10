@@ -89,6 +89,14 @@ vec3 atmosphere(vec3 ray){
  return col;
 }
 vec3 displayColor(vec3 c){return pow(vec3(1.)-exp(-max(c,vec3(0.))*exposure),vec3(1./2.2));}`;
+  // Soft highlights (environment.atmosphere.highlights 'soft'): displayColor's curve up to 0.8 before gamma, then a
+  // shoulder with the same slope that only approaches white, so a bright core keeps its gradient instead of clipping.
+  // Emitted inline (GLSL for a vec3 variable) so shaders of scenes without the option stay byte-identical.
+  const SOFT_KNEE=Math.log(5),softKnee=SOFT_KNEE.toFixed(8);
+  const softTone=v=>{const x=`max(${v},vec3(0.))*exposure`,t=`max(${x}-${softKnee},vec3(0.))`;
+    return `pow(mix(vec3(1.)-exp(-${x}),vec3(.8)+.2*${t}/(vec3(1.)+${t}),step(vec3(${softKnee}),${x})),vec3(1./2.2))`};
+  // The same curve for one channel already multiplied by exposure, for tests and tools.
+  const softHighlight=x=>{x=Math.max(x,0);return (x<SOFT_KNEE?1-Math.exp(-x):.8+.2*(x-SOFT_KNEE)/(1+x-SOFT_KNEE))**(1/2.2)};
   // Small hash and value noise for leaf breakup and feathered glow edges.
   const featureNoise=`
 float cellHash(vec3 p){p=fract(p*vec3(.1031,.1030,.0973));p+=dot(p,p.yzx+33.33);return fract((p.x+p.y)*p.z);}
@@ -170,7 +178,7 @@ vec3 localBRDF(vec3 N,vec3 V,vec3 L,vec3 albedo,float roughness,float metalness)
     // identical draws, which breaks deterministic seeking. Their edges rely on the sampleScale supersample alone.
     const contextOptions={alpha:false,antialias:true,preserveDrawingBuffer:true};
     // environment.atmosphere is optional. Without it no shader text, context option or draw call below changes.
-    const atmo=scene.environment.atmosphere;
+    const atmo=scene.environment.atmosphere,softHighlights=atmo?.highlights==='soft';
     if(scene.objects.some(o=>o.glow!==undefined)||atmo)contextOptions.antialias=false;
     const gl=canvas.getContext('webgl2',contextOptions);
     if(!gl)throw Error('This generated world needs WebGL2. Use a browser with graphics acceleration.');
@@ -385,7 +393,7 @@ ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
 ${soft?`{${cards?`vec2 softUV=vec2(${cards},detailUV.y);vec2 rim=min(softUV,1.-softUV);`:'vec2 rim=min(detailUV,1.-detailUV);'}float feather=${soft.u>0&&!wrapU?`smoothstep(0.,${fixed(soft.u*.5)},rim.x)`:'1.'}*${soft.v>0&&!wrapV?`smoothstep(0.,${fixed(soft.v*.5)},rim.y)`:'1.'};
 feather=clamp(feather-${fixed((soft.breakup??0)*1.6)}*cellNoise(vec3(detailUV*vec2(46.,9.),0.))*(1.-feather),0.,1.);glowEdge*=feather*feather;}`:''}
-${photo?`glowEdge*=mix(1.,smoothstep(.03,.3,max(photoTexel.r,max(photoTexel.g,photoTexel.b))),${fixed(photo.strength??1)});`:''}${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
+${photo?`glowEdge*=mix(1.,smoothstep(.03,.3,max(photoTexel.r,max(photoTexel.g,photoTexel.b))),${fixed(photo.strength??1)});`:''}${reflectionClip}${softHighlights?`vec3 glowRadiance=albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog);pixel=vec4(${softTone('glowRadiance')},1.);`:`pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);`}return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
@@ -454,15 +462,19 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       gl.enable(gl.DEPTH_TEST);gl.disable(gl.CULL_FACE);
       drawColor(c,b,time,pass);
     }
+    function paint(s,c,b,time,pass){
+      setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
+      if(s.materialTexture){gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,s.materialTexture);gl.uniform1i(gl.getUniformLocation(s.p.p,'materialImage'),10);gl.activeTexture(gl.TEXTURE0)}
+      for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p);
+    }
     // Opaque surfaces first; glow surfaces then add light, depth-tested but not depth-writing.
     function drawColor(c,b,time,pass){
       for(const glow of [false,true]){
-        if(glow){gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false)}
+        // Soft highlights screen-blend glow layers (a+b-ab), which approaches white instead of clipping at it.
+        if(glow){gl.enable(gl.BLEND);gl.blendFunc(softHighlights?gl.ONE_MINUS_DST_COLOR:gl.ONE,gl.ONE);gl.depthMask(false)}
         // With an atmosphere, glow light is kept in its own texture (same depth buffer) so haze never dims it.
         if(glow&&post&&!pass){gl.bindFramebuffer(gl.FRAMEBUFFER,post.glowBuffer);gl.clear(gl.COLOR_BUFFER_BIT)}
-        for(const s of surfaces){if((s.o.glow!==undefined)!==glow||pass&&s.o===reflector)continue;setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
-          if(s.materialTexture){gl.activeTexture(gl.TEXTURE10);gl.bindTexture(gl.TEXTURE_2D,s.materialTexture);gl.uniform1i(gl.getUniformLocation(s.p.p,'materialImage'),10);gl.activeTexture(gl.TEXTURE0)}
-          for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
+        for(const s of surfaces){if((s.o.glow!==undefined)!==glow||pass&&s.o===reflector)continue;paint(s,c,b,time,pass)}
         if(glow){gl.disable(gl.BLEND);gl.depthMask(true)}
         if(glow&&post&&!pass)gl.bindFramebuffer(gl.FRAMEBUFFER,post.sceneBuffer);
       }
@@ -525,7 +537,7 @@ void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*asp
   optical=min(atmoHaze*exp(clamp(-(eye.y-atmoHazeFloor)/atmoHazeHeight,-30.,0.))*path,optical);}
  // Glow surfaces write no depth, so their light is added after the haze, which only knows the surface behind.
  // It is added to the display-encoded colour, exactly as the plain renderer blends glow, so a glow over a lit background keeps its strength.
- L=sceneLight(min(pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2))+texture(glowLight,uv).rgb,vec3(1.)));
+ L=sceneLight(${softHighlights?'vec3(1.)-(vec3(1.)-pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2)))*(vec3(1.)-texture(glowLight,uv).rgb)':'min(pow(vec3(1.)-exp(-mix(L,atmoHazeColor,1.-exp(-optical))*exposure),vec3(1./2.2))+texture(glowLight,uv).rgb,vec3(1.))'});
  float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
   float q=h/(pointRange${i}*${HALO_REACH}),fade=max(1.-q*q,0.);
@@ -535,7 +547,7 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
  L+=(nearLight.rgb*.5+midLight.rgb*.5)*atmoBloom*${BLOOM_GAIN};
  L+=farLight.rgb*(farLight.a/max(dot(farLight.rgb,vec3(.2126,.7152,.0722)),1.e-5))*atmoHalo*${HALO_GAIN};
  L*=1.-atmoVignette*smoothstep(.4,1.5,length(screen));
- vec3 c=displayColor(L);
+ vec3 c=${softHighlights?softTone('L'):'displayColor(L)'};
  if(atmoGrain>0.){
   // One grain value per output pixel and frame, from an integer hash: the same time always gives the same grain.
   uvec2 cell=uvec2(gl_FragCoord.xy/atmoGrainCell);uint n=cell.x*0x2F6B4C91u^cell.y*0x61C8A7D3u^uint(atmoGrainFrame)*0x4B1D9E57u;
@@ -605,8 +617,24 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       if(resolve)resolve.drawImage(canvas,0,0,output.width,output.height);
       return output;
     }
+    // Review only: how much light glow surfaces add to each output pixel of the frame just rendered at this time
+    // (brightest channel 0-255, row 0 at the top), or null when the scene has none. Redraws the glow pass alone
+    // against the depth that render left, into a target the next render clears anyway.
+    function emitterMask(time){
+      if(!surfaces.some(s=>s.o.glow!==undefined))return null;
+      const frame=cameraFrame(scene.camera,time),W=canvas.width,H=canvas.height,k=sampleScale,w=scene.width,h=scene.height;
+      gl.bindFramebuffer(gl.FRAMEBUFFER,post?post.glowBuffer:null);gl.viewport(0,0,W,H);gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false);
+      for(const s of surfaces)if(s.o.glow!==undefined)paint(s,frame.camera,frame.basis,time,0);
+      gl.disable(gl.BLEND);gl.depthMask(true);gl.bindVertexArray(null);
+      const px=new Uint8Array(W*H*4),mask=new Uint8Array(w*h);gl.readPixels(0,0,W,H,gl.RGBA,gl.UNSIGNED_BYTE,px);gl.bindFramebuffer(gl.FRAMEBUFFER,null);
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){let m=0;
+        for(let j=0;j<k;j++)for(let i=0;i<k;i++){const at=((H-1-y*k-j)*W+x*k+i)*4;m=Math.max(m,px[at],px[at+1],px[at+2])}
+        mask[y*w+x]=m}
+      return {width:w,height:h,data:mask};
+    }
     // Review frames are compared with each other to detect a motionless scene; per-frame grain would hide that.
-    return {render,canvas:output,sampleScale,requestedScale,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);gl.deleteTexture(post.glowColor);gl.deleteFramebuffer(post.glowBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){if(s.materialTexture)gl.deleteTexture(s.materialTexture);gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
+    return {render,canvas:output,sampleScale,requestedScale,emitterMask,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);gl.deleteTexture(post.glowColor);gl.deleteFramebuffer(post.glowBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){if(s.materialTexture)gl.deleteTexture(s.materialTexture);gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
   }
-  const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
+  const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer,softHighlight,softTone};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);

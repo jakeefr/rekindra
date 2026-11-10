@@ -50,6 +50,9 @@ class BrowserShaderPathTests(unittest.TestCase):
     def test_constructs(self):
         self.run_script('browser_constructs_test.cjs')
 
+    def test_highlights(self):
+        self.run_script('browser_highlights_test.cjs')
+
 
 if __name__ == '__main__':
     unittest.main()

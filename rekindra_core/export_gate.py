@@ -97,12 +97,24 @@ def blown_out_warnings(frames):
     if (not isinstance(white, list) or not white
             or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in white)):
         return []       # not measured: a record written before this check existed
-    worst = max(white)
-    if worst <= BLOWN_SHARE:
-        return []
-    frame = white.index(worst) + 1
+    # With glow surfaces masked out, their own bright cores are intended; gate on the white they spill elsewhere.
+    off = frames.get('white_off_emitter')
+    if (isinstance(off, list) and len(off) == len(white)
+            and not any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in off)):
+        worst = max(off)
+        if worst <= BLOWN_SHARE:
+            return []
+        frame = off.index(worst) + 1
+        share = (f'Sampled frame {frame} is {worst:g}% near-white outside its glow surfaces '
+                 f'({white[frame - 1]:g}% counting them; limit {BLOWN_SHARE:g}%)')
+    else:
+        worst = max(white)
+        if worst <= BLOWN_SHARE:
+            return []
+        frame = white.index(worst) + 1
+        share = f'Sampled frame {frame} is {worst:g}% near-white (limit {BLOWN_SHARE:g}%)'
     return [{'warning_id': 'frames:blown_out', 'kind': 'blown_out_frames',
-             'message': f'Sampled frame {frame} is {worst:g}% near-white (limit {BLOWN_SHARE:g}%): a light has '
+             'message': f'{share}: a light has '
                         'bloomed over the picture and hides the scene behind it. Lower the glow strength of the '
                         'emitter or the atmosphere bloom and halo, pull the camera back from it, or shrink the '
                         'emitter, then preview again. If the source image itself is this bright, acknowledge '

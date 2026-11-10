@@ -130,7 +130,20 @@ def _decode_result(document, duration):
     return _decode_review(document, duration)[:2]
 
 
+def _white_off_emitter(result):
+    """The page's per-frame near-white share outside glow surfaces, or None (no glow surfaces, or malformed)."""
+    shares = result.get('whiteOffEmitter') if isinstance(result, dict) else None
+    if (not isinstance(shares, list) or len(shares) != 6
+            or any(type(v) not in (int, float) or not 0 <= v <= 100 for v in shares)):
+        return None
+    return shares
+
+
 def _decode_review(document, duration):
+    return _decode_review_full(document, duration)[:3]
+
+
+def _decode_review_full(document, duration):
     parser = _ReviewResult()
     parser.feed(document)
     if parser.count != 1:
@@ -153,7 +166,7 @@ def _decode_review(document, duration):
             raise ValueError('Invalid PNG')
         if struct.unpack('>II', png[16:24]) != (1280, 1128):
             raise ValueError('Invalid preview dimensions')
-        return png, expected, _frame_images(result)
+        return png, expected, _frame_images(result), _white_off_emitter(result)
     except (ValueError, TypeError, KeyError, AttributeError) as exc:
         raise SceneError('Browser returned an invalid scene preview') from exc
 
@@ -235,7 +248,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             raise SceneError('The local browser could not render this scene. Check browser installation and graphics support.' + _STOP)
         if output.stat().st_size > MAX_DOM_BYTES:
             raise SceneError('Browser preview output exceeded its size limit')
-        png, times, frame_pngs = _decode_review(output.read_text(encoding='utf-8', errors='replace'), plan['scene']['duration'])
+        png, times, frame_pngs, off_emitter = _decode_review_full(output.read_text(encoding='utf-8', errors='replace'), plan['scene']['duration'])
         review_id = uuid.uuid4().hex
         target = project / 'artifacts' / f'{plan_id}-review-{review_id}.png'
         _no_links(target)
@@ -250,6 +263,9 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
         # Only a world's presentation preview is gated; nothing else uses the measurement.
         gated = review_camera is None and plan['scene']['schema_version'] == 2
         frame_stats = measure_review_frames(png) if gated else None
+        if frame_stats is not None and off_emitter is not None:
+            # Near-white the page measured with glow surfaces masked out: the blown-out check gates on this.
+            frame_stats = dict(frame_stats, white_off_emitter=off_emitter)
         next_step = ('Inspect this PNG with native vision under the user image-sharing consent, once. Put it beside the '
                      'source images themselves, not only the palette numbers: review source faithfulness, composition, '
                      'lighting, silhouettes and spatial conflicts; revise observed defects. These are rendered scene '
