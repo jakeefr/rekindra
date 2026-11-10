@@ -216,7 +216,8 @@ def export_world(store, project_id, plan_id, acknowledgments=None):
     if saved is None:
         raise ExportBlocked(f'Plan {plan_id} has no preview on record. Call rekindra_preview with this plan_id and '
                             'no review_camera, inspect it, then call rekindra_export. Only rekindra_preview can '
-                            'make that record; if it fails, stop and tell the user.')
+                            'make that record, never write one another way; if its error says to stop, stop '
+                            'and tell the user.')
     drift = saved['palette_drift']
     warnings = current_warnings(plan, drift, saved.get('frames'))
     cycles = flagged_cycles(compositions, project_id, plan)

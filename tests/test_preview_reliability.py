@@ -3,6 +3,7 @@ import base64
 import json
 import unittest
 from importlib import import_module
+from pathlib import Path
 from unittest import mock
 
 try:
@@ -20,6 +21,8 @@ recovery = import_module(f'{plugin.__name__}.rekindra_core.image_recovery')
 png = import_module(f'{plugin.__name__}.rekindra_core.png')
 tga = import_module(f'{plugin.__name__}.rekindra_core.tga')
 SceneError = import_module(f'{plugin.__name__}.rekindra_core.scenes').SceneError
+reconstruct = import_module(f'{plugin.__name__}.rekindra_core.reconstruct')
+GAP_KEYS = ('skipped_at_inspect', 'not_recovered', 'intake', 'partial_images', 'unplaced_images', 'unplaced_text')
 
 LIVELY = {'spread': [80, 82, 81, 85, 83, 80], 'change': [1.3, 2.1, 1.8, 1.5, 1.9]}
 EMPTY = {'spread': [0, 1, 0, 2, 0, 0], 'change': [0.0, 0.1, 0.0, 0.0, 0.0]}
@@ -89,7 +92,99 @@ class FrameGateTests(gate_tests.ExportGateTests):
     def test_missing_record_says_only_the_tool_can_make_it(self):
         message = self.assertBlocked(self.export(self.create()))
         self.assertIn('Only rekindra_preview can make that record', message)
-        self.assertIn('stop and tell the user', message)
+        self.assertIn('never write one another way', message)
+        self.assertIn('if its error says to stop, stop and tell the user', message)
+
+    def test_preview_writes_six_frames_and_records_their_measurement(self):
+        plan_id = self.create()
+        frame = base64.b64encode(small_png()).decode()
+        body = document([frame] * 6, self.plan(plan_id)['scene']['duration']).encode()
+
+        class Browser:
+            returncode = 0
+
+            def __init__(self, command, stdout=None, **options):
+                stdout.write(body)
+                stdout.flush()
+
+            def poll(self):
+                return 0
+
+        with mock.patch.object(preview, 'find_browser', return_value='browser'), \
+                mock.patch.object(preview.subprocess, 'Popen', Browser), \
+                mock.patch.object(preview, 'measure_drift', return_value=gate_tests.CLEAN), \
+                mock.patch.object(preview, 'measure_review_frames', return_value=STILL) as measured:
+            out = preview.preview_scene(self.store, self.project['project_id'], plan_id)
+        measured.assert_called_once()
+        self.assertEqual([f['time_seconds'] for f in out['frames']], out['times_seconds'])
+        for item in out['frames']:
+            self.assertEqual(Path(item['path']).read_bytes(), small_png())
+        self.assertIn('frames:motionless', [w['warning_id'] for w in out['export_gate']['warnings']])
+        self.assertIn('frames:motionless', self.assertBlocked(self.export(plan_id)))
+
+    def test_inspection_preview_is_not_measured_for_the_gate(self):
+        plan_id = self.create()
+        body = document(None, self.plan(plan_id)['scene']['duration']).encode()
+
+        class Browser:
+            returncode = 0
+
+            def __init__(self, command, stdout=None, **options):
+                stdout.write(body)
+                stdout.flush()
+
+            def poll(self):
+                return 0
+
+        camera = {'eye': [0, 30, 0.1], 'target': [0, 0, 0], 'fov': 50}
+        with mock.patch.object(preview, 'find_browser', return_value='browser'), \
+                mock.patch.object(preview.subprocess, 'Popen', Browser), \
+                mock.patch.object(preview, 'measure_review_frames') as measured:
+            out = preview.preview_scene(self.store, self.project['project_id'], plan_id, review_camera=camera)
+        measured.assert_not_called()
+        self.assertEqual(out['frames'], [])
+        self.assertIsNone(out['export_gate'])
+
+
+# The gate's own tests run once, in their own file; only the helpers are borrowed here.
+for _name in dir(gate_tests.ExportGateTests):
+    if _name.startswith('test_') and _name not in FrameGateTests.__dict__:
+        setattr(FrameGateTests, _name, None)
+
+
+class PageWordingTests(unittest.TestCase):
+    def test_reader_codes_and_tool_hints_are_reworded_for_the_page(self):
+        self.assertEqual(reconstruct._plain('unsupported_image_format; run rekindra_recover on it'), 'unsupported image format')
+        self.assertEqual(reconstruct._plain('photo_01.tga'), 'photo 01.tga')   # why file names bypass it
+
+    def test_gap_rows_keep_file_names_and_reword_codes(self):
+        class Page:
+            def __init__(self):
+                self.parts = []
+
+            def add(self, html):
+                self.parts.append(html)
+
+            @staticmethod
+            def text(value):
+                return str(value)
+
+        page = Page()
+        gaps = {key: [] for key in GAP_KEYS}
+        gaps['inventory_truncated'] = False
+        gaps['skipped_at_inspect'] = [{'source_path': 'my_old_notes.xyz', 'reason': 'unsupported_file_type'}]
+        gaps['not_recovered'] = [{'source_path': 'a_b.zip', 'reason': 'not recovered; run rekindra_recover on it'}]
+        reconstruct._render_gaps(page, gaps)
+        html = ''.join(page.parts)
+        self.assertIn('<code>my_old_notes.xyz</code>', html)
+        self.assertIn('unsupported file type', html)
+        self.assertIn('<code>a_b.zip</code>', html)
+        self.assertNotIn('rekindra_recover', html)
+
+    def test_unnamed_model_is_said_in_words_not_as_a_field_value(self):
+        source = (gate_tests.ROOT / 'runtime' / 'player.js').read_text(encoding='utf-8')
+        self.assertIn('Which model it was is not recorded.', source)
+        self.assertIn("v!=='not-attested'", source)
 
 
 class PreviewOutputTests(unittest.TestCase):
@@ -129,7 +224,9 @@ class PreviewOutputTests(unittest.TestCase):
 
     def test_tool_description_tells_the_agent_to_stop_on_failure(self):
         text = plugin.schemas.SCHEMAS['rekindra_preview']['description']
-        self.assertIn('If this tool fails, stop and tell the user', text)
+        self.assertIn('When its error says to stop, stop and tell the user', text)
+        self.assertIn('its other errors say how to retry', text)
+        self.assertIn('never render, measure or record a preview any other way', text)
         self.assertIn('do not retry it', text)
 
 

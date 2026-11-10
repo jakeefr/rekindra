@@ -4,6 +4,7 @@ Pillow parses untrusted bytes in ``_image_worker.py``, never in the gateway. Dam
 keep only the pixels that were really decoded and are marked partial; nothing is invented.
 The original TGA decoder stays separate and does not need Pillow.
 """
+import hashlib
 import importlib.util
 import json
 import os
@@ -120,7 +121,21 @@ def measure_review_frames(png: bytes) -> dict | None:
     return frames
 
 
+_LAST_REVIEW = (None, None)     # one preview asks twice about the same sheet; read it once
+
+
 def _review_header(png: bytes) -> dict | None:
+    global _LAST_REVIEW
+    digest = hashlib.sha256(png).digest()
+    if _LAST_REVIEW[0] == digest:
+        return _LAST_REVIEW[1]
+    header = _read_review_header(png)
+    if header is not None:
+        _LAST_REVIEW = (digest, header)
+    return header
+
+
+def _read_review_header(png: bytes) -> dict | None:
     reader_dir, python = _reader_dir(), _python()
     if reader_dir is None or python is None or not _WORKER_SLOTS.acquire(timeout=TIMEOUT_SECONDS):
         return None

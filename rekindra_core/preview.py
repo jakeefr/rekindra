@@ -244,7 +244,9 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             _atomic(frame_path, frame)
             frames.append({'path': str(frame_path), 'time_seconds': at})
         drift = measure_drift(store, project_id, plan, png, review_camera)
-        frame_stats = measure_review_frames(png) if review_camera is None else None
+        # Only a world's presentation preview is gated; nothing else uses the measurement.
+        gated = review_camera is None and plan['scene']['schema_version'] == 2
+        frame_stats = measure_review_frames(png) if gated else None
         next_step = ('Inspect this PNG with native vision under the user image-sharing consent, once. Put it beside the '
                      'source images themselves, not only the palette numbers: review source faithfulness, composition, '
                      'lighting, silhouettes and spatial conflicts; revise observed defects. These are rendered scene '
