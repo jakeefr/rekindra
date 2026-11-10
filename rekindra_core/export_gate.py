@@ -1,4 +1,5 @@
 """Binding review: only a clean or answered preview unlocks a video-capable world export."""
+import math
 import json
 
 from .backdrop import backdrop_warnings
@@ -20,7 +21,8 @@ STILL_CHANGE = 0.25     # mean per-channel change (0-255) between sampled frames
 # as one white bloom measured 4.0. Three sits well clear of the first and under the second.
 BLOWN_SHARE = 3.0
 # A sky or fog authored this pale fills the frame with near-white on purpose, so the share says nothing there.
-PALE_BACKDROP = 170
+PALE_BACKDROP = 190     # the near-white level the review frames are measured at
+MIST_DENSITY = 0.01     # fog or haze thinner than this does not fill a frame
 
 
 class ExportBlocked(SceneError):
@@ -107,26 +109,40 @@ def blown_out_warnings(frames):
                         'the warning with that reason.'}]
 
 
+def _number(value, default):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else default
+
+
 def _pale_backdrop(scene):
-    """True when the scene's own sky or fog is authored near-white: daylight, overcast, snow light."""
+    """True when the scene's own sky or mist is shown near-white: daylight, overcast, snow light."""
     environment = scene.get('environment') if isinstance(scene, dict) else None
     if not isinstance(environment, dict):
         return False
-    def pale(key):
-        value = environment.get(key)
-        if isinstance(value, str) and len(value) == 7 and value[0] == '#':
-            try:
-                return min(int(value[i:i + 2], 16) for i in (1, 3, 5)) >= PALE_BACKDROP
-            except ValueError:
-                pass
-        return False
+    exposure = _number(environment.get('exposure'), 1)
 
-    # The whole sky must be pale, or pale fog must actually be in the air: one pale stop is only a
-    # bright horizon, and fog_color shows nothing at density 0. The level sits under the 190 the
-    # frames are measured at because sun and fill lift an authored colour on screen.
-    density = environment.get('fog_density')
-    foggy = isinstance(density, (int, float)) and not isinstance(density, bool) and density > 0
-    return (pale('sky_top') and pale('sky_bottom')) or (foggy and pale('fog_color'))
+    def pale(value):
+        # The colour as the runtime shows it (linearise, expose, back to display), against the
+        # level the frames are measured at. Authored white shows near 207 at exposure 1.
+        if not (isinstance(value, str) and len(value) == 7 and value[0] == '#'):
+            return False
+        try:
+            channel = min(int(value[i:i + 2], 16) for i in (1, 3, 5))
+        except ValueError:
+            return False
+        shown = (1 - math.exp(-((channel / 255) ** 2.2) * exposure)) ** (1 / 2.2) * 255
+        return shown >= PALE_BACKDROP
+
+    # The whole sky must be pale, or pale mist must really be in the air: one pale stop is only a
+    # bright horizon, and a mist colour shows nothing without density behind it.
+    if pale(environment.get('sky_top')) and pale(environment.get('sky_bottom')):
+        return True
+    fog = environment.get('fog_color')
+    if _number(environment.get('fog_density'), 0) >= MIST_DENSITY and pale(fog):
+        return True
+    atmosphere = environment.get('atmosphere')
+    if isinstance(atmosphere, dict) and _number(atmosphere.get('haze_density'), 0) >= MIST_DENSITY:
+        return pale(atmosphere.get('haze_color') or fog)
+    return False
 
 
 def current_warnings(plan, drift, frames=None):

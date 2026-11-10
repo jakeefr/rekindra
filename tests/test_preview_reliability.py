@@ -72,8 +72,16 @@ class FrameWarningTests(unittest.TestCase):
             return {'scene': {'environment': environment}}     # no schema version: only the frame checks run
         ids = lambda p: [w['warning_id'] for w in gate.current_warnings(p, gate_tests.CLEAN, BLOWN)]
         self.assertEqual(ids(plan(sky_top='#0A0B0C', sky_bottom='#141820', fog_color='#101216')), ['frames:blown_out'])
-        for pale in ({'sky_top': '#FFEBC1', 'sky_bottom': '#FFF0D0'}, {'fog_color': '#E8E8EC', 'fog_density': .02}):
+        for pale in ({'sky_top': '#F4F4F8', 'sky_bottom': '#FFFFFF'}, {'fog_color': '#F4F4F8', 'fog_density': .02},
+                     {'sky_top': '#C8C8C8', 'sky_bottom': '#C8C8C8', 'exposure': 2.5},
+                     {'fog_color': '#F4F4F8', 'fog_density': 0, 'atmosphere': {'haze_density': .05}},
+                     {'fog_color': '#101216', 'atmosphere': {'haze_density': .05, 'haze_color': '#F4F4F8'}}):
             self.assertEqual(ids(plan(**dict({'sky_top': '#0A0B0C'}, **pale))), [], pale)
+        # A sky that is shown below the measured level adds no near-white of its own; thin mist fills nothing.
+        for night in ({'sky_top': '#AAAAAA', 'sky_bottom': '#DEDEDE'}, {'fog_color': '#F4F4F8', 'fog_density': .001},
+                      {'fog_color': '#F4F4F8', 'atmosphere': {'haze_density': .05, 'haze_color': '#101216'}},
+                      {'fog_color': '#F4F4F8', 'atmosphere': {'haze_density': .001}}):
+            self.assertEqual(ids(plan(**dict({'sky_top': '#0A0B0C'}, **night))), ['frames:blown_out'], night)
         # A pale horizon under a dark sky, or pale fog that is switched off, leaves a night scene gated.
         for night in ({'sky_bottom': '#C5DBCB'}, {'fog_color': '#E8E8EC'}, {'fog_color': '#E8E8EC', 'fog_density': 0},
                       {'fog_color': '#E8E8EC', 'fog_density': True}):
