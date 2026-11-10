@@ -209,7 +209,15 @@ class PreviewOutputTests(unittest.TestCase):
         with mock.patch.dict(preview.os.environ, {'REKINDRA_BROWSER': 'not-a-path'}):
             with self.assertRaises(SceneError) as caught:
                 preview.find_browser()
-        self.assertIn('Stop and tell the user', str(caught.exception))
+        self.assertIn(preview.STOP_MARK, str(caught.exception))
+        absent = {k: v for k, v in preview.os.environ.items() if k != 'REKINDRA_BROWSER'}
+        with mock.patch.dict(preview.os.environ, absent, clear=True), \
+                mock.patch.object(preview.Path, 'is_file', return_value=False), \
+                mock.patch.object(preview.shutil, 'which', return_value=None):
+            with self.assertRaises(SceneError) as caught:
+                preview.find_browser()
+        self.assertIn('none was found', str(caught.exception))
+        self.assertIn(preview.STOP_MARK, str(caught.exception))
 
     def test_one_sheet_read_serves_both_measurements_and_failures_are_not_kept(self):
         header = {'kind': 'ok', 'regions': None, 'frames': dict(STILL, spread=[80] * 6, change=[0, 0, 0, 0, 0])}

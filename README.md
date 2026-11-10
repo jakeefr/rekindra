@@ -1,4 +1,4 @@
-﻿# Rekindra
+# Rekindra
 
 An original Hermes Agent plugin for recovering, reconstructing, and reimagining forgotten files.
 

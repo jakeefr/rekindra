@@ -264,6 +264,12 @@ class SpeedPathTests(unittest.TestCase):
         self.assertIn('rekindra_preview', out['result']['preview_error']['next_step'])
         compositions = packaged('compositions').CompositionStore(self.store)
         self.assertTrue(compositions.load_plan(self.pid, out['result']['plan_id']))
+        stop = packaged('scenes').SceneError('No browser.' + packaged('preview')._STOP)
+        with mock.patch.object(packaged('preview'), 'preview_scene', side_effect=stop):
+            out = self.call('rekindra_create_world', self.world_args(preview=True))[1]
+        self.assertRegex(out['result']['plan_id'], '^[0-9a-f]{32}$')
+        self.assertNotIn('rekindra_preview', out['result']['preview_error']['next_step'])
+        self.assertNotIn('retry', out['result']['preview_error']['next_step'])
         for error, code in ((OSError('no temp dir'), 'filesystem_error'), (RuntimeError('browser bug'), 'operation_failed')):
             with mock.patch.object(packaged('preview'), 'preview_scene', side_effect=error):
                 out = self.call('rekindra_create_world', self.world_args(preview=True))[1]

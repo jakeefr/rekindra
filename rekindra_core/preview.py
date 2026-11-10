@@ -28,7 +28,8 @@ MAX_PNG_BYTES = 8_000_000
 MAX_FRAME_BYTES = 2_000_000
 FRAME_SIZE = (640, 360)
 # A preview that cannot run is the user's to fix. Working around it produced unreviewed exports.
-_STOP = (' Stop and tell the user. Do not render, measure or record a preview by any other route, and do not edit '
+STOP_MARK = 'Stop and tell the user'
+_STOP = (' ' + STOP_MARK + '. Do not render, measure or record a preview by any other route, and do not edit '
          'skill or plugin files.')
 
 

@@ -345,7 +345,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 # already saved, so a render that fails is reported beside the plan_id, not instead of it.
                 if args.get('preview') is not True:
                     return saved_result
-                from .rekindra_core.preview import preview_scene
+                from .rekindra_core.preview import STOP_MARK, preview_scene
                 try:
                     return {**saved_result, 'preview': preview_scene(store, args['project_id'], saved_result['plan_id'], draft=True)}
                 except (ProjectError, SceneError) as exc:
@@ -354,7 +354,7 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                     problem = {'code': 'filesystem_error', 'message': 'Cannot read or write the local project. Check paths and permissions.'}
                 except Exception:
                     problem = {'code': 'operation_failed', 'message': 'The preview render could not be completed.'}
-                stop = 'Stop and tell the user' in problem['message']
+                stop = STOP_MARK in problem['message']
                 return {**saved_result, 'preview_error': {**problem, 'next_step': 'The plan is saved. Do what the message says before anything else.' if stop
                                                           else 'The plan is saved. Call rekindra_preview with this plan_id to retry the render.'}}
             if operation == 'inspect':
