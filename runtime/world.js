@@ -345,7 +345,7 @@ ${hasDetail?'float u=detailUV.x,v=detailUV.y;':''}`}
 ${hasColorDetail?`float detail=clamp(${source.color_detail},-.35,.35);albedo*=1.+detail${hasCaps?'*(1.-capFace)':''};`:''}
 ${o.glow!==undefined?`// Additive light volume: no shading, soft silhouette, fog fades it like distance.
 {float glowFog=1.-exp(-length(eye-worldPos)*fogDensity);float glowEdge=pow(abs(dot(normalize(worldNormal),V)),1.5);
-${reflectionClip}${atmo?`vec3 glowColor=displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog));pixel=vec4(glowColor,max(glowColor.r,max(glowColor.g,glowColor.b)));return;}`:`pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`}`:''}
+${reflectionClip}pixel=vec4(displayColor(albedo*${Number(o.glow).toFixed(8)}*glowEdge*(1.-glowFog)),1.);return;}`:''}
 ${hasBump?`// Surface-gradient bump mapping in world units, independent of tessellation.
 // Evaluate derivatives before branching. Degenerate/grazing pixels retain N.
 float height=clamp(${source.bump_detail},-.1,.1);
@@ -417,9 +417,12 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
     function drawColor(c,b,time,pass){
       for(const glow of [false,true]){
         if(glow){gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.depthMask(false)}
+        // With an atmosphere, glow light is kept in its own texture (same depth buffer) so haze never dims it.
+        if(glow&&post&&!pass){gl.bindFramebuffer(gl.FRAMEBUFFER,post.glowBuffer);gl.clear(gl.COLOR_BUFFER_BIT)}
         for(const s of surfaces){if((s.o.glow!==undefined)!==glow||pass&&s.o===reflector)continue;setup(s.p,c,b,time,pass);uniform(s.p,'baseColor',rgb(s.o.color));uniform(s.p,'highColor',rgb(s.o.color_high));
           for(const name of ['roughness','metalness','emission'])uniform(s.p,name,s.o[name]);drawSurface(s,s.p)}
         if(glow){gl.disable(gl.BLEND);gl.depthMask(true)}
+        if(glow&&post&&!pass)gl.bindFramebuffer(gl.FRAMEBUFFER,post.sceneBuffer);
       }
     }
     // Atmosphere finish: the 3D frame is drawn to a texture whose alpha marks light sources (emission and glow),
@@ -439,10 +442,12 @@ precision highp float;${reflector?'in vec3 worldPos;'+reflectionUniforms:''}void
       const light=divisor=>{const w=Math.max(4,Math.ceil(W/divisor)),h=Math.max(4,Math.ceil(H/divisor));
         return [0,1].map(()=>{const tex=texture(w,h,floatTargets?gl.RGBA16F:gl.RGBA8,gl.RGBA,floatTargets?gl.HALF_FLOAT:gl.UNSIGNED_BYTE,gl.LINEAR);return {tex,fb:buffer(tex),w,h}})};
       const color=texture(W,H,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,gl.LINEAR),depth=texture(W,H,gl.DEPTH_COMPONENT24,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT,gl.NEAREST);
+      const glowColor=texture(W,H,gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE,gl.LINEAR),glowBuffer=buffer(glowColor,depth);
       const sceneBuffer=buffer(color,depth),near=light(2*sampleScale),mid=light(4*sampleScale),far=light(8*sampleScale);
       gl.bindFramebuffer(gl.FRAMEBUFFER,null);gl.bindTexture(gl.TEXTURE_2D,null);
       // Light is blurred in scene-linear units. Without float render targets it is square-root packed into 8 bits.
-      const codec=floatTargets?'vec4 pack(vec4 v){return v;}vec4 unpack(vec4 v){return v;}':'vec4 pack(vec4 v){return sqrt(clamp(v/8.,0.,1.));}vec4 unpack(vec4 v){return v*v*8.;}';
+      const lightRange=(8/(scene.environment.exposure??1)).toFixed(4);
+      const codec=floatTargets?'vec4 pack(vec4 v){return v;}vec4 unpack(vec4 v){return v;}':`vec4 pack(vec4 v){return sqrt(clamp(v/${lightRange},0.,1.));}vec4 unpack(vec4 v){return v*v*${lightRange};}`;
       const vertex=`#version 300 es
 precision highp float;out vec2 screen;void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);screen=p*2.-1.;gl_Position=vec4(screen,0.,1.);}`;
       const head=`#version 300 es
@@ -450,13 +455,13 @@ precision highp float;precision highp sampler2D;in vec2 screen;out vec4 pixel;`;
       const linear=`vec3 sceneLight(vec3 c){return min(-log(max(1.-pow(c,vec3(2.2)),vec3(1.e-6))),vec3(6.))/exposure;}
 float viewDepth(float d){return d>=1.?160.:min(${DEPTH_B}/(${DEPTH_A}-(d*2.-1.)),160.);}`;
       const bright=program(vertex,`${head}${uniforms}
-uniform sampler2D sceneColor;uniform highp sampler2D sceneDepth;uniform vec2 tapOffset;uniform float atmoHaze;
+uniform sampler2D sceneColor,glowLight;uniform highp sampler2D sceneDepth;uniform vec2 tapOffset;uniform float atmoHaze;
 ${linear}${codec}
 void main(){vec2 uv=screen*.5+.5;vec3 sum=vec3(0.);float carried=0.;
  for(int i=0;i<4;i++){vec2 at=uv+tapOffset*vec2(i<2?-1.:1.,(i&1)==0?-1.:1.);vec4 s=texture(sceneColor,at);
   float z=viewDepth(texture(sceneDepth,at).r);
   float source=max(min(s.a,1.),smoothstep(.9,1.,min(s.r,min(s.g,s.b))));
-  vec3 L=sceneLight(s.rgb)*source;sum+=L;
+  vec3 L=sceneLight(s.rgb)*source+sceneLight(texture(glowLight,at).rgb);sum+=L;
   // How far this light spreads: more with distance through fog or haze.
   carried+=dot(L,vec3(.2126,.7152,.0722))*clamp(.12+(1.-exp(-z*(fogDensity+atmoHaze)))*1.5,0.,1.);}
  pixel=pack(vec4(sum,carried)*.25);}`);
@@ -465,20 +470,19 @@ void main(){vec2 uv=screen*.5+.5;vec4 sum=vec4(0.);float total=0.;
  for(int i=-6;i<=6;i++){float w=exp(-float(i*i)/18.);sum+=unpack(texture(lightSource,uv+blurStep*float(i)))*w;total+=w;}
  pixel=pack(sum/total);}`);
       const composite=program(vertex,`${head}${uniforms}${pointUniforms}${sky}
-uniform sampler2D sceneColor,lightNear,lightMid,lightFar;uniform highp sampler2D sceneDepth;
+uniform sampler2D sceneColor,glowLight,lightNear,lightMid,lightFar;uniform highp sampler2D sceneDepth;
 uniform vec3 atmoHazeColor;uniform float atmoBloom,atmoHalo,atmoHaze,atmoHazeHeight,atmoHazeFloor,atmoVignette,atmoGrain,atmoGrainCell,atmoGrainFrame;
 ${linear}${codec}
 void main(){vec2 uv=screen*.5+.5;vec3 viewRay=forward+right*screen.x*tanHalf*aspect+up*screen.y*tanHalf;
  float rayLength=length(viewRay),reach=min(viewDepth(texture(sceneDepth,uv).r)*rayLength,160.);vec3 dir=viewRay/rayLength;
- vec4 lit=texture(sceneColor,uv);vec3 L=sceneLight(lit.rgb);
+ vec3 L=sceneLight(texture(sceneColor,uv).rgb);
  float optical=atmoHaze*reach;
  if(atmoHazeHeight>0.){
   // Density falls off exponentially above the floor; integrate it along the view ray in closed form.
   float k=dir.y/atmoHazeHeight,x=clamp(k*reach,-30.,30.),path=abs(x)<1.e-4?reach:(1.-exp(-x))/k;
   optical=min(atmoHaze*exp(clamp(-(eye.y-atmoHazeFloor)/atmoHazeHeight,-30.,0.))*path,optical);}
- // Glow surfaces write no depth, so the depth here is whatever lies behind them. Light sources (alpha) are
- // hazed less instead, which keeps a near glow in front of open sky from dissolving into the haze color.
- L=mix(L,atmoHazeColor,(1.-exp(-optical))*(1.-.85*min(lit.a,1.)));
+ // Glow surfaces write no depth, so their light is added after the haze, which only knows the surface behind.
+ L=mix(L,atmoHazeColor,1.-exp(-optical))+sceneLight(texture(glowLight,uv).rgb);
  float scatter=atmoHalo*(fogDensity+atmoHaze)*${HALO_SCATTER};
 ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(toLight,dir),h=sqrt(max(dot(toLight,toLight)-along*along,0.)+.02);
   float q=h/pointRange${i},fade=max(1.-q*q,0.);
@@ -495,7 +499,7 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
   n^=n>>15;n*=0x3A8F05C5u;n^=n>>13;n*=0x19E3779Bu;n^=n>>16;
   c+=(float(n>>8)/16777216.-.5)*2.*atmoGrain*(1.-.6*c.g);}
  pixel=vec4(clamp(c,0.,1.),1.);}`);
-      post={color,depth,sceneBuffer,near,mid,far,bright,blur,composite};
+      post={color,depth,sceneBuffer,glowColor,glowBuffer,near,mid,far,bright,blur,composite};
     }
     function atmospherePass(c,b,time){
       const bind=(unit,tex)=>{gl.activeTexture(gl.TEXTURE0+unit);gl.bindTexture(gl.TEXTURE_2D,tex)};
@@ -503,8 +507,8 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       const draw=(target,w,h)=>{gl.bindFramebuffer(gl.FRAMEBUFFER,target);gl.viewport(0,0,w,h);gl.drawArrays(gl.TRIANGLES,0,3)};
       const haze=atmo.haze_density??0;
       gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.bindVertexArray(null);
-      bind(3,post.color);bind(4,post.depth);
-      setup(post.bright,c,b,time);sampler(post.bright,'sceneColor',3);sampler(post.bright,'sceneDepth',4);uniform(post.bright,'atmoHaze',haze);
+      bind(3,post.color);bind(4,post.depth);bind(8,post.glowColor);
+      setup(post.bright,c,b,time);sampler(post.bright,'sceneColor',3);sampler(post.bright,'sceneDepth',4);sampler(post.bright,'glowLight',8);uniform(post.bright,'atmoHaze',haze);
       gl.uniform2f(gl.getUniformLocation(post.bright.p,'tapOffset'),sampleScale/2/canvas.width,sampleScale/2/canvas.height);
       draw(post.near[0].fb,post.near[0].w,post.near[0].h);
       // Separable blur. Reading the level above while writing a smaller one is also the downsample.
@@ -516,13 +520,13 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       spread(post.near[0].tex,post.near,1.2);spread(post.near[0].tex,post.mid,1.5);
       spread(post.mid[0].tex,post.far,1.5);spread(post.far[0].tex,post.far,3);
       setup(post.composite,c,b,time);bind(5,post.near[0].tex);bind(6,post.mid[0].tex);bind(7,post.far[0].tex);
-      [['sceneColor',3],['sceneDepth',4],['lightNear',5],['lightMid',6],['lightFar',7]].forEach(([name,unit])=>sampler(post.composite,name,unit));
+      [['sceneColor',3],['sceneDepth',4],['glowLight',8],['lightNear',5],['lightMid',6],['lightFar',7]].forEach(([name,unit])=>sampler(post.composite,name,unit));
       const values={atmoBloom:atmo.bloom??0,atmoHalo:atmo.halo??0,atmoHaze:haze,atmoHazeHeight:atmo.haze_height??0,atmoHazeFloor:atmo.haze_floor??0,
         atmoHazeColor:rgb(atmo.haze_color??scene.environment.fog_color),atmoVignette:atmo.vignette??0,atmoGrain:grainOn?atmo.grain??0:0,
         atmoGrainCell:sampleScale,atmoGrainFrame:(Math.round(time*30)+(Number(scene.seed)||0))%65536};
       for(const [name,value] of Object.entries(values))uniform(post.composite,name,value);
       draw(null,canvas.width,canvas.height);
-      for(let unit=3;unit<8;unit++)bind(unit,null);gl.activeTexture(gl.TEXTURE0);
+      for(let unit=3;unit<9;unit++)bind(unit,null);gl.activeTexture(gl.TEXTURE0);
     }
     function render(time){
       if(lost||gl.isContextLost())throw Error('Graphics context lost. Reload the scene before exporting.');
@@ -559,7 +563,7 @@ ${pointLights.map((_,i)=>` {vec3 toLight=pointPosition${i}-eye;float along=dot(t
       return output;
     }
     // Review frames are compared with each other to detect a motionless scene; per-frame grain would hide that.
-    return {render,canvas:output,sampleScale,requestedScale,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
+    return {render,canvas:output,sampleScale,requestedScale,setGrain(on){grainOn=!!on},dispose(){if(post){gl.deleteTexture(post.color);gl.deleteTexture(post.depth);gl.deleteFramebuffer(post.sceneBuffer);gl.deleteTexture(post.glowColor);gl.deleteFramebuffer(post.glowBuffer);for(const t of [...post.near,...post.mid,...post.far]){gl.deleteTexture(t.tex);gl.deleteFramebuffer(t.fb)}}for(const s of surfaces){gl.deleteVertexArray(s.vao);gl.deleteBuffer(s.vb);gl.deleteBuffer(s.ib)}for(const p of owned)gl.deleteProgram(p);gl.deleteTexture(depthTexture);gl.deleteFramebuffer(shadowBuffer);if(contactEnabled){gl.deleteTexture(cameraDepthTexture);gl.deleteFramebuffer(cameraDepthBuffer)}if(reflector){gl.deleteTexture(reflectionTexture);gl.deleteFramebuffer(reflectionBuffer);gl.deleteRenderbuffer(reflectionDepth)}}};
   }
   const api={cameraAt,basis,projectPoint,cameraFrame,shadowFrame,surfaceMesh,DEPTH_A,DEPTH_B,createRenderer};if(typeof module!=='undefined')module.exports=api;else root.RekindraWorld=api;
 })(globalThis);
