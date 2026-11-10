@@ -22,7 +22,8 @@ MOTIONS = ('still', 'drift', 'rise', 'pulse', 'pan')
 
 def _number(value, low, high, label, integer=False):
     if type(value) not in (int, float) or not math.isfinite(value) or not low <= value <= high or (integer and type(value) is not int):
-        raise SceneError(f'{label} must be a finite number between {low} and {high}')
+        got = f'the string {value[:24]!r}; pass a JSON number, not text' if isinstance(value, str) else f'{value!r:.40}'
+        raise SceneError(f'{label} must be a finite number between {low} and {high}{" (whole number)" if integer else ""}; got {got}')
     return value
 
 
@@ -34,13 +35,21 @@ def _text(value, limit, label):
 
 def validate_scene(value: dict, asset_ids: set[str]) -> dict:
     if not isinstance(value, dict):
-        raise SceneError('Scene must be an object')
-    if value.get('schema_version')==2:
+        raise SceneError('Scene must be an object: pass scene as a JSON object in the tool arguments'
+                         + (', not JSON-encoded text' if isinstance(value, str) else f'; got {type(value).__name__}'))
+    version = value.get('schema_version')
+    if type(version) is not int or version not in (1, 2):
+        raise SceneError('Unsupported scene version or fields: schema_version must be the integer 2 for rekindra_create_world '
+                         f'or 1 for rekindra_compose; got {version!r:.40}')
+    if version == 2:
         from .worlds import validate_world
         return validate_world(value,asset_ids)
     required = {'schema_version', 'title', 'mood', 'reason', 'duration', 'width', 'height', 'background', 'palette', 'seed', 'layers'}
     if set(value) != required or type(value['schema_version']) is not int or value['schema_version'] != 1:
-        raise SceneError('Unsupported scene version or fields')
+        missing = sorted(required - set(value)); extra = sorted(repr(str(k)[:24]) for k in set(value) - required)[:8]
+        raise SceneError('Unsupported scene version or fields.' + (f' Missing: {", ".join(missing)}.' if missing else '')
+                         + (f' Not accepted: {", ".join(extra)}.' if extra else '')
+                         + f' A version 1 scene has exactly: {", ".join(sorted(required))}')
     scene = copy.deepcopy(value)
     for key, limit in (('title', 100), ('mood', 100), ('reason', 600)):
         _text(scene[key], limit, key)

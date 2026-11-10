@@ -8,11 +8,40 @@ FUNCTIONS={'sin':(1,'sin'),'cos':(1,'cos'),'abs':(1,'abs'),'sqrt':(1,'rsqrt'),
            'clamp':(3,'rclamp'),'mix':(3,'rmix')}
 
 
+ALLOWED=('Allowed: numbers, + - * / and parentheses, the names u v t pi, and '
+         +', '.join(f'{name}({",".join("abc"[:arity])})' for name,(arity,_) in FUNCTIONS.items())
+         +'. Use pow(a,b) for powers; there is no **, ^, %, tan, floor, comparison or if')
+
+
+def _echo(source):
+    text=''.join(c if c.isprintable() else '?' for c in source.strip())
+    return repr(text[:60]+('...' if len(text)>60 else ''))
+
+
+def _offender(node,names):
+    if isinstance(node,ast.Name):
+        known=', '.join(sorted(names)) if names else 'none'
+        return f"unknown name '{node.id[:24]}' (bindings defined before this point: {known}; material detail expressions cannot use bindings)"
+    if isinstance(node,ast.Call):
+        called=node.func.id[:24] if isinstance(node.func,ast.Name) else 'a method or attribute'
+        return f"unsupported function '{called}'" if not node.keywords else 'keyword arguments are not supported'
+    if isinstance(node,ast.BinOp):
+        return {'Pow':'** is not supported, use pow(a,b)','Mod':'% is not supported','BitXor':'^ is not supported, use pow(a,b)',
+                'FloorDiv':'// is not supported, use /'}.get(type(node.op).__name__,'unsupported operator')
+    if isinstance(node,ast.Constant):return 'only numeric constants are supported'
+    return {'Compare':'comparisons are not supported, use clamp, min, max or mix','IfExp':'if/else is not supported, use mix or clamp',
+            'Attribute':'attributes such as math.sin are not supported, call sin directly'}.get(type(node).__name__,'unsupported syntax')
+
+
 def compile_expression(source, names=None):
-    if not isinstance(source,str) or not 1<=len(source)<=512:
-        raise SceneError('Surface expressions require 1-512 characters')
+    if not isinstance(source,str):
+        raise SceneError('Surface expressions require 1-512 characters: every expression is a string, even a constant '
+                         f'("0", not 0; "sin(u*2*pi)"); got {type(source).__name__} {source!r:.40}')
+    if not 1<=len(source)<=512:
+        raise SceneError(f'Surface expressions require 1-512 characters; got {len(source)}. Move repeated terms into bindings')
     try:tree=ast.parse(source.strip(),mode='eval')
-    except (SyntaxError,ValueError,RecursionError) as exc:raise SceneError('Invalid surface expression') from exc
+    except (SyntaxError,ValueError,RecursionError) as exc:
+        raise SceneError(f'Invalid surface expression {_echo(source)}: write one arithmetic expression. {ALLOWED}') from exc
     cost=0
     def visit(node,depth=0):
         nonlocal cost
@@ -33,9 +62,11 @@ def compile_expression(source, names=None):
             return f'bound(({a}){op}({b}))'
         if isinstance(node,ast.Call) and isinstance(node.func,ast.Name) and node.func.id in FUNCTIONS and not node.keywords:
             arity,name=FUNCTIONS[node.func.id]
-            if len(node.args)!=arity:raise SceneError('Wrong number of math function arguments')
+            if len(node.args)!=arity:
+                raise SceneError(f'Wrong number of math function arguments: {node.func.id} takes {arity}, got {len(node.args)} in {_echo(source)}')
             return f'bound({name}('+','.join(visit(arg,depth+1) for arg in node.args)+'))'
-        raise SceneError('Only u, v, t, pi, earlier local bindings, arithmetic and supported math functions are allowed')
+        raise SceneError('Only u, v, t, pi, earlier local bindings, arithmetic and supported math functions are allowed: '
+                         f'{_offender(node,names)} in {_echo(source)}. {ALLOWED}')
     glsl=visit(tree.body)
     return {'glsl':glsl,'cost':cost}
 

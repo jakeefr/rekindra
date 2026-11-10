@@ -1,7 +1,9 @@
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import re
+import unittest
 
 import test_recover_evidence as recover_tests
 from test_image_recovery import encoded, noise
@@ -92,6 +94,7 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         self.assertEqual(out['result']['replaced_characters'], 0)
         self.assertIn(text, Path(out['result']['path']).read_text(encoding='utf-8'))
 
+    @unittest.skipUnless(importlib.util.find_spec('pypdf'), 'pypdf is not installed')
     def test_pdf_quotes_carry_their_page_number(self):
         from test_pdf_text import make_pdf
         (self.source / 'two.pdf').write_bytes(make_pdf(['First page text here.', 'Second page text here.']))
@@ -244,7 +247,7 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         # Rejected by intake once recovery was tried (last: recovering it rebuilds the dossier).
         self.recover('bad.json')
         self.assertIn('gaps', self.refused(title='T', sections=rejected))
-        self.assertIn('Unknown fields', self.refused(title='T', sections=section(image), style='dark'))
+        self.assertIn('does not accept: style', self.refused(title='T', sections=section(image), style='dark'))
         self.assertIn('at most 400', self.refused(title='T', sections=section(image, {'type': 'note', 'text': 'x' * 401})))
         # Nothing was written by any refusal.
         self.assertEqual(list((self.store._project(self.pid) / 'artifacts').glob('reconstruction-*')), [])

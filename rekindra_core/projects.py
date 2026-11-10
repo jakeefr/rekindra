@@ -123,11 +123,13 @@ class ProjectStore:
 
     def _project(self, project_id: str) -> Path:
         if not isinstance(project_id, str) or not _ID.fullmatch(project_id):
-            raise ProjectError('Invalid project identifier')
+            raise ProjectError('Invalid project identifier: project_id is the 32 lowercase hex character id that rekindra_inspect '
+                               f'returned for the folder, not a path or a name; got {project_id!r:.48}')
         path = self.root / project_id
         _no_links(path)
         if not path.is_dir():
-            raise ProjectError('Project not found')
+            raise ProjectError(f'Project not found: no project {project_id} is stored here. Call rekindra_inspect on the folder '
+                               'and use the project_id it returns')
         return path
 
     def _save(self, path: Path, project: dict) -> None:
@@ -285,12 +287,15 @@ class ProjectStore:
         """
         with _STORE_LOCK:
             if not isinstance(asset_id, str) or not _ID.fullmatch(asset_id):
-                raise ProjectError('Invalid asset identifier')
+                raise ProjectError('Invalid asset identifier: asset_id is one 32 lowercase hex character assets[].asset_id from '
+                                   f'rekindra_inspect or rekindra_status, not a file name or path; got {asset_id!r:.48}')
             project = self.status(project_id)
             directory = self._project(project_id)
             asset = next((a for a in project['assets'] if isinstance(a, dict) and a.get('asset_id') == asset_id), None)
             if not asset:
-                raise ProjectError('Asset not found in this project')
+                known = [a.get('asset_id') for a in project['assets'] if isinstance(a, dict)]
+                raise ProjectError(f'Asset not found in this project: {asset_id} is not one of its {len(known)} assets. '
+                                   f'Asset ids here: {known[:12]}' + ('; rekindra_status lists the rest' if len(known) > 12 else ''))
             source = directory / 'originals' / asset_id
             _no_links(source)
             if source.stat().st_size > self.limits.max_file_bytes:

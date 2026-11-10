@@ -130,9 +130,10 @@ def _matched(acknowledgments, warnings, cycles):
             parsed = _parsed(item)
             if parsed is None:
                 problems.append('each item needs exactly warning_id and a reason of '
-                                f'{MIN_REASON} to {MAX_REASON} characters')
+                                f'{MIN_REASON} to {MAX_REASON} characters, shaped {{"warning_id": "...", "reason": "..."}} '
+                                f'with warning_id copied from: {", ".join(wanted)}')
             elif parsed['warning_id'] not in wanted:
-                problems.append(f"{parsed['warning_id']} is not a current warning for this plan")
+                problems.append(f"{parsed['warning_id']} is not a current warning for this plan (current: {', '.join(wanted)})")
             elif parsed['warning_id'] in answered:
                 problems.append(f"{parsed['warning_id']} was acknowledged twice")
             else:

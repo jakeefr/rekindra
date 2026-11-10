@@ -101,13 +101,18 @@ class CompositionStore:
         if (not isinstance(selected_ids, list) or not (0 if allow_empty else 1) <= len(selected_ids) <= 6
                 or any(not isinstance(x, str) or not _ID.fullmatch(x) for x in selected_ids)
                 or len(set(selected_ids)) != len(selected_ids)):
-            raise SceneError('Select one to six unique image asset IDs')
+            raise SceneError('Select one to six unique image asset IDs: asset_ids is a JSON array of 1-6 distinct asset_id strings '
+                             '(32 lowercase hex characters each) copied from rekindra_inspect or rekindra_status'
+                             + (', or empty/omitted for a text-only world' if allow_empty else '')
+                             + f'; got {type(selected_ids).__name__} {selected_ids!r:.80}')
         project = self.projects.status(project_id)
         directory = self.projects._project(project_id)
         by_id = {a['asset_id']: a for a in project['assets']}
         result, total = [], 0
         for aid in selected_ids:
-            if aid not in by_id: raise SceneError('Selected source is not in this project')
+            if aid not in by_id:
+                raise SceneError(f'Selected source is not in this project: asset_ids names {aid}, which this project does not hold. '
+                                 f'Its image assets are {self.image_asset_ids(project_id)[:12]}; rekindra_status lists every asset')
             asset = by_id[aid]
             path = directory / 'originals' / aid
             _no_links(path)
@@ -124,7 +129,10 @@ class CompositionStore:
             elif asset['format'] in IMAGE_FORMATS:
                 data, mime, kind = self._image_source(project_id, project, asset, original)
             else:
-                raise SceneError('Creative scenes accept common image formats and recovered TGA images')
+                raise SceneError('Creative scenes accept common image formats and recovered TGA images: '
+                                 f'asset {aid} is {asset["format"]}, not an image. Remove it from asset_ids; cite a text, ZIP or PDF '
+                                 'asset in scene.text_references [{asset_id, evidence_ids, interpretation}] after rekindra_recover. '
+                                 f'Image assets here: {self.image_asset_ids(project_id)[:12]}')
             total += len(data)
             if len(data) > 2_000_000 or total > 8_000_000:
                 raise SceneError('Image budget exceeded: 2 MB per image, 8 MB total')
@@ -216,7 +224,9 @@ class CompositionStore:
                 item = items.get(eid)
                 member = item.get('source_id') if item is not None and _is_member(item.get('source_id'), aid) else None
                 if item is None or (member is None and item.get('source_id') != aid):
-                    raise SceneError(f'Evidence {eid} was not recovered from asset {aid}')
+                    raise SceneError(f'Evidence {eid} was not recovered from asset {aid}: copy evidence_ids from the '
+                                     f'evidence[].evidence_id values that rekindra_recover returned for asset {aid}, and cite each '
+                                     'evidence_id under the asset_id it came from')
                 quote = {'asset_id': aid, 'source_path': item.get('relative_path') if member else paths[aid],
                          'evidence_id': eid,
                          'kind': item.get('kind'), 'locator': item.get('locator'), 'text': item.get('text'),
@@ -299,7 +309,9 @@ class CompositionStore:
         return record
 
     def load_plan(self, project_id: str, plan_id: str) -> dict:
-        if not isinstance(plan_id, str) or not _ID.fullmatch(plan_id): raise SceneError('Invalid plan identifier')
+        if not isinstance(plan_id, str) or not _ID.fullmatch(plan_id): 
+            raise SceneError('Invalid plan identifier: plan_id is the 32 lowercase hex character id returned by rekindra_create_world, '
+                             f'rekindra_revise_world, rekindra_compose or rekindra_plan; got {plan_id!r:.48}')
         path = self.projects._project(project_id) / 'plans' / (plan_id + '.json')
         _no_links(path)
         try:
@@ -315,7 +327,8 @@ class CompositionStore:
             self.check_text_provenance(project_id, record['scene'].get('text_references'), record.get('text_provenance'))
             return record
         except (OSError, json.JSONDecodeError) as exc:
-            raise SceneError('Cannot load this scene plan') from exc
+            raise SceneError(f'Cannot load this scene plan: no readable plan {plan_id} in project {project_id}. Use the plan_id from the '
+                             'latest rekindra_create_world or rekindra_revise_world result for this same project_id') from exc
 
     def build(self, project_id: str, plan_id: str, review_camera=None, draft=False, export_provenance=None) -> dict:
         plan = self.load_plan(project_id, plan_id)
@@ -332,7 +345,10 @@ class CompositionStore:
         if inspection:
             if (plan['scene']['schema_version']!=2 or not isinstance(review_camera,dict)
                     or set(review_camera)!={'eye','target','fov'}):
-                raise SceneError('Inspection camera requires world v2 and exactly eye, target, fov')
+                raise SceneError('Inspection camera requires world v2 and exactly eye, target, fov: review_camera is '
+                                 '{"eye": [x, y, z], "target": [x, y, z], "fov": 15-100} with no other keys (no "at"), '
+                                 'and only works on a rekindra_create_world plan'
+                                 + (f'; got keys {sorted(map(str, review_camera))[:8]}' if isinstance(review_camera, dict) else ''))
             # load_plan returns an independent record. Validate a stationary view
             # without saving a revision or touching the presentation trajectory.
             plan['scene']['camera']=[dict(review_camera,at=0),dict(review_camera,at=plan['scene']['duration'])]

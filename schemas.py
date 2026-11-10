@@ -128,3 +128,5 @@ SCHEMAS['rekindra_reconstruct'] = {
 SCHEMAS['rekindra_create_world']['parameters']['properties']['reconstruction_id'] = {
     'type': 'string', 'description': 'Optional: the reconstruction_id rekindra_reconstruct returned, when this world is built from that reconstruction. Stored in the plan provenance and kept across revisions. Still pass the asset_ids and text_references you use.'}
 SCHEMAS['rekindra_create_world']['description'] += ' To build from a reconstruction, pass its reconstruction_id; the citation is checked and stored with the plan.'
+from .rekindra_core.schema_hints import tighten
+tighten(SCHEMAS)

@@ -22,8 +22,23 @@ class UndeclaredWorldSource(SceneError):
         return f'scene references asset{"" if len(self.cited)==1 else "s"} '+', '.join(f"'{c}'" for c in self.cited)
 
 
+def shown(value):
+    """A short, single-line echo of a rejected value for an error message."""
+    text=value if isinstance(value,str) else f'{type(value).__name__} {value!r}'
+    text=''.join(c if c.isprintable() else '?' for c in text)
+    return repr(text[:40]+('...' if len(text)>40 else '')) if isinstance(value,str) else text[:48]
+
+
 def fields(value,names,label):
-    if not isinstance(value,dict) or set(value)!=set(names.split()):raise SceneError(f'Invalid {label} fields')
+    wanted=names.split()
+    if not isinstance(value,dict):
+        raise SceneError(f'Invalid {label} fields: pass a JSON object with {", ".join(wanted)}; got {shown(value)}')
+    if set(value)==set(wanted):return
+    missing=[k for k in wanted if k not in value]
+    extra=sorted(shown(k) for k in value if k not in wanted)[:8]
+    raise SceneError(f'Invalid {label} fields.'+(f' Missing: {", ".join(missing)}.' if missing else '')
+                     +(f' Not accepted here: {", ".join(extra)}.' if extra else '')
+                     +f' Required {label} fields: {", ".join(wanted)}')
 
 
 def vector(value,label):
@@ -33,7 +48,7 @@ def vector(value,label):
 
 
 def color(value):
-    if not isinstance(value,str) or not _COLOR.fullmatch(value):raise SceneError('World colors must be #RRGGBB')
+    if not isinstance(value,str) or not _COLOR.fullmatch(value):raise SceneError(f'World colors must be #RRGGBB strings with six hex digits, like "#1A2B3C"; got {shown(value)}')
 
 
 def compile_surface(obj):
@@ -109,34 +124,39 @@ def _text_references(refs):
         ids=ref['evidence_ids']
         if (not isinstance(ids,list) or not 1<=len(ids)<=4
                 or any(not isinstance(e,str) or not _EVIDENCE_ID.fullmatch(e) for e in ids) or len(set(ids))!=len(ids)):
-            raise SceneError('Each text reference needs 1-4 unique evidence_id values from rekindra_recover')
+            raise SceneError('Each text reference needs 1-4 unique evidence_id values from rekindra_recover: evidence_ids is an array of '
+                             'strings shaped ev- plus 24 lowercase hex digits, copied exactly from evidence[].evidence_id; '
+                             f'got {shown(ids)}')
         _text(ref['interpretation'],300,'text reference interpretation')
         if not ref['interpretation'].strip():raise SceneError('Text reference interpretation cannot be blank')
 
 
 def validate_world(value,asset_ids):
-    if not isinstance(value,dict):raise SceneError('Invalid world fields')
+    if not isinstance(value,dict):raise SceneError(f'Invalid world fields: scene must be a JSON object, not JSON-encoded text; got {shown(value)}')
     fields({k:v for k,v in value.items() if k not in ('assemblies','text_references','references')},'schema_version title mood reason duration width height seed environment camera objects','world')
     s=copy.deepcopy(value)
     assemblies=compile_assemblies(s.get('assemblies',[]))
     if 'text_references' in s:_text_references(s['text_references'])
-    if type(s['schema_version']) is not int or s['schema_version']!=2:raise SceneError('Unsupported world version')
+    if type(s['schema_version']) is not int or s['schema_version']!=2:raise SceneError(f'Unsupported world version: schema_version must be the integer 2; got {shown(s["schema_version"])}')
     for name,limit in (('title',100),('mood',100),('reason',600)):_text(s[name],limit,name)
     _number(s['duration'],4,30,'duration');_number(s['width'],1280,1280,'width',True);_number(s['height'],720,720,'height',True)
     _number(s['seed'],0,2**31-1,'seed',True)
     # A world built from text evidence alone has no image to interpret.
     s.setdefault('references',[])
     if not isinstance(s['references'],list) or len(s['references'])>6:raise SceneError('World needs 1-6 source interpretations')
-    if not s['references'] and asset_ids:raise SceneError('Every selected image needs a source interpretation in references')
+    if not s['references'] and asset_ids:raise SceneError('Every selected image needs a source interpretation in references: add one {asset_id, observed, created} '
+                                                           f'entry to scene.references for each of asset_ids {sorted(asset_ids)}')
     if not s['references'] and 'text_references' not in s:raise SceneError('World needs 1-6 image source interpretations, or text_references when it is built from text evidence alone')
     used=set()
     for ref in s['references']:
         fields(ref,'asset_id observed created','source interpretation')
-        if not isinstance(ref['asset_id'],str):raise SceneError('Invalid or repeated world source')
+        if not isinstance(ref['asset_id'],str):
+            raise SceneError(f'Invalid or repeated world source: references[].asset_id must be a string from asset_ids {sorted(asset_ids)}; got {shown(ref["asset_id"])}')
         if ref['asset_id'] not in asset_ids:
             # Name every miss at once so one corrected call can fix them all.
             raise UndeclaredWorldSource([r['asset_id'] for r in s['references'] if isinstance(r,dict) and isinstance(r.get('asset_id'),str) and r['asset_id'] not in asset_ids])
-        if ref['asset_id'] in used:raise SceneError('Invalid or repeated world source')
+        if ref['asset_id'] in used:
+            raise SceneError(f'Invalid or repeated world source: {shown(ref["asset_id"])} appears twice in references; use one entry per image')
         used.add(ref['asset_id'])
         for key in ('observed','created'):
             _text(ref[key],500,key)
@@ -188,16 +208,18 @@ def validate_world(value,asset_ids):
         if 'cut' in key and type(key['cut']) is not bool:raise SceneError('Camera cut must be a boolean')
         if previous is None and key.get('cut',False):raise SceneError('The first camera state cannot be a cut')
         _number(key['at'],0,s['duration'],'camera time');_number(key['fov'],15,100,'field of view')
-        if key['at']<=last:raise SceneError('Camera times must increase')
+        if key['at']<=last:
+            raise SceneError(f'Camera times must increase: a state at {key["at"]} follows one at {last}; order states by at, each later than the one before')
         last=key['at'];eye=vector(key['eye'],'camera eye');target=vector(key['target'],'camera target')
         delta=[a-b for a,b in zip(eye,target)]
         if sum(x*x for x in delta)<.01:raise SceneError('Camera eye and target must be distinct')
         if previous is not None and not key.get('cut',False):
             step=[a-b for a,b in zip(delta,previous)];length=sum(x*x for x in step)
             u=max(0,min(1,-sum(a*b for a,b in zip(previous,step))/length)) if length else 0
-            if sum((a+u*b)**2 for a,b in zip(previous,step))<.01:raise SceneError('Camera crosses its target between states')
+            if sum((a+u*b)**2 for a,b in zip(previous,step))<.01:raise SceneError(f'Camera crosses its target between states: the straight move into the state at {key["at"]} passes through its target. '
+                                                                                         'Add an intermediate state that goes around the target, or set cut:true on this state')
         previous=delta
-    if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError('Camera must span the full duration')
+    if camera[0]['at']!=0 or camera[-1]['at']!=s['duration']:raise SceneError(f'Camera must span the full duration: the first state needs at 0 and the last needs at {s["duration"]}; got {camera[0]["at"]} and {camera[-1]["at"]}')
     if not isinstance(s['objects'],list) or not 1<=len(s['objects'])<=MAX_SURFACES:
         raise SceneError(f'World requires 1-{MAX_SURFACES} surfaces')
     ids=set();cells=work=detail_work=placements=active_reflectors=0
@@ -246,7 +268,8 @@ def validate_world(value,asset_ids):
         if any('rotation' in p for p in instances):compiled['cost']+=60
         if 'assembly' in obj:
             if not isinstance(obj['assembly'],str) or obj['assembly'] not in assemblies:
-                raise SceneError('Surface assembly must identify an existing assembly')
+                raise SceneError(f'Surface assembly must identify an existing assembly: got {shown(obj["assembly"])}; scene.assemblies defines '
+                                 +(str(sorted(assemblies)) if assemblies else 'none, so add the assembly there or remove this field'))
             compiled['cost']+=assemblies[obj['assembly']]['cost']
         detail_work+=compiled.get('detail_cost',0)*copies
         segments=obj['segments']
@@ -288,18 +311,22 @@ def compile_world(scene):
 def obj_schema(properties):return {'type':'object','properties':properties,'required':list(properties),'additionalProperties':False}
 NUM={'type':'number'}
 TEXT={'type':'string'}
-VEC={'type':'array','items':NUM,'minItems':3,'maxItems':3}
+VEC={'type':'array','items':{'type':'number','minimum':-80,'maximum':80},'minItems':3,'maxItems':3}
+HEX={'type':'string','pattern':'^#[0-9a-fA-F]{6}$','description':'Color as #RRGGBB, six hex digits.'}
+EXPR={'type':'string','minLength':1,'maxLength':512,'description':'One arithmetic expression as text (1-512 characters) over u, v, t, pi, bindings and the supported math functions; a constant is written as text too, like "0.5".'}
+def ranged(low,high):return {'type':'number','minimum':low,'maximum':high}
 WORLD_SCHEMA=obj_schema({
     'schema_version':{'type':'integer','const':2},'title':{'type':'string','maxLength':100},
     'mood':{'type':'string','maxLength':100},'reason':{'type':'string','maxLength':600},
-    'duration':{'type':'number','minimum':4,'maximum':30},'width':{'type':'integer','const':1280},'height':{'type':'integer','const':720},'seed':{'type':'integer'},
-    'references':{'type':'array','minItems':0,'maxItems':6,'items':obj_schema({'asset_id':TEXT,
+    'duration':{'type':'number','minimum':4,'maximum':30},'width':{'type':'integer','const':1280},'height':{'type':'integer','const':720},'seed':{'type':'integer','minimum':0,'maximum':2**31-1},
+    'references':{'type':'array','minItems':0,'maxItems':6,'items':obj_schema({'asset_id':{'type':'string','description':'One of the asset_ids passed beside scene.'},
         'observed':{'type':'string','maxLength':500},'created':{'type':'string','maxLength':500}})},
-    'environment':obj_schema({'sky_top':TEXT,'sky_bottom':TEXT,'fog_color':TEXT,'fog_density':NUM,'light_color':TEXT,'light_direction':VEC,'sun_size':NUM,'sun_strength':NUM}),
-    'camera':{'type':'array','minItems':2,'maxItems':12,'items':obj_schema({'at':NUM,'eye':VEC,'target':VEC,'fov':NUM})},
-    'objects':{'type':'array','minItems':1,'maxItems':MAX_SURFACES,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':TEXT,'y':TEXT,'z':TEXT}),
-        'segments':{'type':'array','items':{'type':'integer'},'minItems':2,'maxItems':2},'color':TEXT,'color_high':TEXT,'color_mix':TEXT,
-        'roughness':NUM,'metalness':NUM,'emission':NUM})}})
+    'environment':obj_schema({'sky_top':HEX,'sky_bottom':HEX,'fog_color':HEX,'fog_density':ranged(0,.15),'light_color':HEX,'light_direction':VEC,'sun_size':ranged(.003,.15),'sun_strength':ranged(0,4)}),
+    'camera':{'type':'array','minItems':2,'maxItems':12,'description':'Keys in strictly increasing at order, first at 0, last at duration.',
+        'items':obj_schema({'at':{'type':'number','minimum':0,'description':'Seconds from 0 to duration.'},'eye':VEC,'target':VEC,'fov':ranged(15,100)})},
+    'objects':{'type':'array','minItems':1,'maxItems':MAX_SURFACES,'items':obj_schema({'id':{'type':'string','minLength':1,'maxLength':40,'pattern':_LAYER_ID.pattern},'position':obj_schema({'x':EXPR,'y':EXPR,'z':EXPR}),
+        'segments':{'type':'array','items':{'type':'integer','minimum':4,'maximum':128},'minItems':2,'maxItems':2,'description':'[u, v] whole numbers: u 4-128, v 4-96.'},'color':HEX,'color_high':HEX,'color_mix':EXPR,
+        'roughness':ranged(.04,1),'metalness':ranged(0,1),'emission':ranged(0,3)})}})
 # A world from text evidence alone has no image reference; validate_world then requires text_references.
 WORLD_SCHEMA['required'].remove('references')
 WORLD_SCHEMA['properties']['references']['description']='One entry per selected image: what you observed and what you created. Leave empty or omit only when the world is built from text evidence alone, and then cite that evidence in text_references.'
