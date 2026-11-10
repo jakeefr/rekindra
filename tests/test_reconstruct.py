@@ -74,6 +74,36 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
         module._render(page, project, 'T', [{'title': 'S', 'items': [{'type': 'image', 'asset_id': tga}]}], [],
                        gaps, assets, images, self.store._project(self.pid))
         self.assertIn('style="aspect-ratio:300/400"', ''.join(page.parts))
+        # TIFF is turned by its reader during load, so its stored size is already the turned one.
+        page = module._Page()
+        images[tga] = dict(images[tga], source_format='tiff', original_width=300, original_height=400)
+        module._render(page, project, 'T', [{'title': 'S', 'items': [{'type': 'image', 'asset_id': tga}]}], [],
+                       gaps, assets, images, self.store._project(self.pid))
+        self.assertIn('style="aspect-ratio:300/400"', ''.join(page.parts))
+
+    def test_joiners_in_quoted_text_are_kept(self):
+        text = 'می‌خواهم 1990 \U0001F468‍\U0001F469‍\U0001F467'
+        (self.source / 'fa.txt').write_bytes(text.encode('utf-8'))
+        self.reinspect()
+        ids = self.evidence_for('fa.txt')
+        out = self.call(title='Joiners', sections=[{'title': 'S', 'items': [
+            {'type': 'text', 'asset_id': self.ids['fa.txt'], 'evidence_ids': ids[:1]}]}])
+        self.assertTrue(out['ok'], out)
+        self.assertEqual(out['result']['replaced_characters'], 0)
+        self.assertIn(text, Path(out['result']['path']).read_text(encoding='utf-8'))
+
+    def test_pdf_quotes_carry_their_page_number(self):
+        from test_pdf_text import make_pdf
+        (self.source / 'two.pdf').write_bytes(make_pdf(['First page text here.', 'Second page text here.']))
+        self.reinspect()
+        ids = self.evidence_for('two.pdf')
+        out = self.call(title='PDF', sections=[{'title': 'S', 'items': [
+            {'type': 'text', 'asset_id': self.ids['two.pdf'], 'evidence_ids': ids}]}])
+        self.assertTrue(out['ok'], out)
+        self.assertIn('page 2', Path(out['result']['path']).read_text(encoding='utf-8'))
+        record = json.loads(Path(out['result']['provenance_path']).read_text(encoding='utf-8'))
+        quotes = record['sections'][0]['items'][0]['quotes']
+        self.assertEqual([q['page_number'] for q in quotes], [1, 2])
 
     # --- happy path, labels, provenance -------------------------------------------------
 

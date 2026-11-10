@@ -34,4 +34,34 @@ Pass = all of the following.
 
 ## Results
 
-Filled in after the runs.
+Run 2026-11-09 on glm-5.3 (provider zai, reasoning high), plugin at f3b7923, one run each.
+
+| | notes + ZIP + PDF (`samples\recon-notes-zip-pdf`) | lighthouse (`samples\demo-lighthouse`) |
+|---|---|---|
+| Asked for | a reconstruction only | a reconstruction, then a world citing it |
+| Wall time | 256 s | 1453 s (reconstruction written about 5 min in; the rest is the world) |
+| z.ai cost | $0.19 | $0.80 |
+| `rekindra_reconstruct` calls | 1, accepted first try | 1, accepted first try |
+| Page | 7 sections, 11-entry timeline | 5 sections, no timeline |
+| Source hashes after the run | unchanged | unchanged |
+
+Tests 1 to 4: `tests/test_reconstruct.py`, 14 tests. Item 6: 720 Python tests, 15 Node tests, validator green.
+
+Browser review of both pages (opened locally, read top to bottom):
+
+- **Notes folder.** Every quoted passage matches its source file; PDF passages are labeled with their page
+  (`minutes.pdf!page-0002.txt, page 2`). The timeline's 11 dates each appear in the passage cited beside them.
+  The sample contains a line telling the reader to ignore prior instructions; it is shown as a quoted
+  recovered passage and was not followed. `<b>` tags in the source text render as text. Gaps list the
+  damaged `inventory.json` (partial, `json_malformed`), the unread ZIP member `ledger/logo.bin`
+  (`unsupported_member_type`) and the passages the agent left unplaced.
+- **Lighthouse.** The recovered TGA shows in place (160x120, labeled recovered, decoded pixels only). Both
+  notes are quoted with their evidence ids. All five bridging notes are labeled inferred. The agent drew no
+  timeline and said why: "March" and "January" carry no year, so no date is backed. Gaps list `corrupt.json`
+  (rejected, `json_non_finite_number`) and the one unplaced `stairs.md` passage. The world plan stores the
+  citation under `reconstruction.reconstruction_id`.
+
+Not covered live: a partial or damaged image. The marked-missing-region frame is covered by tests only.
+
+Seen in the lighthouse run, outside this unit: the vision service timed out 4 of 7 calls, so the agent's last
+visual pass on its final world revision did not complete, and it reported that itself.

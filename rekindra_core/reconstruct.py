@@ -36,7 +36,8 @@ _REFUSED = ('rejected', 'unsupported')
 _DATE = re.compile(r'^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$')
 _EVIDENCE_ID = re.compile(r'^ev-[0-9a-f]{24}$')
 # C0 and C1 controls except newline and tab, lone surrogates, and the characters that reorder or hide text.
-_UNSAFE = re.compile(r'[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b-\u200f\u2028-\u202e\u2060-\u2069\ufeff\ud800-\udfff]')
+# U+200C and U+200D stay: Persian, Indic scripts and emoji sequences need them to read correctly.
+_UNSAFE = re.compile(r'[\x00-\x08\x0b-\x1f\x7f-\x9f\u061c\u200b\u200e\u200f\u2028-\u202e\u2060-\u2069\ufeff\ud800-\udfff]')
 _LINE_END = re.compile(r'\r\n?')
 AUTO_RECOVER_SECONDS = 45
 OUT_OF_SCOPE = 'Repairing or finishing games or software projects is out of scope.'
@@ -458,6 +459,7 @@ border:1px solid #7a1f1f;overflow:hidden}
 .frame span{position:absolute;right:6px;bottom:6px;font:600 11px/1 system-ui,sans-serif;background:#7a1f1f;color:#fff;padding:3px 6px}
 table{border-collapse:collapse;width:100%;font:14px/1.4 system-ui,sans-serif;background:#fff}
 td,th{border:1px solid #c9c2b4;padding:6px 8px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
+td:first-child{white-space:nowrap}
 ul{padding-left:20px}li{margin:4px 0;overflow-wrap:anywhere}
 code{font:13px ui-monospace,Consolas,monospace}
 """
@@ -520,12 +522,12 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
                            f'{artifact.get("width")}&times;{artifact.get("height")}']
                 if note['shown'] == 'reduced':
                     caption.append(f'shown reduced to {artifact.get("scene_width")}&times;{artifact.get("scene_height")}; '
-                                   f'the full recovered PNG is at <code>{t(note["full_path"])}</code>')
+                                   f'the full recovered PNG is next to this page as <code>{t(note["full_path"])}</code>')
                 for warning in artifact.get('warnings') or []:
                     caption.append(f'decoder note: {t(warning)}')
                 if data is None:
                     page.add(f'<figure><p class="meta"><span class="tag gap">gap</span>Too large to embed. The recovered '
-                             f'PNG is at <code>{t(note["full_path"])}</code></p>'
+                             f'PNG is next to this page as <code>{t(note["full_path"])}</code></p>'
                              f'<figcaption>{" &middot; ".join(caption)}</figcaption></figure>')
                     continue
                 budget -= len(data)
@@ -533,8 +535,10 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
                 alt = f'Recovered image from {t(name)}'
                 if artifact.get('partial') and artifact.get('original_width') and artifact.get('original_height'):
                     ow, oh = artifact['original_width'], artifact['original_height']
-                    if artifact.get('exif_orientation') in (5, 6, 7, 8):
-                        ow, oh = oh, ow   # the stored size predates the quarter turn the recovered pixels got
+                    if artifact.get('exif_orientation') in (5, 6, 7, 8) and artifact.get('source_format') != 'tiff':
+                        # The stored size predates the quarter turn the recovered pixels got. TIFF is the
+                        # exception: its reader turns the image during load, so its stored size is already turned.
+                        ow, oh = oh, ow
                     width = max(1.0, min(100.0, 100.0 * artifact['width'] / ow))
                     fraction = artifact.get('decoded_fraction')
                     percent = f'{100 * fraction:.1f}%' if isinstance(fraction, (int, float)) else 'part'
@@ -556,8 +560,8 @@ def _render(page, project, title, sections, timeline, gaps, assets, images, dire
 
 def _image_bytes(directory: Path, aid: str, artifact: dict, budget: int) -> tuple:
     full = directory / 'artifacts' / (aid + '.png')
-    # The page may be shared, so it names the file, not the local directory layout.
-    note = {'shown': 'full', 'full_path': 'artifacts/' + full.name}
+    # The page may be shared, so it names the file (written beside the page), not the local directory layout.
+    note = {'shown': 'full', 'full_path': full.name}
     data = _read_checked(full, artifact.get('sha256'), min(MAX_INLINE_IMAGE, budget))
     if data is None and artifact.get('scene_sha256'):
         data = _read_checked(directory / 'artifacts' / (aid + '.scene.png'), artifact['scene_sha256'],
