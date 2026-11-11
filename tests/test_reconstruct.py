@@ -312,6 +312,7 @@ class ReconstructTests(recover_tests.RecoverEvidenceTests):
 
     # --- partial images -----------------------------------------------------------------
 
+    @unittest.skipUnless(importlib.util.find_spec('PIL'), 'Pillow is not installed')
     def test_partial_image_shows_recovered_pixels_and_marks_the_missing_region(self):
         data = encoded(noise((80, 80)), 'PNG')
         (self.source / 'cut.png').write_bytes(data[:len(data) * 6 // 10])
