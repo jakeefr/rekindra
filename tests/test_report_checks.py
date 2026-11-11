@@ -255,6 +255,9 @@ class ReportGateTests(gate_tests.ExportGateTests):
         self.assertEqual(rows(None), [])                      # no rig left to measure: nothing was measured
         self.assertEqual(rows({'verdict': 'small'}), [])
         self.assertEqual(rows({'verdict': 'ok'}), [{'id': 'frames:subject_small', 'how': gate.NOT_DECLARED}])
+        with mock.patch.object(gate, 'focal_framing', lambda scene: {'verdict': 'ok'}):   # the gate hands its reading on
+            seen = gate.preview_gate(self.store, self.project_id(), self.plan(second), gate_tests.CLEAN, None)
+        self.assertEqual(seen['cleared'], [{'id': 'frames:subject_small', 'how': gate.NOT_DECLARED}])
 
     def test_create_and_revise_list_what_was_adjusted(self):
         aid = self.ids['photo.tga']
