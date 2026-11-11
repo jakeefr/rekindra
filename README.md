@@ -8,7 +8,7 @@
 
 Point Rekindra at an old folder of images, notes, PDFs and archives. It recovers what it supports, keeps recovered material separate from invented material, and lets your Hermes agent build an original animated scene from the result that exports to WebM. Your source files are never modified.
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Hermes Agent >=0.22.7](https://img.shields.io/badge/Hermes%20Agent-%3E%3D0.22.7-6f42c1) ![Python 3.11–3.14](https://img.shields.io/badge/python-3.11%E2%80%933.14-3776ab) ![Platform: Windows (tested)](https://img.shields.io/badge/platform-Windows%20%28tested%29-lightgrey) ![Hermes Plugin Hackathon 2026](https://img.shields.io/badge/Hermes%20Plugin%20Hackathon-2026-orange)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE) ![Hermes Agent >=0.22.7](https://img.shields.io/badge/Hermes%20Agent-%3E%3D0.22.7-6f42c1) ![Python 3.11–3.14](https://img.shields.io/badge/python-3.11%E2%80%933.14-3776ab) ![Platform: Windows (tested)](https://img.shields.io/badge/platform-Windows%20%28tested%29-lightgrey) ![Hermes Plugin Hackathon 2026](https://img.shields.io/badge/Hermes%20Plugin%20Hackathon-2026-orange) [![Tests](https://github.com/jakeefr/rekindra/actions/workflows/test.yml/badge.svg)](https://github.com/jakeefr/rekindra/actions/workflows/test.yml)
 
 </div>
 
@@ -103,7 +103,7 @@ End-to-end runs (inspect, recover, create world, preview, revise, export) were v
 
 Real Windows Chrome acceptance verifies 1280x720 WebM output: native decoding, finite duration, seeking and playback, ASCII frame differences in color and black-and-white, cancellation, no external network requests, and rejection of corrupted embedded image hashes. Further acceptance records are in [docs/acceptance/](docs/acceptance/README.md).
 
-The CI matrix covers Windows, Linux and macOS on Python 3.11 and 3.14. An earlier build passed all six jobs; the current build has been verified locally on Windows only. A green core test is not a real Hermes desktop or browser acceptance pass.
+The CI matrix (Windows, Linux and macOS on Python 3.11 and 3.14) passes at 8b9924b. End-to-end preview and WebM export are verified on Windows only. A green core test is not a real Hermes desktop or browser acceptance pass.
 
 Running the tests: `python -m unittest discover -s tests -v` runs the Python suite, and `node --test tests/test_runtime.cjs tests/test_world_runtime.cjs tests/test_world_mesh.cjs tests/test_motion_probe.cjs` runs the runtime suite. The current build, run locally on Windows: 886 Python tests, all passing, 6 skipped (browser tests that need Playwright); 15 Node tests in the four files above, and 34 across all six `tests/*.cjs` files, all passing. Tests skip with a reason when something they need is missing: pypdf or Pillow for the reader tests, a development Playwright and Chrome for the browser tests. The CI workflow installs neither pypdf nor Pillow. Browser acceptance scripts under `scripts/` need a development-only Playwright installation and Chrome; Playwright is not a plugin dependency.
 
