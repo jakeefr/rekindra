@@ -4,6 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from rekindra_core.constructs import collect_adjustments
 from rekindra_core.rigs import ANCHORS, POSES, solve_rig
 from rekindra_core.scenes import SceneError
 from rekindra_core.worlds import WORLD_SCHEMA, compile_surface, compile_world, validate_world
@@ -133,6 +134,46 @@ class WorldTests(unittest.TestCase):
         self.assertIn('rk_', now)
         self.assertNotIn('rk_ml', now)
         self.assertNotIn('"cards"', now)
+
+
+class SnapTests(unittest.TestCase):
+    """Counts the renderer cannot use move to the nearest allowed value; the scene saved carries that value."""
+
+    def check(self, objects):
+        with collect_adjustments() as notes:
+            scene = validate_world(world(objects, [RIG]), ['x'])
+        return {obj['id']: obj for obj in scene['objects']}, notes
+
+    def test_figure_segments_snap_to_a_count_its_body_masses_divide(self):
+        for given in (60, 70, 80):
+            saved, notes = self.check([surface('body', **dict(FIGURE, segments=[given, 16]))])
+            self.assertEqual(saved['body']['segments'], [96, 16], given)
+            self.assertEqual(len(notes), 1)
+            self.assertIn(f'surface body: figure u segments {given} ', notes[0])
+            self.assertIn('used 96', notes[0])
+        saved, notes = self.check([surface('body', **FIGURE)])
+        self.assertEqual((saved['body']['segments'], notes), ([96, 16], []))
+
+    def test_wing_segments_snap_to_the_nearest_count_its_feathers_divide(self):
+        for given, used in ((108, 120), (100, 90)):
+            saved, notes = self.check([surface('body', **FIGURE), surface('w', **dict(WING, segments=[given, 12]))])
+            self.assertEqual(saved['w']['segments'], [used, 12], given)
+            self.assertIn(f'surface w: wing u segments {given} ', notes[0])
+            self.assertIn(f'used {used}', notes[0])
+
+    def test_a_wing_no_allowed_count_fits_is_still_refused(self):
+        crowded = dict(WING, wing=dict(WING['wing'], count=24, rows=3))   # 72 feathers need 216 columns or more
+        with self.assertRaises(SceneError):
+            self.check([surface('body', **FIGURE), surface('w', **crowded)])
+
+    def test_wing_layer_deeper_than_allowed_is_moved_to_the_deepest_allowed(self):
+        deep = dict(WING, wing=dict(WING['wing'], layer=.4))
+        saved, notes = self.check([surface('body', **FIGURE), surface('w', **deep)])
+        self.assertAlmostEqual(saved['w']['wing']['layer'], .12 * 1.3, places=5)
+        self.assertLessEqual(saved['w']['wing']['layer'], .12 * 1.3)
+        self.assertEqual(len(notes), 1)
+        self.assertIn('wing layer 0.4 is deeper than 0.12 of the span', notes[0])
+        compile_world(dict(world([surface('body', **FIGURE)], [RIG]), objects=list(saved.values())))   # the moved values compile
 
 
 if __name__ == '__main__':

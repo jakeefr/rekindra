@@ -215,6 +215,16 @@ An instance may include `rotation:[rx,ry,rz]`, static radians bounded to +/-2pi 
 
 Use varied orientations for repeated leaves, branches or stones when the sources justify them. This does not automatically attach copies to terrain or resolve intersections; inspect their bases and silhouettes from stationary review views.
 
+## Staging the main motion and the ending
+
+Start the main motion (a wing or door opening, growth, a rise) within the first third of the duration, not halfway, and finish it before the last quarter. The six preview frames sit at evenly spaced times, so a motion that starts at the midpoint leaves the first three frames showing a still subject. For a 16 second scene, `clamp((t-1)/6,0,1)` opens from second 1 to 7.
+
+End on the subject. The preview reports `focal_framing`: the share of the frame height a posed figure spans in the last third of the frames. Below 0.3 it lists `frames:subject_small` under `defects` (reported, not an export warning): move the final camera keys closer, lower their fov, and aim their target at mid-body. The 0.3 line is a medium-wide shot in which a kneeling figure with raised wings still fits the frame; the first demo rehearsal ended at 0.13 and 0.15 and read as a small figure in a large room.
+
+A construction count the renderer cannot use is moved to the nearest allowed value instead of refused, and the create or revise result lists each change under `adjusted`: u segments that do not divide into a figure's body masses, a wing's feathers or a feather fan's cards, and a wing layer deeper than 0.12 of the span.
+
+A revise that clears a flagged defect counts as having addressed it even when it did not declare the fix in `addresses`: the next preview lists it under `cleared_defects`, and a revise called with `preview: true` moves it from `flagged_defects.unaddressed` to `addressed`.
+
 ## Compact bounded assembly easing
 
 Expanded polynomials can exceed the assembly's32-node expression limit before geometry is even considered. For a smooth held opening from second3 to8, `0.5-0.5*cos(pi*clamp((t-3)/5,0,1))` compiles to15nodes and stays0before the interval and1after it, with zero endpoint velocity. Multiply by the desired displacement or angle within the same budget. This is a timing example, not a scene template. It was checked through both expression and assembly compilers; fixed assembly work and all attached copies still count toward the world's total.

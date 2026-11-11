@@ -4,7 +4,7 @@ import math
 import json
 
 from .backdrop import backdrop_warnings
-from .report_checks import camera_graze_warnings, haze_warnings, object_motion_warnings
+from .report_checks import camera_graze_warnings, focal_framing, focal_framing_warnings, haze_warnings, object_motion_warnings
 from .compositions import CompositionStore
 from .projects import ProjectError, _atomic, _no_links
 from .scenes import SceneError
@@ -283,6 +283,43 @@ def _defects(store, project_id, plan, warnings):
     return rows
 
 
+NOT_DECLARED = 'not declared by the revise; this preview no longer measures it'
+# A defect read from a measurement counts as cleared only when this preview took that measurement.
+_NEEDS_MEASURE = {'frames:objects_still': 'object_motion', 'frames:haze_thin': 'source_mist'}
+
+
+def _cleared(store, project_id, plan, defects, frames, measures, framing=None):
+    """Defects the parent plan's last preview flagged that this preview of its revision no longer measures.
+
+    The measurement decides, whether or not the revise declared the fix: each row carries what the revise
+    said, or NOT_DECLARED."""
+    model = plan.get('model')
+    if not isinstance(model, dict) or model.get('origin') != 'caller-revised' \
+            or not isinstance(model.get('parent_plan_id'), str):
+        return []
+    try:
+        flagged = open_defects(store, project_id, model['parent_plan_id'])
+    except ProjectError:
+        return []
+    still = {row['id'] for row in defects}
+    answers = _read_answers(store, project_id, plan['plan_id'])
+    rows = []
+    for defect in flagged:
+        if defect in still:
+            continue
+        if defect in _NEEDS_MEASURE:
+            if _NEEDS_MEASURE[defect] not in measures:
+                continue
+        elif defect == 'frames:subject_small':
+            # Read from the plan, not the frames: cleared only by a reading that the figure now stands tall enough.
+            if not framing or framing.get('verdict') != 'ok':
+                continue
+        elif defect.startswith('frames:') and frames is None:
+            continue
+        rows.append({'id': defect, 'how': answers.get(defect, NOT_DECLARED)})
+    return rows
+
+
 def flagged_cycles(compositions, project_id, plan):
     """Revised plans in this plan's ancestry whose own preview still flagged; one count per plan."""
     count, seen, current = 0, set(), plan
@@ -312,8 +349,11 @@ def preview_gate(store, project_id, plan, drift, review_camera, frames=None, mea
     measures = {k: v for k, v in (measures or {}).items() if v is not None}
     warnings = current_warnings(plan, drift, frames, measures)
     # Still objects are reported and tracked as a defect, but never block export: a camera-only move is a fair choice.
-    advisory = object_motion_warnings(plan['scene'], measures.get('object_motion'))
+    # A figure that ends small in frame is tracked the same way: a wide ending is also a fair choice.
+    framing = focal_framing(plan['scene'])
+    advisory = object_motion_warnings(plan['scene'], measures.get('object_motion')) + focal_framing_warnings(plan['scene'], framing)
     defects = _defects(store, project_id, plan, warnings + advisory)
+    cleared = _cleared(store, project_id, plan, defects, frames, measures, framing)
     record = {'plan_id': plan['plan_id'], 'palette_drift': drift}
     if frames is not None:
         record['frames'] = frames
@@ -327,6 +367,8 @@ def preview_gate(store, project_id, plan, drift, review_camera, frames=None, mea
     gate = {'warnings': warnings, 'revise_preview_cycles': cycles, 'cycle_cap': MAX_FLAGGED_CYCLES}
     if defects:
         gate['defects'] = defects
+    if cleared:
+        gate['cleared'] = cleared
     return gate
 
 

@@ -4,7 +4,7 @@ small surfaces the camera path runs into. Same inputs, same report; nothing here
 import ast
 import math
 
-from .backdrop import _camera_at, _clamp, _dot, _view
+from .backdrop import _ASPECT, _camera_at, _clamp, _dot, _view
 from .expressions import surface_sampler
 from .palette_drift import _lab
 
@@ -27,6 +27,11 @@ _SAMPLES_PER_SECOND = 4
 _GRID = 7
 _WORK_BUDGET = 4_000_000
 _MAX_INSTANCE_CHECKS = 400_000
+PREVIEW_FRAMES = 6
+# Share of the frame height a posed figure should reach in the last third of the preview frames. 0.3 is a
+# medium-wide shot: a kneeling figure with raised wings still fits the 16:9 frame. The demo-1 rehearsal, whose
+# ending read as a small figure in a large room, measured 0.126 and 0.151 in its last two frames.
+FOCAL_SHARE = 0.3
 _EXPRESSION_FIELDS = ('color_mix', 'color_detail', 'bump_detail', 'color_pattern')
 _UNMODELED = ('loft', 'feathers', 'drape', 'ring', 'assembly')
 
@@ -127,6 +132,67 @@ def haze_warnings(scene, mist):
                         f"fog and haze veil only {report['scene_haze']:g} of the light from the subject distance "
                         f'(want {THIN_HAZE:g} or more). Raise environment.fog_density or atmosphere.haze_density '
                         'with a haze_color taken from the source, or acknowledge that the scene is meant to be clearer.'}]
+
+
+def _frame_height(view, points):
+    """Share of the frame height spanned by the points inside the frame's width, clipped to its height.
+
+    0 when none is in front of the camera and between the left and right edges: a figure the camera looks
+    past is not framed."""
+    rows = []
+    for point in points:
+        delta = [p - e for p, e in zip(point, view['eye'])]
+        depth = _dot(delta, view['forward'])
+        if depth > 1e-6 and abs(_dot(delta, view['right']) / (depth * view['tan'] * _ASPECT)) <= 1:
+            rows.append(max(-1.0, min(1.0, _dot(delta, view['up']) / (depth * view['tan']))))
+    return (max(rows) - min(rows)) / 2 if rows else 0.0
+
+
+def _rig_points(rig):
+    points = []
+    for bone in rig['bones']:
+        end = [a + d for a, d in zip(bone['a'], bone['d'])]
+        for centre, radius in ((bone['a'], bone['ra']), (end, bone['rb'])):
+            points += [[c + s * radius * (i == axis) for i, c in enumerate(centre)]
+                       for axis in range(3) for s in (-1, 1)]
+    return points
+
+
+def focal_framing(scene):
+    """How tall the posed figure stands in the last third of the preview frames. None without a rig or camera."""
+    keys = scene.get('camera') or []
+    duration = scene.get('duration')
+    if not keys or not _measured(duration) or duration <= 0 or not scene.get('rigs'):
+        return None
+    try:
+        from .rigs import rig_context
+        rigs = (rig_context(scene) or {}).get('rigs') or {}
+    except Exception:       # a rig this check cannot solve is refused by validation, not here
+        return None
+    if not rigs:
+        return None
+    times = [(i + .5) * duration / PREVIEW_FRAMES for i in range(PREVIEW_FRAMES - PREVIEW_FRAMES // 3, PREVIEW_FRAMES)]
+    views = [_view(_camera_at(keys, time)) for time in times]
+    # The figure the ending looks at: the one that stands tallest in those frames.
+    name, shares = max(((name, [_frame_height(view, _rig_points(rig)) for view in views]) for name, rig in sorted(rigs.items())),
+                       key=lambda row: max(row[1]))
+    return {'subject': name, 'times_seconds': [round(t, 3) for t in times],
+            'frame_height_share': [round(s, 3) for s in shares], 'threshold': FOCAL_SHARE,
+            'verdict': 'small' if max(shares) < FOCAL_SHARE else 'ok'}
+
+
+def focal_framing_warnings(scene, report=None):
+    """The figure the scene is about ends up small in frame. Reported, not an export warning."""
+    report = focal_framing(scene) if report is None else report
+    if report is None or report['verdict'] != 'small':
+        return []
+    best = max(report['frame_height_share'])
+    closer = f' (about {FOCAL_SHARE / best:.1f} times closer at the same fov)' if best > 0 else ''
+    return [{'warning_id': 'frames:subject_small', 'kind': 'subject_small',
+             'message': f"Figure {report['subject']} stands at most {best:.0%} of the frame height in the last third of "
+                        f'the preview frames (want {FOCAL_SHARE:.0%} or more), so the ending shows mostly setting. Move '
+                        f'the final camera keys closer to the figure{closer}, lower their fov, and aim their target '
+                        'at mid-body. This is reported, not an export warning.'}]
 
 
 def _rotate(point, angles):

@@ -138,6 +138,15 @@ for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_previe
 _MIST_RULE = ' When the source images read misty or hazy, the scene needs enough fog or haze to veil the distance the same way; the preview reports this as haze, and frames:haze_thin when it is too thin.'
 for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
     SCHEMAS[_name]['description'] += _MIST_RULE
+_STAGING_RULE = (' Start the main motion (a wing or door opening, growth, a rise) within the first third of the duration, '
+                 'not halfway, and finish it before the last quarter, so most frames show it under way or complete. '
+                 'End on the subject: a posed figure should stand at least 0.3 of the frame height in the last third '
+                 'of the frames; the preview reports focal_framing, and frames:subject_small when the figure ends '
+                 'small (move the final camera keys closer, lower their fov).')
+_ADJUSTED_RULE = (' A construction count the renderer cannot use (u segments that do not divide into the cards, a wing '
+                  'layer that is too deep) is moved to the nearest allowed value and listed under adjusted.')
+for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
+    SCHEMAS[_name]['description'] += _STAGING_RULE + ('' if _name == 'rekindra_preview' else _ADJUSTED_RULE)
 SCHEMAS['rekindra_revise_world']['parameters']['properties']['addresses'] = {
     'type': 'array', 'maxItems': 16, 'items': {'type': 'object', 'properties': {
         'id': {'type': 'string', 'description': 'A defect id from the last preview of the parent plan.'},
@@ -145,6 +154,7 @@ SCHEMAS['rekindra_revise_world']['parameters']['properties']['addresses'] = {
         'required': ['id', 'how'], 'additionalProperties': False},
     'description': 'Optional. For each defect the parent plan\'s last preview listed that this revise fixes, {id, how}. '
                    'The result reports flagged_defects: which open defects were addressed and which were not; '
-                   'unaddressed ones stay open and carry into the next preview.'}
+                   'unaddressed ones stay open and carry into the next preview. A defect the next preview no longer '
+                   'measures counts as addressed even when it was not declared here.'}
 from .rekindra_core.schema_hints import tighten
 tighten(SCHEMAS)
