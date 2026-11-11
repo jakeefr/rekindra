@@ -80,13 +80,13 @@ Inspect decoded frames from the exported video at the beginning, middle and end.
 
 Before equations, record a compact visual brief: dominant subject, supporting place, material contrast, motivated light sources, and opening/transformation/resolution. A camera move needs a purpose such as revealing thickness or disclosing the destination; endless drift is not a substitute for design. Compare light-facing and shadow-facing surfaces before adding texture. If material variants merely trade matte slabs for noisy slabs, preserve the cleanest version and change construction or composition in a new, explicitly scoped unit. Do not reset the failed unit's attempt counter or describe a new hypothesis as a successful fix.
 
-Passing a bounded unit does not end a broader user-authorized quality task. Preserve its evidence, identify the next failing visual criterion and continue independent work. Stop for actual completion, an external blocker, or an applicable explicit budget—not because another contact sheet was generated. Reference research in `docs/research/ansphare-cinetic-quality.md` informs this workflow; no external creative engine is required.
+Passing a bounded unit does not end a broader user-authorized quality task. Preserve its evidence, identify the next failing visual criterion and continue independent work. Stop for actual completion, an external blocker, or an applicable explicit budget—not because another contact sheet was generated. No external creative engine is required.
 
 ### Optional contact depth
 
 `environment.occlusion_strength` (0..1, default0) enables bounded screen-space attenuation of indirect ambient/environment lighting. `occlusion_radius` (.05..4, default1) sets its world-space reach. Use it subtly to distinguish nearby contacts and recesses; it does not affect direct lights or emission. It adds one camera-depth geometry pass and 16 fixed hemisphere samples, with no random temporal state. Missing/offscreen geometry cannot occlude, so review moving silhouettes for halos or changes at frame boundaries. It is not global illumination, local-light shadowing, or a substitute for connected construction. Existing scenes remain on the original path unless enabled.
 
-`scripts/make_variety_sources.py` reproduces the original synthetic visual references on D: in `.local/variety-study`. These test rendering and creative interpretation only; they are unrelated to the second developer's intake fixtures and do not establish performance on real damaged archives.
+`scripts/make_variety_sources.py` reproduces the original synthetic visual references in `.local/variety-study`. These test rendering and creative interpretation only; they are unrelated to the second developer's intake fixtures and do not establish performance on real damaged archives.
 
 ## Geometry, clock and camera
 
@@ -134,7 +134,7 @@ WebGL2 is required for worlds; native VP8 WebCodecs encoding is required for exp
 
 ## Development verification
 
-`scripts/make_world_fixture.py` generates an authored benchmark, explicitly not model output. `scripts/browser_scene_test.cjs` accepts an HTML path and `REKINDRA_WORLD_STUDY=1` to additionally check that source image pixels are not drawn, geometry still moves with a fixed camera, and decoded exported video frames can be inspected. `REKINDRA_BROWSER_OUTPUT` selects its output directory. All task data on Jake's Windows development machine stays on D:.
+`scripts/make_world_fixture.py` generates an authored benchmark, explicitly not model output. `scripts/browser_scene_test.cjs` accepts an HTML path and `REKINDRA_WORLD_STUDY=1` to additionally check that source image pixels are not drawn, geometry still moves with a fixed camera, and decoded exported video frames can be inspected. `REKINDRA_BROWSER_OUTPUT` selects its output directory. All task data stays under the local development root.
 
 The filmstrip is sampled decoded video, not proof of human-like continuous viewing. Review multiple times and full playback behavior; do not equate a frame-difference statistic with beauty or usefulness.
 

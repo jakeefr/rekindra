@@ -8,4 +8,4 @@ Candidate3 kept protected mechanism geometry and timing exactly unchanged. Three
 
 Root full default-browser export passed unchanged motion/exact-repeat checks:14s1280x720,7,453,232bytes;24decoded frames reviewed. Visual improvement: warm focal masonry, shaped teal roof, motivated amber lamps and real scene reflection. Still below showcase acceptance: sparse smooth blue floor, simplified vegetation and modest narrative payoff. No fourth authored revision. Later renderer diagnostic copies are explicitly separate and do not reset this artistic allowance.
 
-The two forest images are sourced photographs. Notes/map/legacy snippet are constructed test data, not a recovered executable game. Unknown binary content remains unknown. Evidence private under `.local/forest-reflection/` and D: Hermes scratch `forest-reflection-20261106-a`.
+The two forest images are sourced photographs. Notes/map/legacy snippet are constructed test data, not a recovered executable game. Unknown binary content remains unknown. Evidence private under `.local/forest-reflection/` and local Hermes scratch `forest-reflection-20261106-a`.

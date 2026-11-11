@@ -11,6 +11,6 @@ Native vision reviewed normal and stationary reverse sheets for both candidates.
 
 Retained full default-browser gate passed:18seconds,1280x720,6,101,787bytes. Checks included exact repeat-seeking, stationary-camera visual motion, no source-pixel drawing, offline behavior, source-corruption rejection, export/decode and cancellation. Earlier intermittent hardware repeatability failures are not thereby proven fixed. No new source-code change required a repeated unit suite; no cross-platform CI claim is made.
 
-Evidence: `.local/vault-refinement/{native-events.jsonl,verification.json,retained-export/result.json,retained-export/decoded/decoded-overview.png}` and `<local path>/home/cache/scratch/vesper-refinement-20261106/` for native payload comparisons and ledger. Media remains private/untracked on D:. Temporary native budget restored to120seconds. No audio, intake edits, external engines or catalog publication.
+Evidence: `.local/vault-refinement/{native-events.jsonl,verification.json,retained-export/result.json,retained-export/decoded/decoded-overview.png}` and `<local path>/home/cache/scratch/vesper-refinement-20261106/` for native payload comparisons and ledger. Media remains private/untracked locally. Temporary native budget restored to120seconds. No audio, intake edits, external engines or catalog publication.
 
 Next useful work: improve the surrounding site and temporal progression while preserving the readable opening. Do not spend more revisions merely tinting this same structure or call the technical gate an aesthetic score.

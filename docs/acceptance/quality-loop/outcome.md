@@ -4,7 +4,7 @@ The visual-quality unit used its three submissions and did not meet the requeste
 
 ## Retained progress
 
-Native Hermes session local-9d09b2e947d966e2f63c5b762c6e82cf61e77453928ec96a6669322253a614a1 completed in406105ms, exit0. It read the saved baseline and both real C01 source photos. An initial mistyped plan ID caused a rejected preview call; corrected before authoring. All writes including its review note were on D:. Root supplied source-linked defect feedback, not geometry equations or a new design recipe.
+Native Hermes session local-9d09b2e947d966e2f63c5b762c6e82cf61e77453928ec96a6669322253a614a1 completed in406105ms, exit0. It read the saved baseline and both real C01 source photos. An initial mistyped plan ID caused a rejected preview call; corrected before authoring. All writes including its review note were local. Root supplied source-linked defect feedback, not geometry equations or a new design recipe.
 
 Three create/revise submissions:
 1. 7f50d947e4ab40c0a4ce2ad18ea16213: continuous eroded terrain replaced block banks and floating trail sheets; thicker tapered trunk with unequal forks replaced paired rails; moss cushions and root cradles improved attachments; branching trees, lobed crowns and three frond families replaced umbrellas. Retained as the strongest presentation draft, not accepted quality.
@@ -33,4 +33,4 @@ SCOPE: forest scene authoring only; do not redo passing assembly/schema implemen
 
 Next plan should isolate review camera poses from presentation timelines, so attachment inspection does not consume/destructively replace a candidate's ending. Then work on grounded plant attachments and varied organic silhouettes in focused units with explicit local examples and resource accounting. The current evidence does not justify raising geometry limits or adding an external creative engine. Preserve the source-specific invention and successful shared-motion construction.
 
-Hermes budget restored600→120 and native run finished. All artifacts/caches remain D:. No new engine, public catalog PR, release or visibility change. Overall requested impeccable-quality outcome remains unachieved, explicitly recorded in verification.json.
+Hermes budget restored600→120 and native run finished. All artifacts/caches remain local. No new engine, public catalog PR, release or visibility change. Overall requested impeccable-quality outcome remains unachieved, explicitly recorded in verification.json.

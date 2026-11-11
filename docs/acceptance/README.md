@@ -37,7 +37,7 @@ the specific evaluated corpus. Large source media and raw native logs remain in
 ## Reproduction
 
 Run from the repository with the development environment loaded so temporary and
-cache writes remain on D: on this Windows host:
+cache writes stay under the development root:
 
 ```powershell
 . ./scripts/dev-environment.ps1
@@ -54,8 +54,8 @@ checks, zero failures (four exact recoveries and eight honest rejections).
 
 ## Native creative protocol
 
-Fresh Hermes sessions receive `autonomy-brief.txt`, substituting only the selected
-folder path. They inspect actual images using native vision, optionally read
+Fresh Hermes sessions receive a fixed autonomy brief (not published), substituting
+only the selected folder path. They inspect actual images using native vision, optionally read
 bounded text using host tools, author generated worlds, and inspect/critique their
 own native previews. No evaluator geometry, palette, camera recipe or previous
 scene implementation is supplied. Native vision and text reading are host

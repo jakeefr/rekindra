@@ -1,6 +1,6 @@
 # Local shared-assembly and lighting outcome
 
-Private integration complete: revision tool commit0a5f470 and assembly/lighting commitbcfa502 pushed to the private jakeefr/rekindra repository and installed in <local path>/home/plugins/rekindra. GitHub visibility was verified PRIVATE. No marketplace/catalog submission, public fork, release or visibility change. All generated files/caches remained on D:. Intake-owned paths and deferred audio untouched.
+Private integration complete: revision tool commit0a5f470 and assembly/lighting commitbcfa502 pushed to the private jakeefr/rekindra repository and installed in <local path>/home/plugins/rekindra. GitHub visibility was verified PRIVATE. No marketplace/catalog submission, public fork, release or visibility change. All generated files/caches remained local. Intake-owned paths and deferred audio untouched.
 
 ## What changed and passed
 

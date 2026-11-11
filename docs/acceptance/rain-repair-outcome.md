@@ -24,4 +24,4 @@ Full16second1280x720WebM,8,125,070bytes. Default browser motion, exact repeated 
 
 Remaining limits: the deliberate docking seam is visible; narrow outlet termination still deserves a more finished design. No claim of continuous collision proof, watertight geometry, physical fluid simulation, cross-platform GPU verification or impeccable overall artistic quality. This repair addresses the named construction defects; it does not establish that arbitrary folders produce showcase-level results. All work remains private.
 
-Reusable example: examples/worlds/rain-switch-repaired.json (portable placeholder reference IDs). General construction diagnosis and recipe added to world-authoring.md and RULES.md. No intake files or external rendering engines changed.
+Reusable example: examples/worlds/rain-switch-repaired.json (portable placeholder reference IDs). General construction diagnosis and recipe added to world-authoring.md and the internal development rules. No intake files or external rendering engines changed.

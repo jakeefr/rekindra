@@ -2,7 +2,7 @@
 
 Date: 2026-11-07 (Saturday). This was scheduled for Sunday; it ran a day early on Jake's go-ahead
 ("just whatever you think needs to be done").
-Branch `feat/foundation` @ 74d0b80 (tag `checkpoint-recover-wired`). Hermes v0.22.7 (D: install), gateway on.
+Branch `feat/foundation` @ 74d0b80 (tag `checkpoint-recover-wired`). Hermes v0.22.7 (local install), gateway on.
 Model: `openai-codex` / `gpt-6.1-sol`, reasoning medium, `--max-turns 28`, one-shot, resuming session `local-26200ba7…`.
 
 ## Request (beat 5)

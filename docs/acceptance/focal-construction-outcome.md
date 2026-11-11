@@ -8,4 +8,4 @@ Candidate3 used the new24-definition capacity for stem knees, laminated rim, bro
 
 Full default-browser export passed unchanged pixel-repeat/motion/offline checks:16s1280x720,2,236,865bytes. Root still rejects artistic acceptance: muddy beige/brown staging, broad plain spans, simplified seed/leaf forms, small focal reveal. Better construction is not an impressive final product. Do not reopen a fourth submission of this unit. Reflection capability and a genuinely different source study are separate work, not a reset of this allowance.
 
-Sources include real coastal photographs and explicitly fictional test notes. ZIP content was not recovered; generated forms are invention, not recovered historical truth. Evidence remains private in `.local/focal-construction/` and the D: Hermes scratch directory.
+Sources include real coastal photographs and explicitly fictional test notes. ZIP content was not recovered; generated forms are invention, not recovered historical truth. Evidence remains private in `.local/focal-construction/` and the local Hermes scratch directory.

@@ -1,7 +1,7 @@
 # Demo weak-spot fixes: outcome (2026-11-07)
 
 Scope: five authoring-guidance fixes for the lighthouse demo (fog, horizon, sea colour, beam, boats) plus the
-beat-5 revise. Engine untouched; only `schemas.py` create_world text, `docs/world-authoring.md` and `RULES.md`
+beat-5 revise. Engine untouched; only `schemas.py` create_world text, `docs/world-authoring.md` and the internal development rules
 changed. Checker: `scripts/check_demo_scene.py` (exit 0 pass, 1 fail, 3 unmeasured only).
 
 This is not an artistic acceptance. Frame reviews below are honest notes, not sign-off.
@@ -12,7 +12,7 @@ This is not an artistic acceptance. Frame reviews below are honest notes, not si
 - Beam `cone`: emissive tapered cone read as a solid wedge in decoded frames. Rejected per the fallback rule.
 - `shaft2`-`shaft6`: flat soft strip on the water, widening away from the lamp, edge/far fade via
   `color_pattern`, on the sweeping assembly. shaft2/3 tuned water colour; shaft4-6 tuned exposure and fill.
-  **shaft5 passed all five checker units** (boats L/W 3.02). The RULES.md lines for the five units came from
+  **shaft5 passed all five checker units** (boats L/W 3.02). The development-rule lines for the five units came from
   these offline passes.
 - Fog calibration: `fog_density` .012 flattened the frame (luma std .073); guidance now caps it at .006.
 
@@ -79,7 +79,7 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   `tests/test_glow.py` covers validation, the reflector rule and revise set/remove.
 - Offline probe (`glow1`-`glow3`, same base plan): attempt 1 at glow .9-1.3 saturated to a white wedge; attempt 2 at
   .12 reads as a soft beam leaving the lamp in all six frames and hidden by the tower when it points away. Guidance and
-  RULES.md now say: apex at the lamp, on the sweeping assembly, glow ~.12, plus a glow halo on the lamp room.
+  the internal development rules now say: apex at the lamp, on the sweeping assembly, glow ~.12, plus a glow halo on the lamp room.
 
 - Live run `e2e-glow` built the beam from the lamp, but export failed the seek check: hardware MSAA resolve of
   overlapping additive layers drifted between identical draws (about half of runs; SwiftShader bit-exact). Attempt 1
@@ -111,7 +111,7 @@ changes the engine (the "engine untouched" scope above covers only the five earl
   - Beam end, attempt 1 pass: color_pattern/color_mix `u*u*(3-2*u)` fades the cone to nothing; no flat cap.
   - Boats, attempt 1 pass: hull already a pointed loft; mast radius .035 -> .07 and #695041 -> #B89A78 makes the mast
     readable so the lamp no longer floats.
-  Guidance (schemas.py, docs/world-authoring.md) and RULES.md updated for the beam and mast.
+  Guidance (schemas.py, docs/world-authoring.md) and the internal development rules updated for the beam and mast.
 - New live take `e2e-glow3` with the updated guidance (first launch hit "Gateway starting: deadline" before warmup,
   kept in `e2e-glow3/failed1`; relaunch ok). Kept as the best lighthouse take. Plan:
   `projects/35bb301718e240d79eb65796088e9bd7/plans/6a70c3c2a8d14108936f1c3b8ac199e2.json`, export in
@@ -149,7 +149,7 @@ Offline probes on a scratch copy of glow3, decoded export frames, the option imp
   not describe the rendered edge. Left as is.
 - Engine reverted: `runtime/world.js` is byte-identical to 36c3cf9. Because nothing shipped, the bit-identity proof on
   the rain scene and the Violet Hour Gate was not needed and was not run post-change; only the pre-change controls exist
-  (decoded frames 8/8 identical, WebM bytes equal between repeat exports). No RULES.md line, no new take.
+  (decoded frames 8/8 identical, WebM bytes equal between repeat exports). No development-rule line, no new take.
 - Fallback per the approved plan: guidance for a low headland or island ring inside the +/-100 box (`schemas.py`,
   `docs/world-authoring.md`). Offline probe on a scratch copy of glow3, one render, condition fixed first: ring inside
   the box; from every camera key at 720 azimuths the ridge's lowest top is above the clamped sea edge (worst margin

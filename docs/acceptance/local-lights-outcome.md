@@ -12,7 +12,7 @@ The agent proposed a split rib vault revealing a lantern court, replacing the ea
 2. Agent omitted lights and saved `e05635ff854644648a773df599ba21e1`. Root reviewed both native preview sheets. A more dimensional structure, but small, cage-like, broad-lit, and approached by a floating-looking plank. Full browser export passed at 18 seconds/4,550,086 bytes; this is not evidence of local lights.
 3. A structural revision restoring the lights was rejected by the loaded validator. No saved revised plan existed. The native ledger also notes differences between its rejected submission and local draft; no exact-payload claim applies to that failed call.
 
-The unit is closed, not silently reset. The direct stream summary undercounts gateway rejections; the native `review-ledger.json` records all three. The integration plan was wrong: fresh files and a fresh CLI did not imply a fresh gateway. `docs/local-plugin-update.md` and RULES.md now document live-runtime verification.
+The unit is closed, not silently reset. The direct stream summary undercounts gateway rejections; the native `review-ledger.json` records all three. The integration plan was wrong: fresh files and a fresh CLI did not imply a fresh gateway. The internal development notes now document live-runtime verification.
 
 ## One bounded integration recovery
 
@@ -22,4 +22,4 @@ Root's same-frame light on/off diagnostic found56,797 pixels with summed RGB dif
 
 The recovered scene has stronger faceted ribs, a taller destination and visible warm/cool illumination on surfaces. It is an improved checkpoint, **not showcase acceptance**. Right-hand ribs overlap almost edge-on late in the presentation; the plain approach and empty hillside still read as a model; pivot interfaces remain visually weak. Sampling does not prove collision freedom. Next work should address projected separation, grounded approach detail and material hierarchy before adding decorative geometry.
 
-All artifacts remain on D: and the repository remains private. Audio, intake ownership and public catalog integration were untouched. The temporary native run budget was restored to120 seconds. Evidence: `.local/local-lights/`, `.local/structural-lights/`, and `<local path>/home/cache/scratch/vesper-vault/{review-ledger.json,recovery-review.json}`.
+All artifacts remain local and the repository remains private. Audio, intake ownership and public catalog integration were untouched. The temporary native run budget was restored to120 seconds. Evidence: `.local/local-lights/`, `.local/structural-lights/`, and `<local path>/home/cache/scratch/vesper-vault/{review-ledger.json,recovery-review.json}`.

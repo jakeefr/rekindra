@@ -1,6 +1,6 @@
 # Live end-to-end: recover → text_references → preview → export
 
-Date: 2026-11-07. Branch `feat/recover-text-zip`. Hermes v0.22.7 (D: install), gateway on.
+Date: 2026-11-07. Branch `feat/recover-text-zip`. Hermes v0.22.7 (local install), gateway on.
 Model: `openai-codex` / `gpt-6.1-sol`, reasoning medium, `--max-turns 28`, one-shot.
 
 ## Pass condition
@@ -22,7 +22,7 @@ The notes are loose files, not in a ZIP. Hashes are in `<local path>\samples\e2e
 |---|--------|-------|
 | 1 | `Gateway starting: deadline` | The gateway was started in a background shell with output redirected, and hung after plugin discovery. It was restarted minimized with `--quiet`. |
 | 2 | `Gateway connection failed; no local fallback` | The chat ran during the gateway's 105 s turn-machinery warmup. |
-| 3 | Same as 2 | `session.create` took about 40 s against the client's 30 s RPC timeout. A stray recursive `grep -rn` over hermes-agent and its venv (left from a stopped task) was saturating D:. |
+| 3 | Same as 2 | `session.create` took about 40 s against the client's 30 s RPC timeout. A stray recursive `grep -rn` over hermes-agent and its venv (left from a stopped task) was saturating the development drive. |
 | 4 | **Pass** | The grep had exited. The chat completed in 251 s with exit 0. |
 
 Attempts 1–3 never reached the model. They were infrastructure failures, not plugin failures.
