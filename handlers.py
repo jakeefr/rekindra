@@ -459,7 +459,8 @@ def make_handlers(store_factory=host_store, llm=None, llm_factory=None):
                 shown = result.get('preview') if isinstance(result.get('preview'), dict) else {}
                 if answered is not None:
                     # The new preview's measurement decides: a defect it no longer finds counts as addressed
-                    # even when this revise did not declare it.
+                    # even when this revise did not declare it. Reporting only: the saved answers file keeps
+                    # what the revise declared, and each later preview derives cleared_defects again itself.
                     measured = [row for row in shown.get('cleared_defects') or [] if row['id'] in answered['unaddressed']]
                     if measured:
                         gone = {row['id'] for row in measured}

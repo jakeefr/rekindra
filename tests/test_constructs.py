@@ -65,8 +65,8 @@ class FeatherTests(unittest.TestCase):
         self.assertEqual((fits['segments'], notes), ([24, 6], []))
         compile_constructs(surface(feathers=self.SPEC, segments=[20, 6]))   # no collector: still snaps, no error
 
-    def test_segments_no_count_can_fix_are_still_refused(self):
-        with self.assertRaises(SceneError):   # 48 feathers need at least 96 columns and at most 128: only 96 fits
+    def test_malformed_segments_are_still_refused(self):
+        with self.assertRaises(SceneError):
             compile_constructs(surface(feathers=dict(self.SPEC, count=48), segments=['many', 6]))
 
     def test_bad_values_are_refused(self):

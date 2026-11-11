@@ -4,7 +4,7 @@ import math
 import json
 
 from .backdrop import backdrop_warnings
-from .report_checks import camera_graze_warnings, focal_framing_warnings, haze_warnings, object_motion_warnings
+from .report_checks import camera_graze_warnings, focal_framing, focal_framing_warnings, haze_warnings, object_motion_warnings
 from .compositions import CompositionStore
 from .projects import ProjectError, _atomic, _no_links
 from .scenes import SceneError
@@ -286,10 +286,9 @@ def _defects(store, project_id, plan, warnings):
 NOT_DECLARED = 'not declared by the revise; this preview no longer measures it'
 # A defect read from a measurement counts as cleared only when this preview took that measurement.
 _NEEDS_MEASURE = {'frames:objects_still': 'object_motion', 'frames:haze_thin': 'source_mist'}
-_PLAN_ONLY = ('frames:subject_small',)
 
 
-def _cleared(store, project_id, plan, defects, frames, measures):
+def _cleared(store, project_id, plan, defects, frames, measures, framing=None):
     """Defects the parent plan's last preview flagged that this preview of its revision no longer measures.
 
     The measurement decides, whether or not the revise declared the fix: each row carries what the revise
@@ -311,7 +310,11 @@ def _cleared(store, project_id, plan, defects, frames, measures):
         if defect in _NEEDS_MEASURE:
             if _NEEDS_MEASURE[defect] not in measures:
                 continue
-        elif defect.startswith('frames:') and defect not in _PLAN_ONLY and frames is None:
+        elif defect == 'frames:subject_small':
+            # Read from the plan, not the frames: cleared only by a reading that the figure now stands tall enough.
+            if not framing or framing.get('verdict') != 'ok':
+                continue
+        elif defect.startswith('frames:') and frames is None:
             continue
         rows.append({'id': defect, 'how': answers.get(defect, NOT_DECLARED)})
     return rows
@@ -347,9 +350,10 @@ def preview_gate(store, project_id, plan, drift, review_camera, frames=None, mea
     warnings = current_warnings(plan, drift, frames, measures)
     # Still objects are reported and tracked as a defect, but never block export: a camera-only move is a fair choice.
     # A figure that ends small in frame is tracked the same way: a wide ending is also a fair choice.
-    advisory = object_motion_warnings(plan['scene'], measures.get('object_motion')) + focal_framing_warnings(plan['scene'])
+    framing = focal_framing(plan['scene'])
+    advisory = object_motion_warnings(plan['scene'], measures.get('object_motion')) + focal_framing_warnings(plan['scene'], framing)
     defects = _defects(store, project_id, plan, warnings + advisory)
-    cleared = _cleared(store, project_id, plan, defects, frames, measures)
+    cleared = _cleared(store, project_id, plan, defects, frames, measures, framing)
     record = {'plan_id': plan['plan_id'], 'palette_drift': drift}
     if frames is not None:
         record['frames'] = frames

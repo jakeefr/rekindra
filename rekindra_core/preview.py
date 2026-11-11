@@ -303,7 +303,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
         defects = gate.pop('defects', None) if gate is not None else None
         cleared = gate.pop('cleared', None) if gate is not None else None
         framing = focal_framing(plan['scene']) if gated else None
-        motion =object_motion_report(object_motion) if gated else None
+        motion = object_motion_report(object_motion) if gated else None
         haze = haze_report(plan['scene'], mist) if gated else None
         if motion is not None:
             next_step += f" object_motion: {motion['statement']}."

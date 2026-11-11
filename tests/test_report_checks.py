@@ -166,6 +166,14 @@ class FocalFramingTests(unittest.TestCase):
         scene['camera'][1]['eye'] = [0, 1.25, 14]    # starts close, ends far
         self.assertEqual(checks.focal_framing(scene)['verdict'], 'small')
 
+    def test_a_figure_the_final_camera_looks_past_is_not_framed(self):
+        scene = figure_scene(4.5)
+        for key in scene['camera']:
+            key['target'] = [9, .7, 0]   # aimed far to the side: the figure is in front of the eye but out of shot
+        report = checks.focal_framing(scene)
+        self.assertEqual((report['frame_height_share'], report['verdict']), ([0.0, 0.0], 'small'))
+        self.assertEqual([w['warning_id'] for w in checks.focal_framing_warnings(scene)], ['frames:subject_small'])
+
     def test_a_scene_without_a_figure_has_no_reading(self):
         self.assertIsNone(checks.focal_framing(world()))
         self.assertEqual(checks.focal_framing_warnings(world()), [])
@@ -175,7 +183,7 @@ class FocalFramingTests(unittest.TestCase):
             text = SCHEMAS[name]['description']
             self.assertEqual(text.count('within the first third of the duration'), 1, name)
             self.assertIn('frames:subject_small', text, name)
-            self.assertIn('listed under adjusted', text, name)
+            self.assertEqual('listed under adjusted' in text, name != 'rekindra_preview', name)   # preview adjusts nothing
 
 
 class ReportGateTests(gate_tests.ExportGateTests):
@@ -235,6 +243,18 @@ class ReportGateTests(gate_tests.ExportGateTests):
         seen = gate.preview_gate(self.store, self.project_id(), self.plan(second), gate_tests.CLEAN, None,
                                  reliability.LIVELY, {'object_motion': 3.0})
         self.assertEqual(seen['cleared'], [{'id': 'frames:objects_still', 'how': gate.NOT_DECLARED}])
+
+    def test_a_small_figure_is_cleared_only_by_a_reading_that_it_now_stands_tall_enough(self):
+        rows = lambda framing: gate._cleared(self.store, self.project_id(), self.plan(second), [], None, {}, framing)
+        first = self.create()
+        with mock.patch.object(gate, 'focal_framing', lambda scene: {'verdict': 'small', 'subject': 'a', 'threshold': .3,
+                                                                     'frame_height_share': [.1, .1], 'times_seconds': [9, 11]}):
+            found = gate.preview_gate(self.store, self.project_id(), self.plan(first), gate_tests.CLEAN, None)
+        self.assertIn('frames:subject_small', [row['id'] for row in found['defects']])
+        second = self.revise(first)
+        self.assertEqual(rows(None), [])                      # no rig left to measure: nothing was measured
+        self.assertEqual(rows({'verdict': 'small'}), [])
+        self.assertEqual(rows({'verdict': 'ok'}), [{'id': 'frames:subject_small', 'how': gate.NOT_DECLARED}])
 
     def test_create_and_revise_list_what_was_adjusted(self):
         aid = self.ids['photo.tga']

@@ -161,6 +161,11 @@ class SnapTests(unittest.TestCase):
             self.assertIn(f'surface w: wing u segments {given} ', notes[0])
             self.assertIn(f'used {used}', notes[0])
 
+    def test_a_wing_no_allowed_count_fits_is_still_refused(self):
+        crowded = dict(WING, wing=dict(WING['wing'], count=24, rows=3))   # 72 feathers need 216 columns or more
+        with self.assertRaises(SceneError):
+            self.check([surface('body', **FIGURE), surface('w', **crowded)])
+
     def test_wing_layer_deeper_than_allowed_is_moved_to_the_deepest_allowed(self):
         deep = dict(WING, wing=dict(WING['wing'], layer=.4))
         saved, notes = self.check([surface('body', **FIGURE), surface('w', **deep)])

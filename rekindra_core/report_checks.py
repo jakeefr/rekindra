@@ -4,7 +4,7 @@ small surfaces the camera path runs into. Same inputs, same report; nothing here
 import ast
 import math
 
-from .backdrop import _camera_at, _clamp, _dot, _view
+from .backdrop import _ASPECT, _camera_at, _clamp, _dot, _view
 from .expressions import surface_sampler
 from .palette_drift import _lab
 
@@ -32,7 +32,7 @@ PREVIEW_FRAMES = 6
 # medium-wide shot: a kneeling figure with raised wings still fits the 16:9 frame. The demo-1 rehearsal, whose
 # ending read as a small figure in a large room, measured 0.126 and 0.151 in its last two frames.
 FOCAL_SHARE = 0.3
-_EXPRESSION_FIELDS =('color_mix', 'color_detail', 'bump_detail', 'color_pattern')
+_EXPRESSION_FIELDS = ('color_mix', 'color_detail', 'bump_detail', 'color_pattern')
 _UNMODELED = ('loft', 'feathers', 'drape', 'ring', 'assembly')
 
 
@@ -135,12 +135,15 @@ def haze_warnings(scene, mist):
 
 
 def _frame_height(view, points):
-    """Share of the frame height the points span, clipped to the frame; 0 when none is in front of the camera."""
+    """Share of the frame height spanned by the points inside the frame's width, clipped to its height.
+
+    0 when none is in front of the camera and between the left and right edges: a figure the camera looks
+    past is not framed."""
     rows = []
     for point in points:
         delta = [p - e for p, e in zip(point, view['eye'])]
         depth = _dot(delta, view['forward'])
-        if depth > 1e-6:
+        if depth > 1e-6 and abs(_dot(delta, view['right']) / (depth * view['tan'] * _ASPECT)) <= 1:
             rows.append(max(-1.0, min(1.0, _dot(delta, view['up']) / (depth * view['tan']))))
     return (max(rows) - min(rows)) / 2 if rows else 0.0
 
@@ -178,9 +181,9 @@ def focal_framing(scene):
             'verdict': 'small' if max(shares) < FOCAL_SHARE else 'ok'}
 
 
-def focal_framing_warnings(scene):
+def focal_framing_warnings(scene, report=None):
     """The figure the scene is about ends up small in frame. Reported, not an export warning."""
-    report = focal_framing(scene)
+    report = focal_framing(scene) if report is None else report
     if report is None or report['verdict'] != 'small':
         return []
     best = max(report['frame_height_share'])

@@ -142,11 +142,11 @@ _STAGING_RULE = (' Start the main motion (a wing or door opening, growth, a rise
                  'not halfway, and finish it before the last quarter, so most frames show it under way or complete. '
                  'End on the subject: a posed figure should stand at least 0.3 of the frame height in the last third '
                  'of the frames; the preview reports focal_framing, and frames:subject_small when the figure ends '
-                 'small (move the final camera keys closer, lower their fov). A construction count the renderer cannot '
-                 'use (u segments that do not divide into the cards, a wing layer that is too deep) is moved to the '
-                 'nearest allowed value and listed under adjusted.')
+                 'small (move the final camera keys closer, lower their fov).')
+_ADJUSTED_RULE = (' A construction count the renderer cannot use (u segments that do not divide into the cards, a wing '
+                  'layer that is too deep) is moved to the nearest allowed value and listed under adjusted.')
 for _name in ('rekindra_create_world', 'rekindra_revise_world', 'rekindra_preview'):
-    SCHEMAS[_name]['description'] += _STAGING_RULE
+    SCHEMAS[_name]['description'] += _STAGING_RULE + ('' if _name == 'rekindra_preview' else _ADJUSTED_RULE)
 SCHEMAS['rekindra_revise_world']['parameters']['properties']['addresses'] = {
     'type': 'array', 'maxItems': 16, 'items': {'type': 'object', 'properties': {
         'id': {'type': 'string', 'description': 'A defect id from the last preview of the parent plan.'},
