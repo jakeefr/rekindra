@@ -30,6 +30,8 @@ MAX_DOM_BYTES = 40_000_000
 MAX_PNG_BYTES = 8_000_000
 MAX_FRAME_BYTES = 2_000_000
 FRAME_SIZE = (640, 360)
+# All the browser inherits. Hermes' environment holds provider keys, and a browser has no use for them.
+_BROWSER_ENV = ('PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'LANG')
 # A preview that cannot run is the user's to fix. Working around it produced unreviewed exports.
 STOP_MARK = 'Stop and tell the user'
 _STOP = (' ' + STOP_MARK + '. Do not render, measure or record a preview by any other route, and do not edit '
@@ -231,7 +233,7 @@ def preview_scene(store, project_id, plan_id, review_camera=None, draft=False):
             raise SceneError('Scene changed while preparing its preview. Retry with the saved plan.')
         snapshot = working / 'scene.html'
         _atomic(snapshot, html)
-        env = os.environ.copy()
+        env = {key: os.environ[key] for key in _BROWSER_ENV if key in os.environ}
         env.update(TEMP=str(temp), TMP=str(temp), TMPDIR=str(temp),
                    XDG_CACHE_HOME=str(working/'cache'), XDG_DATA_HOME=str(working/'data'), XDG_CONFIG_HOME=str(working/'config'))
         command = [str(browser), '--headless', '--no-first-run', '--no-default-browser-check',

@@ -73,6 +73,29 @@ class ProjectTests(unittest.TestCase):
         p = self.store.inspect(self.source)
         self.assertEqual([a['source_path'] for a in p['assets']], ['notes.txt'])
 
+    def test_excludes_common_credential_stores(self):
+        for folder in ('.hermes', '.claude', '.codex', '.kube', '.Docker'):
+            (self.source / folder).mkdir()
+            (self.source / folder / 'config.json').write_text('private')
+        (self.source / '.config' / 'gcloud').mkdir(parents=True)
+        (self.source / '.config' / 'gcloud' / 'access_tokens.db').write_text('private')
+        (self.source / '.config' / 'palette.txt').write_text('visible')
+        # Only the cloud SDK folder under .config is a credential store.
+        (self.source / 'gcloud').mkdir()
+        (self.source / 'gcloud' / 'notes.txt').write_text('visible')
+        secrets = ('auth.json', 'credentials', 'Credentials.json', 'server.pem', 'id_rsa', 'id_ed25519.pub',
+                   'id_work', '.netrc', '.git-credentials')
+        for name in secrets:
+            (self.source / name).write_text('private')
+        # Key files have no extension or end in .pub; an old image that happens to start with id_ is kept.
+        (self.source / 'id_logo.tga').write_bytes(fixture())
+        (self.source / 'notes.txt').write_text('visible')
+        p = self.store.inspect(self.source)
+        self.assertEqual(sorted(a['source_path'] for a in p['assets']),
+                         ['.config/palette.txt', 'gcloud/notes.txt', 'id_logo.tga', 'notes.txt'])
+        skipped = {row['source_path'] for row in p['skipped'] if row['reason'].startswith('excluded')}
+        self.assertEqual(skipped, {'.hermes', '.claude', '.codex', '.kube', '.Docker', '.config/gcloud', *secrets})
+
     def test_rejects_source_store_overlap(self):
         for store in (ProjectStore(self.source / 'store'), ProjectStore(self.base)):
             with self.assertRaises(ProjectError):

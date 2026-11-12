@@ -49,7 +49,19 @@ def _stored_intake_size(artifacts_dir: Path, artifact: dict) -> int:
 _MAX_INTAKE_BYTES = 16 * 1024 * 1024
 _STAGED_GRACE_SECONDS = 300
 _STAGED = re.compile(r'^(?:[0-9a-f]{32}\.intake|evidence)\.json\.[0-9a-f]{32}\.(?:new|old)$')
-_EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.venv', 'node_modules', '__pycache__'}
+# Skipped at any depth, matched on the lower-cased name: version control, environments, and the
+# credential stores of shells, cloud tools, package managers and AI agents.
+_EXCLUDED = {'.git', '.ssh', '.aws', '.azure', '.gnupg', '.kube', '.docker', '.venv', 'node_modules', '__pycache__',
+             '.hermes', '.openclaw', '.claude', '.claude.json', '.codex', '.gemini', '.cursor', '.continue', '.codeium',
+             '.netrc', '.npmrc', '.pypirc', '.git-credentials', 'auth.json'}
+# .env and .env.*, credentials*, *.pem, and SSH keys: id_* with no extension or ending in .pub.
+_EXCLUDED_NAME = re.compile(r'\.env(?:\..*)?|credentials.*|.*\.pem|id_[^.]*(?:\.pub)?', re.DOTALL)
+
+
+def _excluded(name: str, parent: str) -> bool:
+    name = name.lower()
+    return (name in _EXCLUDED or _EXCLUDED_NAME.fullmatch(name) is not None
+            or (name == 'gcloud' and parent.lower() == '.config'))
 
 
 class ProjectError(ValueError):
@@ -213,7 +225,7 @@ class ProjectStore:
                     reason = None
                     try:
                         _no_links(path)
-                        if entry.name.lower() in _EXCLUDED or entry.name.lower() == '.env' or entry.name.lower().startswith('.env.'):
+                        if _excluded(entry.name, current.name):
                             reason = 'excluded private or development directory/file'
                         elif entry.is_dir(follow_symlinks=False):
                             if depth < self.limits.max_depth:

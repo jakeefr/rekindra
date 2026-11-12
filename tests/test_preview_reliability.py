@@ -171,6 +171,39 @@ class FrameGateTests(gate_tests.ExportGateTests):
         self.assertIn('frames:motionless', [w['warning_id'] for w in out['export_gate']['warnings']])
         self.assertIn('frames:motionless', self.assertBlocked(self.export(plan_id)))
 
+    def test_browser_gets_a_minimal_environment_without_provider_keys(self):
+        plan_id = self.create()
+        body = document(None, self.plan(plan_id)['scene']['duration']).encode()
+        seen = {}
+
+        class Browser:
+            returncode = 0
+
+            def __init__(self, command, stdout=None, **options):
+                seen.update(options['env'])
+                stdout.write(body)
+                stdout.flush()
+
+            def poll(self):
+                return 0
+
+        ambient = {'PATH': 'bin', 'SYSTEMROOT': 'root', 'WINDIR': 'root', 'HOME': 'home', 'USERPROFILE': 'home',
+                   'LOCALAPPDATA': 'local', 'APPDATA': 'roaming', 'LANG': 'C.UTF-8',
+                   'OPENROUTER_API_KEY': 'sk-secret', 'ANTHROPIC_API_KEY': 'sk-secret', 'HERMES_HOME': 'hermes',
+                   'GH_TOKEN': 'secret', 'HTTPS_PROXY': 'http://user:secret@proxy'}
+        camera = {'eye': [0, 30, 0.1], 'target': [0, 0, 0], 'fov': 50}
+        with mock.patch.object(preview, 'find_browser', return_value='browser'), \
+                mock.patch.object(preview.subprocess, 'Popen', Browser), \
+                mock.patch.dict(preview.os.environ, ambient, clear=True):
+            preview.preview_scene(self.store, self.project['project_id'], plan_id, review_camera=camera)
+        kept = {'PATH', 'SYSTEMROOT', 'WINDIR', 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'LANG'}
+        redirected = {'TEMP', 'TMP', 'TMPDIR', 'XDG_CACHE_HOME', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME'}
+        self.assertEqual(set(seen), kept | redirected)
+        for name in kept:
+            self.assertEqual(seen[name], ambient[name])
+        for name in redirected:
+            self.assertIn('preview-work-', seen[name])
+
     def test_inspection_preview_is_not_measured_for_the_gate(self):
         plan_id = self.create()
         body = document(None, self.plan(plan_id)['scene']['duration']).encode()
